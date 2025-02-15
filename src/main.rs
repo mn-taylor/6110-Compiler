@@ -1,6 +1,6 @@
 mod add;
 mod utils;
-const FORM_FEED: char = 12;
+const FORM_FEED: char = 12u8 as char;
 
 fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
     match output {
@@ -310,25 +310,24 @@ fn is_alpha(c: char) -> bool {
 }
 
 fn is_alphanum(c: char) -> bool {
-    c.is_alpha() || c.is_ascii_digit()
+    is_alpha(c) || c.is_ascii_digit()
 }
 
 fn scan(input: String) -> Vec<Token> {
     let mut tokens = Vec::new();
     let mut input = input.chars().peekable();
+    let mut input_clone = input.clone();
     if let Some(fst) = input.peek() {
         if fst.is_ascii_alphabetic() {
-            let word = substring_before(&mut input, |x| !(x.is_ascii_alphabetic() || *x == '_'));
+            let word = substring_before(&mut input, |x| !is_alphanum(*x));
             tokens.push(Token::of_ident_or_keyword(word));
         } else if *fst == '0' {
-            let mut input_clone = input.clone();
             if input_clone.nth(1) == Some('x') {
                 tokens.push(Token::HexLit(scan_hex_lit(&mut input)))
             } else {
                 tokens.push(Token::DecLit(scan_dec_lit(&mut input)))
             }
         } else if *fst == '/' {
-            let mut input_clone = input.clone();
             if input_clone.nth(1) == Some('/') {
                 scan_comment(&mut input);
             } else {
@@ -336,6 +335,17 @@ fn scan(input: String) -> Vec<Token> {
             }
         } else if fst.is_ascii_whitespace() {
             input.next();
+        } else {
+            let mut sym = None;
+            // first try to parse two-character symbol
+            if let Some(snd) = input_clone.nth(1) {
+                sym = Symbol::of_string(&[*fst, snd].iter().collect::<String>())
+            }
+            // if that didn't work, try to parse one-character symbol
+            if let None = sym {
+                sym = Symbol::of_string(&fst.to_string());
+            }
+            tokens.push(Token::Sym(sym.unwrap()));
         }
     }
     tokens
