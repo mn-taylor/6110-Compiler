@@ -60,7 +60,7 @@ enum Keyword {
 use Keyword::*;
 
 impl Keyword {
-    // not statically checked for completeness :(
+    // not statically checked for completeness :( keep me updated please
     fn all() -> Vec<Keyword> {
         vec![
             Import, Void, Int, Long, Bool, If, For, While, Return, Break, Continue, True, False, L,
@@ -102,26 +102,41 @@ enum Token {
 }
 
 impl Token {
-    fn token_of_word(word: &str) {
-	
+    fn of_string(word: String) -> Self {
+        match Keyword::of_string(&word) {
+            Some(k) => Self::Key(k),
+            None => Self::Ident(word),
+        }
     }
 }
 
-fn substring_before(input: &String, test: fn(char) -> bool) -> (&str, &str) {
-    for (i, c) in input.chars().enumerate() {
-        if test(c) {
-            return (&input[..i], &input[i..]);
+use std::iter::Peekable;
+use std::str::Chars;
+
+fn substring_before(input: &mut Peekable<Chars>, test: fn(&char) -> bool) -> String {
+    let mut s = String::new();
+    loop {
+        match input.peek() {
+            Some(c) => {
+                if test(c) {
+                    s.push(*c)
+                } else {
+                    break;
+                }
+            }
+            None => break,
         }
     }
-    return (&input[..], &input[input.len()..]);
+    return s;
 }
 
 fn scan(input: String) {
     let mut tokens = Vec::new();
-    let mut input = input.chars();
-    if let Some(fst) = input.next() {
+    let mut input = input.chars().peekable();
+    if let Some(fst) = input.peek() {
         if fst.is_ascii_alphabetic() {
-	    let (rest_of_word, input) = 
-	}
+            let word = substring_before(&mut input, |x| *x == ' ');
+            tokens.push(Token::of_string(word));
+        }
     }
 }
