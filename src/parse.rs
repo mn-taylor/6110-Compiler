@@ -1,3 +1,5 @@
+use crate::scan::Keyword;
+use crate::scan::Symbol;
 use crate::scan::Token;
 use std::iter::Peekable;
 
@@ -15,9 +17,9 @@ struct Int {
     val: String,
 }
 
-enum FieldDecl {
-    ScalarDecl(Type, Ident),
-    ArrayDecl(Type, Ident, Int),
+enum Field {
+    Scalar(Type, Ident),
+    Array(Type, Ident, Int),
 }
 
 struct Param {
@@ -80,15 +82,6 @@ enum Location {
     ArrayIndex(Ident, Expr),
 }
 
-enum AssignOp {
-    Eq,
-    PlusEq,
-    MinusEq,
-    MulEq,
-    DivEq,
-    ModEq,
-}
-
 enum AssignExpr {
     RegularAssign(AssignOp, Expr),
     Increment,
@@ -100,7 +93,6 @@ enum Arg {
     ExternArg(String),
 }
 
-// not done
 enum Stmt {
     Assignment(Location, AssignExpr),
     Call(Ident, Vec<Arg>),
@@ -113,11 +105,11 @@ enum Stmt {
 }
 
 struct Block {
-    fields: Vec<FieldDecl>,
+    fields: Vec<Field>,
     stmts: Vec<Stmt>,
 }
 
-struct MethodDecl {
+struct Method {
     meth_type: Option<Type>,
     name: Ident,
     params: Vec<Param>,
@@ -126,8 +118,46 @@ struct MethodDecl {
 
 struct Program {
     imports: Vec<Ident>,
-    fields: Vec<FieldDecl>,
-    methods: Vec<MethodDecl>,
+    fields: Vec<Field>,
+    methods: Vec<Method>,
 }
 
-fn parse_program<T: Iterator<Item = Token>>(tokens: Peekable<T>) -> Program {}
+fn call_til_none<U, T: FnMut() -> Option<U>>(mut /*why*/ f: T) -> Vec<U> {
+    let mut ret = Vec::new();
+    while let Some(u) = f() {
+        ret.push(u);
+    }
+    ret
+}
+
+fn parse_import<T: Clone + Iterator<Item = Token>>(tokens: &mut T) -> Option<Ident> {
+    let tokens_clone = tokens.clone();
+    if let (
+        Some(Token::Key(Keyword::Import)),
+        Some(Token::Ident(name)),
+        Some(Token::Sym(Symbol::Semicolon)),
+    ) = (tokens.next(), tokens.next(), tokens.next())
+    {
+        Some(Ident { name })
+    } else {
+        *tokens = tokens_clone;
+        None
+    }
+}
+
+fn parse_field<T: Iterator<Item = Token>>(tokens: &mut Peekable<T>) -> Option<FieldDecl> {
+    let tokens_clone = tokens.clone();
+    if let Some(Token::
+}
+
+fn parse_method<T: Iterator<Item = Token>>(tokens: &mut Peekable<T>) -> Option<MethodDecl> {
+    panic!()
+}
+
+fn parse_program<T: Clone + Iterator<Item = Token>>(tokens: &mut T) -> Program {
+    Program {
+        imports: call_til_none(|| parse_import(tokens)),
+        fields: call_til_none(|| parse_field(tokens)),
+        methods: call_til_none(|| parse_method(tokens)),
+    }
+}
