@@ -1,4 +1,3 @@
-mod add;
 mod utils;
 
 fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {

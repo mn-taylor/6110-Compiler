@@ -1,5 +1,6 @@
 const FORM_FEED: char = 12u8 as char;
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum Keyword {
     Import,
     Void,
@@ -56,6 +57,7 @@ impl Keyword {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum Symbol {
     Plus,
     Minus,
@@ -173,6 +175,7 @@ impl Symbol {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum Token {
     Key(Keyword),
     Ident(String),
@@ -193,15 +196,16 @@ impl Token {
 use std::iter::Peekable;
 use std::str::Chars;
 
-fn substring_before(input: &mut Peekable<Chars>, test: fn(&char) -> bool) -> String {
+fn eat_until(input: &mut Peekable<Chars>, test: fn(&char) -> bool) -> String {
     let mut s = String::new();
     loop {
         match input.peek() {
             Some(c) => {
                 if test(c) {
-                    s.push(*c)
-                } else {
                     break;
+                } else {
+                    s.push(*c);
+                    input.next();
                 }
             }
             None => break,
@@ -272,40 +276,86 @@ fn is_alphanum(c: char) -> bool {
     is_alpha(c) || c.is_ascii_digit()
 }
 
+fn scan_ident_or_keyword(input: &mut Peekable<Chars>) -> String {
+    eat_until(input, |x| !is_alphanum(*x))
+}
+
 pub fn scan(input: String) -> Vec<Token> {
     let mut tokens = Vec::new();
     let mut input = input.chars().peekable();
-    let mut input_clone = input.clone();
-    if let Some(fst) = input.peek() {
-        if fst.is_ascii_alphabetic() {
-            let word = substring_before(&mut input, |x| !is_alphanum(*x));
-            tokens.push(Token::of_ident_or_keyword(word));
-        } else if *fst == '0' {
-            if input_clone.nth(1) == Some('x') {
-                tokens.push(Token::HexLit(scan_hex_lit(&mut input)))
+    let mut counter = 0;
+    loop {
+        let mut input_clone = input.clone();
+        if let Some(fst) = input_clone.next() {
+            println!("fst: {:?}", fst);
+            if is_alpha(fst) {
+                tokens.push(Token::of_ident_or_keyword(scan_ident_or_keyword(
+                    &mut input,
+                )));
+            } else if fst.is_ascii_digit() {
+                if fst == '0' && input_clone.next() == Some('x') {
+                    tokens.push(Token::HexLit(scan_hex_lit(&mut input)))
+                } else {
+                    tokens.push(Token::DecLit(scan_dec_lit(&mut input)))
+                }
+            } else if fst == '/' {
+                if input_clone.nth(1) == Some('/') {
+                    scan_comment(&mut input);
+                } else {
+                    scan_block_comment(&mut input);
+                }
+            } else if fst.is_ascii_whitespace() {
+                input.next();
             } else {
-                tokens.push(Token::DecLit(scan_dec_lit(&mut input)))
+                let mut sym = None;
+                // first try to parse two-character symbol
+                if let Some(snd) = input_clone.nth(1) {
+                    if let Some(s) = Symbol::of_string(&[fst, snd].iter().collect::<String>()) {
+                        sym = Some(s);
+                        input.next();
+                        input.next();
+                    }
+                }
+                // if that didn't work, try to parse one-character symbol
+                if let None = sym {
+                    if let Some(s) = Symbol::of_string(&fst.to_string()) {
+                        sym = Some(s);
+                        input.next();
+                    }
+                }
+                tokens.push(Token::Sym(sym.unwrap()));
             }
-        } else if *fst == '/' {
-            if input_clone.nth(1) == Some('/') {
-                scan_comment(&mut input);
-            } else {
-                scan_block_comment(&mut input);
+            counter += 1;
+            if counter >= 10 {
+                break;
             }
-        } else if fst.is_ascii_whitespace() {
-            input.next();
         } else {
-            let mut sym = None;
-            // first try to parse two-character symbol
-            if let Some(snd) = input_clone.nth(1) {
-                sym = Symbol::of_string(&[*fst, snd].iter().collect::<String>())
-            }
-            // if that didn't work, try to parse one-character symbol
-            if let None = sym {
-                sym = Symbol::of_string(&fst.to_string());
-            }
-            tokens.push(Token::Sym(sym.unwrap()));
+            break;
         }
     }
     tokens
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test(input: &str, output: Vec<Token>) {
+        assert_eq!(scan(input.to_string()), output);
+    }
+
+    #[test]
+    fn one_ident() {
+        test("blah", vec![Token::Ident("blah".to_string())]);
+    }
+
+    #[test]
+    fn nothing() {
+        test("", vec![]);
+    }
+
+    #[test]
+    fn var_decl() {
+        test("int x = 5;", vec![]);
+    }
 }
