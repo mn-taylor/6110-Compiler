@@ -1,6 +1,29 @@
+use enum_iterator::all;
+use enum_iterator::Sequence;
+use std::string::ToString;
+
 const FORM_FEED: char = 12u8 as char;
 
-#[derive(Debug, PartialEq, Eq)]
+pub trait Finite {}
+
+pub trait OfString {
+    fn of_string(input: &str) -> Option<Self>
+    where
+        Self: Sized;
+}
+
+impl<T: ToString + Sequence + Finite> OfString for T {
+    fn of_string(input: &str) -> Option<T> {
+        for val in all::<Self>() {
+            if val.to_string() == input {
+                return Some(val);
+            }
+        }
+        return None;
+    }
+}
+
+#[derive(Debug, PartialEq, Sequence, Clone)]
 pub enum Keyword {
     Import,
     Void,
@@ -21,13 +44,6 @@ pub enum Keyword {
 use Keyword::*;
 
 impl Keyword {
-    // not statically checked for completeness :( keep me updated please
-    fn all() -> Vec<Keyword> {
-        vec![
-            Import, Void, Int, Long, Bool, If, For, While, Return, Break, Continue, True, False, L,
-        ]
-    }
-
     fn to_string(&self) -> &str {
         match self {
             Import => "import",
@@ -47,8 +63,8 @@ impl Keyword {
         }
     }
 
-    fn of_string(word: &str) -> Option<Keyword> {
-        for val in Self::all() {
+    fn of_string(word: &str) -> Option<Self> {
+        for val in all::<Self>() {
             if val.to_string() == word {
                 return Some(val);
             }
@@ -57,21 +73,115 @@ impl Keyword {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum Symbol {
+#[derive(Debug, PartialEq, Sequence, Clone)]
+pub enum AssignOp {
+    Eq,
+    PlusEq,
+    MinusEq,
+    MulEq,
+    DivEq,
+    ModEq,
+}
+
+use AssignOp::*;
+
+impl ToString for AssignOp {
+    fn to_string(&self) -> String {
+        match self {
+            Eq => "=",
+            PlusEq => "+=",
+            MinusEq => "-=",
+            MulEq => "*=",
+            DivEq => "/=",
+            ModEq => "%=",
+        }
+        .to_string()
+    }
+}
+
+#[derive(Debug, PartialEq, Sequence, Clone)]
+enum ArithOp {
     Plus,
     Minus,
     Mul,
     Div,
     Mod,
+}
+
+use ArithOp::*;
+
+impl ToString for ArithOp {
+    fn to_string(&self) -> String {
+        match self {
+            Plus => "+",
+            Minus => "-",
+            Mul => "*",
+            Div => "/",
+            Mod => "%",
+        }
+        .to_string()
+    }
+}
+
+#[derive(Debug, PartialEq, Sequence, Clone)]
+pub enum RelOp {
     Lt,
     Gt,
-    Leq,
-    Geq,
+    Le,
+    Ge,
+}
+
+impl ToString for RelOp {
+    fn to_string(&self) -> String {
+        match self {
+            RelOp::Lt => "<",
+            RelOp::Gt => ">",
+            RelOp::Le => "<=",
+            RelOp::Ge => ">=",
+        }
+        .to_string()
+    }
+}
+
+#[derive(Debug, PartialEq, Sequence, Clone)]
+pub enum BoolOp {
     Eq,
     Neq,
     And,
     Or,
+}
+
+impl ToString for BoolOp {
+    fn to_string(&self) -> String {
+        match self {
+            BoolOp::Eq => "==",
+            BoolOp::Neq => "!=",
+            BoolOp::And => "&&",
+            BoolOp::Or => "||",
+        }
+        .to_string()
+    }
+}
+
+#[derive(Debug, PartialEq, Sequence, Clone)]
+pub enum BinOp {
+    Arith(ArithOp),
+    Rel(RelOp),
+    Bool(BoolOp),
+}
+
+impl BinOp {
+    fn to_string(&self) -> String {
+        match self {
+            BinOp::Arith(op) => op.to_string(),
+            BinOp::Rel(op) => op.to_string(),
+            BinOp::Bool(op) => op.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Sequence, Clone)]
+pub enum MiscSymbol {
     Not,
     LPar,
     RPar,
@@ -79,72 +189,17 @@ pub enum Symbol {
     RBrack,
     LBrace,
     RBrace,
-    Assign,
-    PlusAssign,
-    MinusAssign,
-    MulAssign,
-    DivAssign,
-    ModAssign,
     PlusPlus,
     MinusMinus,
     Semicolon,
     Comma,
 }
 
-use Symbol::*;
+use MiscSymbol::*;
 
-impl Symbol {
-    // not statically checked for completeness :( keep me updated please.
-    fn all() -> Vec<Symbol> {
-        vec![
-            Plus,
-            Minus,
-            Mul,
-            Div,
-            Mod,
-            Lt,
-            Gt,
-            Leq,
-            Geq,
-            Eq,
-            Neq,
-            And,
-            Or,
-            Not,
-            LPar,
-            RPar,
-            LBrack,
-            RBrack,
-            LBrace,
-            RBrace,
-            Assign,
-            PlusAssign,
-            MinusAssign,
-            MulAssign,
-            DivAssign,
-            ModAssign,
-            PlusPlus,
-            MinusMinus,
-            Semicolon,
-            Comma,
-        ]
-    }
-
-    fn to_string(&self) -> &str {
+impl ToString for MiscSymbol {
+    fn to_string(&self) -> String {
         match self {
-            Plus => "+",
-            Minus => "-",
-            Mul => "*",
-            Div => "/",
-            Mod => "%",
-            Lt => "<",
-            Gt => ">",
-            Leq => "<=",
-            Geq => ">=",
-            Eq => "==",
-            Neq => "!=",
-            And => "&&",
-            Or => "||",
             Not => "!",
             LPar => "(",
             RPar => ")",
@@ -152,30 +207,37 @@ impl Symbol {
             RBrack => "]",
             LBrace => "{",
             RBrace => "}",
-            Assign => "=",
-            PlusAssign => "+=",
-            MinusAssign => "-=",
-            MulAssign => "*=",
-            DivAssign => "/=",
-            ModAssign => "%=",
             PlusPlus => "++",
             MinusMinus => "--",
             Semicolon => ";",
             Comma => ",",
         }
-    }
-
-    fn of_string(word: &str) -> Option<Symbol> {
-        for val in Self::all() {
-            if val.to_string() == word {
-                return Some(val);
-            }
-        }
-        None
+        .to_string()
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Sequence, Clone)]
+pub enum Symbol {
+    Bin(BinOp),
+    Assign(AssignOp),
+    Misc(MiscSymbol),
+}
+
+use Symbol::*;
+
+impl Finite for Symbol {}
+
+impl ToString for Symbol {
+    fn to_string(&self) -> String {
+        match self {
+            Bin(b) => b.to_string(),
+            Assign(op) => op.to_string(),
+            Misc(symb) => symb.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Key(Keyword),
     Ident(String),
@@ -393,9 +455,9 @@ mod tests {
             vec![
                 Key(Int),
                 Ident("x".to_string()),
-                Sym(Assign),
+                Sym(Assign(Eq)),
                 DecLit("5".to_string()),
-                Sym(Semicolon),
+                Sym(Misc(Semicolon)),
             ],
         );
     }

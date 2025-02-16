@@ -1,6 +1,4 @@
-use crate::scan::Keyword;
-use crate::scan::Symbol;
-use crate::scan::Token;
+use crate::scan::*;
 use std::iter::Peekable;
 
 struct Ident {
@@ -35,34 +33,6 @@ enum Literal {
     HexLong(String),
     Char(char),
     Bool(bool),
-}
-
-enum ArithOp {
-    Plus,
-    Minus,
-    Mul,
-    Div,
-    Mod,
-}
-
-enum RelOp {
-    Lt,
-    Gt,
-    Le,
-    Ge,
-}
-
-enum BoolOp {
-    Eq,
-    Neq,
-    And,
-    Or,
-}
-
-enum BinOp {
-    Arith(ArithOp),
-    Rel(RelOp),
-    Bool(BoolOp),
 }
 
 enum Expr {
@@ -130,12 +100,14 @@ fn call_til_none<U, T: FnMut() -> Option<U>>(mut /*why*/ f: T) -> Vec<U> {
     ret
 }
 
+use crate::scan::MiscSymbol::*;
+
 fn parse_import<T: Clone + Iterator<Item = Token>>(tokens: &mut T) -> Option<Ident> {
     let tokens_clone = tokens.clone();
     if let (
         Some(Token::Key(Keyword::Import)),
         Some(Token::Ident(name)),
-        Some(Token::Sym(Symbol::Semicolon)),
+        Some(Token::Sym(Symbol::Misc(Semicolon))),
     ) = (tokens.next(), tokens.next(), tokens.next())
     {
         Some(Ident { name })
@@ -145,19 +117,19 @@ fn parse_import<T: Clone + Iterator<Item = Token>>(tokens: &mut T) -> Option<Ide
     }
 }
 
-fn parse_field<T: Iterator<Item = Token>>(tokens: &mut Peekable<T>) -> Option<FieldDecl> {
-    let tokens_clone = tokens.clone();
-    if let Some(Token::
+fn parse_field<T: Iterator<Item = Token>>(tokens: &mut Peekable<T>) -> Option<Field> {
+    panic!();
 }
 
-fn parse_method<T: Iterator<Item = Token>>(tokens: &mut Peekable<T>) -> Option<MethodDecl> {
+fn parse_method<T: Iterator<Item = Token>>(tokens: &mut Peekable<T>) -> Option<Method> {
     panic!()
 }
 
 fn parse_program<T: Clone + Iterator<Item = Token>>(tokens: &mut T) -> Program {
+    panic!();
     Program {
         imports: call_til_none(|| parse_import(tokens)),
-        fields: call_til_none(|| parse_field(tokens)),
-        methods: call_til_none(|| parse_method(tokens)),
+        fields: panic!(),  // call_til_none(|| parse_field(tokens)),
+        methods: panic!(), //call_til_none(|| parse_method(tokens)),
     }
 }
