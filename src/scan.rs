@@ -196,16 +196,16 @@ impl Token {
 use std::iter::Peekable;
 use std::str::Chars;
 
-fn eat_until(input: &mut Peekable<Chars>, test: fn(&char) -> bool) -> String {
+fn eat_while(input: &mut Peekable<Chars>, test: fn(&char) -> bool) -> String {
     let mut s = String::new();
     loop {
         match input.peek() {
             Some(c) => {
                 if test(c) {
-                    break;
-                } else {
                     s.push(*c);
                     input.next();
+                } else {
+                    break;
                 }
             }
             None => break,
@@ -253,19 +253,25 @@ fn scan_str_lit(input: &mut Peekable<Chars>) -> String {
 }
 
 fn scan_dec_lit(input: &mut Peekable<Chars>) -> String {
-    panic!()
+    eat_while(input, |x| x.is_ascii_digit())
 }
 
 fn scan_hex_lit(input: &mut Peekable<Chars>) -> String {
-    panic!()
+    eat_while(input, |x| x.is_ascii_hexdigit())
 }
 
-fn scan_comment(input: &mut Peekable<Chars>) {
-    panic!()
-}
-
-fn scan_block_comment(input: &mut Peekable<Chars>) {
-    panic!()
+// returns true if it found the end of the comment
+fn scan_until_block_comment_end(input: &mut Peekable<Chars>) -> bool {
+    input.next();
+    input.next();
+    let mut prev = None;
+    for c in input {
+        if c == '/' && prev == Some('*') {
+            return true;
+        }
+        prev = Some(c);
+    }
+    false
 }
 
 fn is_alpha(c: char) -> bool {
@@ -277,61 +283,86 @@ fn is_alphanum(c: char) -> bool {
 }
 
 fn scan_ident_or_keyword(input: &mut Peekable<Chars>) -> String {
-    eat_until(input, |x| !is_alphanum(*x))
+    eat_while(input, |x| is_alphanum(*x))
 }
 
 pub fn scan(input: String) -> Vec<Token> {
     let mut tokens = Vec::new();
-    let mut input = input.chars().peekable();
     let mut counter = 0;
-    loop {
-        let mut input_clone = input.clone();
-        if let Some(fst) = input_clone.next() {
-            println!("fst: {:?}", fst);
-            if is_alpha(fst) {
-                tokens.push(Token::of_ident_or_keyword(scan_ident_or_keyword(
-                    &mut input,
-                )));
-            } else if fst.is_ascii_digit() {
-                if fst == '0' && input_clone.next() == Some('x') {
-                    tokens.push(Token::HexLit(scan_hex_lit(&mut input)))
-                } else {
-                    tokens.push(Token::DecLit(scan_dec_lit(&mut input)))
-                }
-            } else if fst == '/' {
-                if input_clone.nth(1) == Some('/') {
-                    scan_comment(&mut input);
-                } else {
-                    scan_block_comment(&mut input);
-                }
-            } else if fst.is_ascii_whitespace() {
-                input.next();
-            } else {
-                let mut sym = None;
-                // first try to parse two-character symbol
-                if let Some(snd) = input_clone.nth(1) {
-                    if let Some(s) = Symbol::of_string(&[fst, snd].iter().collect::<String>()) {
-                        sym = Some(s);
-                        input.next();
-                        input.next();
+    let mut scanning_block_comment = false;
+    for line in input.lines() {
+        let mut line = line.chars().peekable();
+        loop {
+            if scanning_block_comment {
+                scanning_block_comment = scan_until_block_comment_end(&mut line);
+                continue;
+            }
+            let mut line_clone = line.clone();
+            match line_clone.next() {
+                None => break,
+                Some(fst) => {
+                    println!("fst: {:?}", fst);
+
+                    // lex ident or keyword
+                    if is_alpha(fst) {
+                        tokens.push(Token::of_ident_or_keyword(scan_ident_or_keyword(&mut line)));
+                    }
+                    // lex int literal
+                    else if fst.is_ascii_digit() {
+                        if fst == '0' && line_clone.next() == Some('x') {
+                            tokens.push(Token::HexLit(scan_hex_lit(&mut line)))
+                        } else {
+                            tokens.push(Token::DecLit(scan_dec_lit(&mut line)))
+                        }
+                    }
+                    // lex comment
+                    else if fst == '/' {
+                        if line_clone.next() == Some('/') {
+                            break;
+                        // go to next line
+                        // could also do line.last();
+                        } else {
+                            line.next();
+                            line.next();
+                            scanning_block_comment = true;
+                        }
+                    }
+                    // lex space
+                    else if fst.is_ascii_whitespace() {
+                        line.next();
+                    }
+                    // lex symbol
+                    else {
+                        let mut sym = None;
+                        // first try to parse two-character symbol
+                        if let Some(snd) = line_clone.nth(1) {
+                            if let Some(s) =
+                                Symbol::of_string(&[fst, snd].iter().collect::<String>())
+                            {
+                                sym = Some(s);
+                                line.next();
+                                line.next();
+                            }
+                        }
+                        // if that didn't work, try to parse one-character symbol
+                        if let None = sym {
+                            if let Some(s) = Symbol::of_string(&fst.to_string()) {
+                                sym = Some(s);
+                                line.next();
+                            }
+                        }
+                        tokens.push(Token::Sym(sym.unwrap()));
+                    }
+                    counter += 1;
+                    if counter >= 10 {
+                        break;
                     }
                 }
-                // if that didn't work, try to parse one-character symbol
-                if let None = sym {
-                    if let Some(s) = Symbol::of_string(&fst.to_string()) {
-                        sym = Some(s);
-                        input.next();
-                    }
-                }
-                tokens.push(Token::Sym(sym.unwrap()));
             }
-            counter += 1;
-            if counter >= 10 {
-                break;
-            }
-        } else {
-            break;
         }
+    }
+    if scanning_block_comment {
+        panic!("unterminated block comment");
     }
     tokens
 }
@@ -339,6 +370,7 @@ pub fn scan(input: String) -> Vec<Token> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use Token::*;
 
     fn test(input: &str, output: Vec<Token>) {
         assert_eq!(scan(input.to_string()), output);
@@ -346,7 +378,7 @@ mod tests {
 
     #[test]
     fn one_ident() {
-        test("blah", vec![Token::Ident("blah".to_string())]);
+        test("blah", vec![Ident("blah".to_string())]);
     }
 
     #[test]
@@ -356,6 +388,18 @@ mod tests {
 
     #[test]
     fn var_decl() {
-        test("int x = 5;", vec![]);
+        test(
+            "int x = 5;",
+            vec![
+                Key(Int),
+                Ident("x".to_string()),
+                Sym(Assign),
+                DecLit("5".to_string()),
+                Sym(Semicolon),
+            ],
+        );
     }
+
+    #[test]
+    fn no() {}
 }
