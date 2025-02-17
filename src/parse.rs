@@ -59,6 +59,7 @@ pub enum AtomicExpr {
 }
 
 use crate::scan::AddOp::*;
+use crate::scan::MiscSymbol::*;
 use crate::scan::Symbol::*;
 
 fn parse_atomic_expr<'a, T: Clone + Iterator<Item = &'a Token>>(
@@ -67,6 +68,54 @@ fn parse_atomic_expr<'a, T: Clone + Iterator<Item = &'a Token>>(
     // order matters here.  one that works is
     // Neg, Not, Ex, IntCast, LongCast, Len, Lit, Call, Loc
     let parse_neg = parse_concat(parse_one(exactly(Sym(AddSym(Sub)))), parse_atomic_expr);
+    let parse_not = parse_concat(parse_one(exactly(Sym(Misc(Not)))), parse_atomic_expr);
+    let parse_ex = parse_concat(
+        parse_one(exactly(Sym(Misc(LPar)))),
+        parse_concat(parse_or_expr, parse_one(exactly(Sym(Misc(RPar))))),
+    );
+    let parse_intcast = parse_concat(parse_one(exactly(Key(Int))), parse_ex);
+    let parse_longcast = parse_concat(parse_one(exactly(Key(Long))), parse_ex);
+    let parse_len = parse_concat(
+        parse_one(exactly(Key(Len))),
+        parse_concat(
+            parse_one(exactly(Sym(Misc(LPar)))),
+            parse_concat(parse_one(ident), parse_one(exactly(Sym(Misc(RPar))))),
+        ),
+    );
+    // parse_lit defined elsewhere
+    let parse_call = parse_concat(
+        parse_one(ident),
+        parse_concat(
+            parse_one(exactly(Sym(Misc(LPar)))),
+            parse_concat(
+                parse_or(parse_args, parse_nothing),
+                parse_one(exactly(Sym(Misc(RPar)))),
+            ),
+        ),
+    );
+    // parse_loc defined elsewhere
+    match parse_or(
+        parse_neg,
+        parse_or(
+            parse_not,
+            parse_or(
+                parse_ex,
+                parse_or(
+                    parse_intcast,
+                    parse_or(
+                        parse_longcast,
+                        parse_or(
+                            parse_len,
+                            parse_or(parse_lit, parse_or(parse_call, parse_loc)),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    ) {}
+}
+
+fn parse_or_expr<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<OrExpr> {
     panic!()
 }
 
@@ -273,7 +322,6 @@ fn ident(token: &Token) -> Option<Ident> {
 }
 
 use crate::scan::Keyword::*;
-use crate::scan::Symbol::*;
 use crate::scan::Token::*;
 
 fn parse_import<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Ident> {
