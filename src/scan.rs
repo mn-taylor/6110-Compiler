@@ -246,6 +246,8 @@ pub enum Token {
     Ident(String),
     DecLit(String),
     HexLit(String),
+    StrLit(String),
+    CharLit(char),
     Sym(Symbol),
 }
 

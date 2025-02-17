@@ -45,6 +45,36 @@ pub enum Literal {
     Bool(bool),
 }
 
+fn bool_lit(t: &Token) -> Option<bool> {
+    match t {
+        Key(True) => Some(true),
+        Key(False) => Some(false),
+        _ => None,
+    }
+}
+
+fn char_lit(t: &Token) -> Option<char> {
+    match t {
+        CharLit(c) => Some(*c),
+        _ => None,
+    }
+}
+
+fn parse_lit<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Literal> {
+    // order doesn't much matter, just need to try long before int
+    if let Some(b) = parse_one(bool_lit)(tokens) {
+        return Some(Literal::Bool(b));
+    }
+    if let Some(c) = parse_one(char_lit)(tokens) {
+        return Some(Char(c));
+    }
+    let parse_long = parse_concat(parse_one(long_lit), parse_one(exactly(Key(L))));
+    if let Some((l, ())) = parse_long(tokens) {
+        return Some(l);
+    }
+    parse_one(int_lit)(tokens)
+}
+
 #[derive(Debug, PartialEq)]
 pub enum AtomicExpr {
     Loc(Box<Location>),
@@ -52,15 +82,20 @@ pub enum AtomicExpr {
     Lit(Literal),
     IntCast(Box<OrExpr>),
     LongCast(Box<OrExpr>),
-    Len(Ident),
-    Neg(Box<AtomicExpr>),
-    Not(Box<AtomicExpr>),
+    LenEx(Ident),
+    NegEx(Box<AtomicExpr>),
+    NotEx(Box<AtomicExpr>),
     Ex(Box<OrExpr>),
 }
 
 use crate::scan::AddOp::*;
 use crate::scan::MiscSymbol::*;
 use crate::scan::Symbol::*;
+use AtomicExpr::*;
+
+fn parse_nothing<T>(_tokens: &mut T) -> Option<()> {
+    Some(())
+}
 
 fn parse_atomic_expr<'a, T: Clone + Iterator<Item = &'a Token>>(
     tokens: &mut T,
@@ -73,8 +108,8 @@ fn parse_atomic_expr<'a, T: Clone + Iterator<Item = &'a Token>>(
         parse_one(exactly(Sym(Misc(LPar)))),
         parse_concat(parse_or_expr, parse_one(exactly(Sym(Misc(RPar))))),
     );
-    let parse_intcast = parse_concat(parse_one(exactly(Key(Int))), parse_ex);
-    let parse_longcast = parse_concat(parse_one(exactly(Key(Long))), parse_ex);
+    let parse_intcast = parse_concat(parse_one(exactly(Key(Int))), &parse_ex);
+    let parse_longcast = parse_concat(parse_one(exactly(Key(Long))), &parse_ex);
     let parse_len = parse_concat(
         parse_one(exactly(Key(Len))),
         parse_concat(
@@ -88,31 +123,52 @@ fn parse_atomic_expr<'a, T: Clone + Iterator<Item = &'a Token>>(
         parse_concat(
             parse_one(exactly(Sym(Misc(LPar)))),
             parse_concat(
-                parse_or(parse_args, parse_nothing),
+                parse_or(parse_comma_sep_list(parse_arg), parse_nothing),
                 parse_one(exactly(Sym(Misc(RPar)))),
             ),
         ),
     );
     // parse_loc defined elsewhere
-    match parse_or(
+    let parse_atomic_expr = parse_or(
         parse_neg,
         parse_or(
             parse_not,
             parse_or(
-                parse_ex,
+                &parse_ex,
                 parse_or(
                     parse_intcast,
                     parse_or(
                         parse_longcast,
                         parse_or(
                             parse_len,
-                            parse_or(parse_lit, parse_or(parse_call, parse_loc)),
+                            parse_or(parse_lit, parse_or(parse_call, parse_location)),
                         ),
                     ),
                 ),
             ),
         ),
-    ) {}
+    );
+    Some(match parse_atomic_expr(tokens)? {
+        Inl(((), neg_exp)) => NegEx(Box::new(neg_exp)),
+        Inr(Inl(((), not_exp))) => AtomicExpr::NotEx(Box::new(not_exp)),
+        Inr(Inr(Inl(((), (par_exp, ()))))) => Ex(Box::new(par_exp)),
+        Inr(Inr(Inr(x))) => match x {
+            Inl(((), ((), (int_exp, ())))) => IntCast(Box::new(int_exp)),
+            Inr(Inl(((), ((), (long_exp, ()))))) => LongCast(Box::new(long_exp)),
+            Inr(Inr(Inl(((), ((), (len_id, ())))))) => LenEx(len_id),
+            Inr(Inr(Inr(x))) => match x {
+                Inl(lit) => Lit(lit),
+                Inr(Inl((name, ((), (args, ()))))) => {
+                    let args = match args {
+                        Inl(args) => args,
+                        Inr(()) => vec![],
+                    };
+                    Call(name, args)
+                }
+                Inr(Inr(loc)) => Loc(Box::new(loc)),
+            },
+        },
+    })
 }
 
 fn parse_or_expr<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<OrExpr> {
@@ -161,6 +217,8 @@ pub enum Location {
     ArrayIndex(Ident, OrExpr),
 }
 
+fn parse_location<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Location> {}
+
 #[derive(Debug, PartialEq)]
 pub enum AssignExpr {
     RegularAssign(AssignOp, OrExpr),
@@ -172,6 +230,11 @@ pub enum AssignExpr {
 pub enum Arg {
     ExprArg(OrExpr),
     ExternArg(String),
+}
+
+fn parse_arg<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Arg> {
+    let arg = parse_or(parse_or_expr, parse_one(str_lit));
+    match arg(tokens) {}
 }
 
 #[derive(Debug, PartialEq)]
@@ -273,8 +336,6 @@ fn parse_comma_sep_list<'a, T: Clone + Iterator<Item = &'a Token>, U>(
     }
 }
 
-use crate::scan::MiscSymbol::*;
-
 fn parse_one<'a, T: Clone + Iterator<Item = &'a Token>, U>(
     f: impl Fn(&Token) -> Option<U>,
 ) -> impl Fn(&mut T) -> Option<U> {
@@ -297,6 +358,21 @@ fn int_lit(t: &Token) -> Option<Literal> {
     match t {
         DecLit(s) => Some(DecInt(s.to_string())),
         HexLit(s) => Some(HexInt(s.to_string())),
+        _ => None,
+    }
+}
+
+fn long_lit(t: &Token) -> Option<Literal> {
+    match t {
+        DecLit(s) => Some(DecLong(s.to_string())),
+        HexLit(s) => Some(HexLong(s.to_string())),
+        _ => None,
+    }
+}
+
+fn str_lit(t: &Token) -> Option<String> {
+    match t {
+        StrLit(s) => Some(s.to_string()),
         _ => None,
     }
 }
