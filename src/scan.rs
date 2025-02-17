@@ -100,7 +100,7 @@ impl ToString for AssignOp {
 }
 
 #[derive(Debug, PartialEq, Sequence, Clone)]
-enum ArithOp {
+pub enum ArithOp {
     Plus,
     Minus,
     Mul,
