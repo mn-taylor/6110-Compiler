@@ -2,7 +2,7 @@ use crate::scan::*;
 
 // is this really not in the stdlib?
 #[derive(Debug, PartialEq)]
-enum Sum<A, B> {
+pub enum Sum<A, B> {
     Inl(A),
     Inr(B),
 }
@@ -10,33 +10,33 @@ enum Sum<A, B> {
 use Sum::*;
 
 #[derive(Debug, PartialEq)]
-struct Ident {
-    name: String,
+pub struct Ident {
+    pub name: String,
 }
 
-// not sure about best way to handle current cloning of type
+// not sure about best way to handle current cloning of Type
 #[derive(Clone, Debug, PartialEq)]
-enum Type {
+pub enum Type {
     IntType,
     LongType,
     BoolType,
 }
 
 #[derive(Debug, PartialEq)]
-enum Field {
+pub enum Field {
     Scalar(Type, Ident),
     Array(Type, Ident, Literal),
 }
 
 #[derive(Debug, PartialEq)]
-struct Param {
-    param_type: Type,
-    name: Ident,
+pub struct Param {
+    pub param_type: Type,
+    pub name: Ident,
 }
 
 // allowing negation here would be redundant, since negation appears in expr
 #[derive(Debug, PartialEq)]
-enum Literal {
+pub enum Literal {
     DecInt(String),
     HexInt(String),
     DecLong(String),
@@ -46,68 +46,116 @@ enum Literal {
 }
 
 #[derive(Debug, PartialEq)]
-enum Expr {
+pub enum AtomicExpr {
     Loc(Box<Location>),
     Call(Ident, Vec<Arg>),
     Lit(Literal),
-    IntCast(Box<Expr>),
-    LongCast(Box<Expr>),
+    IntCast(Box<OrExpr>),
+    LongCast(Box<OrExpr>),
     Len(Ident),
-    Bin(Box<Expr>, BinOp, Box<Expr>),
-    Neg(Box<Expr>),
-    Not(Box<Expr>),
+    Neg(Box<AtomicExpr>),
+    Not(Box<AtomicExpr>),
+    Ex(Box<OrExpr>),
+}
+
+use crate::scan::AddOp::*;
+use crate::scan::Symbol::*;
+
+fn parse_atomic_expr<'a, T: Clone + Iterator<Item = &'a Token>>(
+    tokens: &mut T,
+) -> Option<AtomicExpr> {
+    // order matters here.  one that works is
+    // Neg, Not, Ex, IntCast, LongCast, Len, Lit, Call, Loc
+    let parse_neg = parse_concat(parse_one(exactly(Sym(AddSym(Sub)))), parse_atomic_expr);
+    panic!()
 }
 
 #[derive(Debug, PartialEq)]
-enum Location {
+pub enum MulExpr {
+    Atomic(AtomicExpr),
+    Bin(AtomicExpr, MulOp, Box<MulExpr>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AddExpr {
+    Mul(MulExpr),
+    Bin(MulExpr, AddOp, Box<AddExpr>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum RelExpr {
+    Add(AddExpr),
+    Bin(MulExpr, RelOp, Box<RelExpr>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum EqExpr {
+    Rel(RelExpr),
+    Bin(RelExpr, EqOp, Box<EqExpr>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AndExpr {
+    Eq(EqExpr),
+    Bin(EqExpr, Box<AndExpr>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum OrExpr {
+    And(AndExpr),
+    Bin(AndExpr, Box<OrExpr>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Location {
     Var(Ident),
-    ArrayIndex(Ident, Expr),
+    ArrayIndex(Ident, OrExpr),
 }
 
 #[derive(Debug, PartialEq)]
-enum AssignExpr {
-    RegularAssign(AssignOp, Expr),
+pub enum AssignExpr {
+    RegularAssign(AssignOp, OrExpr),
     Increment,
     Decrement,
 }
 
 #[derive(Debug, PartialEq)]
-enum Arg {
-    ExprArg(Expr),
+pub enum Arg {
+    ExprArg(OrExpr),
     ExternArg(String),
 }
 
 #[derive(Debug, PartialEq)]
-enum Stmt {
+pub enum Stmt {
     Assignment(Location, AssignExpr),
     Call(Ident, Vec<Arg>),
-    If(Expr, Block, Block),
-    For(Ident, Expr, Expr, Location, AssignExpr, Block),
-    While(Expr, Block),
-    Return(Option<Expr>),
+    If(OrExpr, Block, Block),
+    For(Ident, OrExpr, OrExpr, Location, AssignExpr, Block),
+    While(OrExpr, Block),
+    Return(Option<OrExpr>),
     Break,
     Continue,
 }
 
 #[derive(Debug, PartialEq)]
-struct Block {
-    fields: Vec<Field>,
-    stmts: Vec<Stmt>,
+pub struct Block {
+    pub fields: Vec<Field>,
+    pub stmts: Vec<Stmt>,
 }
 
 #[derive(Debug, PartialEq)]
-struct Method {
-    meth_type: Option<Type>,
-    name: Ident,
-    params: Vec<Param>,
-    body: Block,
+pub struct Method {
+    pub meth_type: Option<Type>,
+    pub name: Ident,
+    pub params: Vec<Param>,
+    pub body: Block,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Program {
-    imports: Vec<Ident>,
-    fields: Vec<Field>,
-    methods: Vec<Method>,
+    pub imports: Vec<Ident>,
+    pub fields: Vec<Field>,
+    pub methods: Vec<Method>,
 }
 
 // there is no good reason for this to return an option, but i want it to be

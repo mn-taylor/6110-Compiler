@@ -100,24 +100,36 @@ impl ToString for AssignOp {
 }
 
 #[derive(Debug, PartialEq, Sequence, Clone)]
-pub enum ArithOp {
-    Plus,
-    Minus,
+pub enum MulOp {
     Mul,
     Div,
     Mod,
 }
 
-use ArithOp::*;
-
-impl ToString for ArithOp {
+use MulOp::*;
+impl ToString for MulOp {
     fn to_string(&self) -> String {
         match self {
-            Plus => "+",
-            Minus => "-",
             Mul => "*",
             Div => "/",
             Mod => "%",
+        }
+        .to_string()
+    }
+}
+
+#[derive(Debug, PartialEq, Sequence, Clone)]
+pub enum AddOp {
+    Add,
+    Sub,
+}
+
+use AddOp::*;
+impl ToString for AddOp {
+    fn to_string(&self) -> String {
+        match self {
+            Add => "+",
+            Sub => "-",
         }
         .to_string()
     }
@@ -144,39 +156,18 @@ impl ToString for RelOp {
 }
 
 #[derive(Debug, PartialEq, Sequence, Clone)]
-pub enum BoolOp {
+pub enum EqOp {
     Eq,
     Neq,
-    And,
-    Or,
 }
 
-impl ToString for BoolOp {
+impl ToString for EqOp {
     fn to_string(&self) -> String {
         match self {
-            BoolOp::Eq => "==",
-            BoolOp::Neq => "!=",
-            BoolOp::And => "&&",
-            BoolOp::Or => "||",
+            EqOp::Eq => "==",
+            EqOp::Neq => "!=",
         }
         .to_string()
-    }
-}
-
-#[derive(Debug, PartialEq, Sequence, Clone)]
-pub enum BinOp {
-    Arith(ArithOp),
-    Rel(RelOp),
-    Bool(BoolOp),
-}
-
-impl BinOp {
-    fn to_string(&self) -> String {
-        match self {
-            BinOp::Arith(op) => op.to_string(),
-            BinOp::Rel(op) => op.to_string(),
-            BinOp::Bool(op) => op.to_string(),
-        }
     }
 }
 
@@ -218,19 +209,29 @@ impl ToString for MiscSymbol {
 
 #[derive(Debug, PartialEq, Sequence, Clone)]
 pub enum Symbol {
-    Bin(BinOp),
+    MulSym(MulOp),
+    AddSym(AddOp),
+    RelSym(RelOp),
+    EqSym(EqOp),
+    And,
+    Or,
     Assign(AssignOp),
     Misc(MiscSymbol),
 }
 
-use Symbol::*;
-
 impl Finite for Symbol {}
+
+use Symbol::*;
 
 impl ToString for Symbol {
     fn to_string(&self) -> String {
         match self {
-            Bin(b) => b.to_string(),
+            MulSym(b) => b.to_string(),
+            AddSym(b) => b.to_string(),
+            RelSym(b) => b.to_string(),
+            EqSym(b) => b.to_string(),
+            And => "&&".to_string(),
+            Or => "||".to_string(),
             Assign(op) => op.to_string(),
             Misc(symb) => symb.to_string(),
         }
