@@ -1,7 +1,7 @@
 use crate::scan::*;
 
 // is this really not in the stdlib?
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Sum<A, B> {
     Inl(A),
     Inr(B),
@@ -9,11 +9,12 @@ enum Sum<A, B> {
 
 use Sum::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct Ident {
     name: String,
 }
 
+// not sure about best way to handle current cloning of type
 #[derive(Clone, Debug, PartialEq)]
 enum Type {
     IntType,
@@ -21,25 +22,20 @@ enum Type {
     BoolType,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-struct Int {
-    val: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Field {
     Scalar(Type, Ident),
-    Array(Type, Ident, Int),
+    Array(Type, Ident, Literal),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct Param {
     param_type: Type,
     name: Ident,
 }
 
 // allowing negation here would be redundant, since negation appears in expr
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Literal {
     DecInt(String),
     HexInt(String),
@@ -49,7 +45,7 @@ enum Literal {
     Bool(bool),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Expr {
     Loc(Box<Location>),
     Call(Ident, Vec<Arg>),
@@ -62,7 +58,7 @@ enum Expr {
     Not(Box<Expr>),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Location {
     Var(Ident),
     ArrayIndex(Ident, Expr),
@@ -75,7 +71,7 @@ enum AssignExpr {
     Decrement,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Arg {
     ExprArg(Expr),
     ExternArg(String),
@@ -116,9 +112,7 @@ pub struct Program {
 
 // there is no good reason for this to return an option, but i want it to be
 // consistent with all of the other things that return options
-fn parse_star<T, U>(
-    mut f: impl FnMut(&mut T) -> Option<U>,
-) -> impl FnMut(&mut T) -> Option<Vec<U>> {
+fn parse_star<T, U>(f: impl Fn(&mut T) -> Option<U>) -> impl Fn(&mut T) -> Option<Vec<U>> {
     move |tokens| {
         let mut ret = Vec::new();
         while let Some(u) = f(tokens) {
@@ -129,9 +123,9 @@ fn parse_star<T, U>(
 }
 
 fn parse_concat<'a, T: Clone, U, V>(
-    mut f: impl FnMut(&mut T) -> Option<U>,
-    mut g: impl FnMut(&mut T) -> Option<V>,
-) -> impl FnMut(&mut T) -> Option<(U, V)> {
+    f: impl Fn(&mut T) -> Option<U>,
+    g: impl Fn(&mut T) -> Option<V>,
+) -> impl Fn(&mut T) -> Option<(U, V)> {
     move |tokens| {
         let tokens_clone = tokens.clone();
         if let Some(u) = f(tokens) {
@@ -145,9 +139,9 @@ fn parse_concat<'a, T: Clone, U, V>(
 }
 
 fn parse_or<T: Clone, U, V>(
-    mut f: impl FnMut(&mut T) -> Option<U>,
-    mut g: impl FnMut(&mut T) -> Option<V>,
-) -> impl FnMut(&mut T) -> Option<Sum<U, V>> {
+    f: impl Fn(&mut T) -> Option<U>,
+    g: impl Fn(&mut T) -> Option<V>,
+) -> impl Fn(&mut T) -> Option<Sum<U, V>> {
     move |tokens| {
         if let Some(u) = f(tokens) {
             Some(Inl(u))
@@ -164,16 +158,12 @@ fn fst<A, B>(x: (A, B)) -> A {
 }
 
 fn parse_comma_sep_list<'a, T: Clone + Iterator<Item = &'a Token>, U>(
-    elt: impl FnMut(&mut T) -> Option<U>,
-    elt_again
-) -> impl FnMut(&mut T) -> Option<Vec<U>> {
+    elt: impl Fn(&mut T) -> Option<U>,
+) -> impl Fn(&mut T) -> Option<Vec<U>> {
     move |tokens| {
-        let mut comma_sep_list = parse_concat(
-            parse_star(parse_concat(
-                elt.clone(),
-                parse_one(exactly(Sym(Misc(Semicolon)))),
-            )),
-            elt.clone(),
+        let comma_sep_list = parse_concat(
+            parse_star(parse_concat(&elt, parse_one(exactly(Sym(Misc(Comma)))))),
+            &elt,
         );
         match comma_sep_list(tokens) {
             Some((us, u)) => {
@@ -189,8 +179,8 @@ fn parse_comma_sep_list<'a, T: Clone + Iterator<Item = &'a Token>, U>(
 use crate::scan::MiscSymbol::*;
 
 fn parse_one<'a, T: Clone + Iterator<Item = &'a Token>, U>(
-    mut f: impl FnMut(&Token) -> Option<U>,
-) -> impl FnMut(&mut T) -> Option<U> {
+    f: impl Fn(&Token) -> Option<U>,
+) -> impl Fn(&mut T) -> Option<U> {
     move |tokens: &mut T| {
         let tokens_clone = tokens.clone();
         if let Some(next) = tokens.next() {
@@ -214,8 +204,9 @@ fn int_lit(t: &Token) -> Option<Literal> {
     }
 }
 
-fn exactly<'a>(t: Token) -> impl Fn(&Token) -> Option<()> {
+fn exactly(t: Token) -> impl Fn(&Token) -> Option<()> {
     move |token| {
+        println!("{:?}, {:?}", token, t);
         if *token == t {
             Some(())
         } else {
@@ -234,12 +225,11 @@ fn ident(token: &Token) -> Option<Ident> {
 }
 
 use crate::scan::Keyword::*;
-use crate::scan::MiscSymbol::*;
 use crate::scan::Symbol::*;
 use crate::scan::Token::*;
 
 fn parse_import<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Ident> {
-    let mut parse_import = parse_concat(
+    let parse_import = parse_concat(
         parse_one(exactly(Key(Import))),
         parse_concat(parse_one(ident), parse_one(exactly(Sym(Misc(Semicolon))))),
     );
@@ -260,17 +250,39 @@ fn typ(token: &Token) -> Option<Type> {
     }
 }
 
-fn parse_field<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Field> {
-    let mut parse_array_field_decl = parse_concat(
+use Field::*;
+
+fn parse_field_decl<'a, T: Clone + Iterator<Item = &'a Token>>(
+    tokens: &mut T,
+) -> Option<Vec<Field>> {
+    let parse_array_field_decl = parse_concat(
         parse_one(ident),
         parse_concat(
             parse_one(exactly(Sym(Misc(LBrack)))),
             parse_concat(parse_one(int_lit), parse_one(exactly(Sym(Misc(RBrack))))),
         ),
     );
-    let mut parse_scalar_or_arr = parse_or(parse_one(ident), parse_array_field_decl);
-    let mut parse_field = parse_concat(parse_one(typ), parse_comma_sep_list(parse_scalar_or_arr));
-    panic!()
+    // subtle opportunity for bug: parse_array_field_decl needs to be on the left here
+    let parse_scalar_or_arr = parse_or(parse_array_field_decl, parse_one(ident));
+    let parse_field = parse_concat(
+        parse_one(typ),
+        parse_concat(
+            parse_comma_sep_list(&parse_scalar_or_arr),
+            parse_one(exactly(Sym(Misc(Semicolon)))),
+        ),
+    );
+    match parse_field(tokens) {
+        Some((t, (decls, ()))) => Some(
+            decls
+                .into_iter()
+                .map(|decl| match decl {
+                    Inr(Ident { name }) => Scalar(t.clone(), Ident { name }),
+                    Inl((Ident { name }, ((), (lit, ())))) => Array(t.clone(), Ident { name }, lit),
+                })
+                .collect(),
+        ),
+        None => None,
+    }
 }
 
 fn parse_method<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Method> {
@@ -279,9 +291,13 @@ fn parse_method<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Op
 
 pub fn parse_program<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Program {
     Program {
-        imports: parse_star(parse_import)(tokens),
-        fields: parse_star(parse_field)(tokens),
-        methods: parse_star(parse_method)(tokens),
+        imports: parse_star(parse_import)(tokens).unwrap(),
+        fields: parse_star(parse_field_decl)(tokens)
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect(),
+        methods: parse_star(parse_method)(tokens).unwrap(),
     }
 }
 
@@ -303,6 +319,57 @@ mod tests {
         assert_eq!(
             parse_import(&mut vec![Key(Import), Ident("blah".to_string())].iter()),
             None
+        );
+    }
+
+    #[test]
+    fn one_field_decl() {
+        assert_eq!(
+            parse_field_decl(&mut vec![Key(Int), Ident("moo".to_string())].iter()),
+            None
+        );
+
+        assert_eq!(
+            parse_field_decl(
+                &mut vec![Key(Int), Ident("moo".to_string()), Sym(Misc(Semicolon))].iter()
+            ),
+            Some(vec![Scalar(
+                IntType,
+                Ident {
+                    name: "moo".to_string()
+                }
+            )])
+        );
+
+        assert_eq!(
+            parse_field_decl(
+                &mut vec![
+                    Key(Int),
+                    Ident("moo".to_string()),
+                    Sym(Misc(Comma)),
+                    Ident("br32".to_string()),
+                    Sym(Misc(LBrack)),
+                    DecLit("31231".to_string()),
+                    Sym(Misc(RBrack)),
+                    Sym(Misc(Semicolon))
+                ]
+                .iter()
+            ),
+            Some(vec![
+                Scalar(
+                    IntType,
+                    Ident {
+                        name: "moo".to_string()
+                    }
+                ),
+                Array(
+                    IntType,
+                    Ident {
+                        name: "br32".to_string()
+                    },
+                    DecInt("31231".to_string())
+                )
+            ])
         );
     }
 }
