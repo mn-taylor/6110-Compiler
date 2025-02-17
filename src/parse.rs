@@ -129,46 +129,31 @@ fn parse_atomic_expr<'a, T: Clone + Iterator<Item = &'a Token>>(
         ),
     );
     // parse_loc defined elsewhere
-    let parse_atomic_expr = parse_or(
-        parse_neg,
-        parse_or(
-            parse_not,
-            parse_or(
-                &parse_ex,
-                parse_or(
-                    parse_intcast,
-                    parse_or(
-                        parse_longcast,
-                        parse_or(
-                            parse_len,
-                            parse_or(parse_lit, parse_or(parse_call, parse_location)),
-                        ),
-                    ),
-                ),
-            ),
-        ),
-    );
-    Some(match parse_atomic_expr(tokens)? {
-        Inl(((), neg_exp)) => NegEx(Box::new(neg_exp)),
-        Inr(Inl(((), not_exp))) => AtomicExpr::NotEx(Box::new(not_exp)),
-        Inr(Inr(Inl(((), (par_exp, ()))))) => Ex(Box::new(par_exp)),
-        Inr(Inr(Inr(x))) => match x {
-            Inl(((), ((), (int_exp, ())))) => IntCast(Box::new(int_exp)),
-            Inr(Inl(((), ((), (long_exp, ()))))) => LongCast(Box::new(long_exp)),
-            Inr(Inr(Inl(((), ((), (len_id, ())))))) => LenEx(len_id),
-            Inr(Inr(Inr(x))) => match x {
-                Inl(lit) => Lit(lit),
-                Inr(Inl((name, ((), (args, ()))))) => {
-                    let args = match args {
-                        Inl(args) => args,
-                        Inr(()) => vec![],
-                    };
-                    Call(name, args)
-                }
-                Inr(Inr(loc)) => Loc(Box::new(loc)),
-            },
-        },
-    })
+    if let Some(((), neg_exp)) = parse_neg(tokens) {
+        Some(NegEx(Box::new(neg_exp)))
+    } else if let Some(((), not_exp)) = parse_not(tokens) {
+        Some(AtomicExpr::NotEx(Box::new(not_exp)))
+    } else if let Some(((), (par_exp, ()))) = parse_ex(tokens) {
+        Some(Ex(Box::new(par_exp)))
+    } else if let Some(((), ((), (int_exp, ())))) = parse_intcast(tokens) {
+        Some(IntCast(Box::new(int_exp)))
+    } else if let Some(((), ((), (long_exp, ())))) = parse_longcast(tokens) {
+        Some(LongCast(Box::new(long_exp)))
+    } else if let Some(((), ((), (len_id, ())))) = parse_len(tokens) {
+        Some(LenEx(len_id))
+    } else if let Some(lit) = parse_lit(tokens) {
+        Some(Lit(lit))
+    } else if let Some((name, ((), (args, ())))) = parse_call(tokens) {
+        let args = match args {
+            Inl(args) => args,
+            Inr(()) => vec![],
+        };
+        Some(Call(name, args))
+    } else if let Some(loc) = parse_location(tokens) {
+        Some(Loc(Box::new(loc)))
+    } else {
+        None
+    }
 }
 
 fn parse_or_expr<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<OrExpr> {
