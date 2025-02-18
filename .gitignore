@@ -15,3 +15,6 @@ Cargo.lock
 
 # IDEs
 .vscode/
+
+# mine
+public-tests/
