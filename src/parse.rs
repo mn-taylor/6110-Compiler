@@ -1,12 +1,4 @@
 use crate::scan::*;
-
-// is this really not in the stdlib?
-#[derive(Debug, PartialEq)]
-pub enum Sum<A, B> {
-    Inl(A),
-    Inr(B),
-}
-
 use Sum::*;
 
 #[derive(Debug, PartialEq)]
@@ -602,16 +594,16 @@ use Literal::*;
 // sad dthat output type is not intlit
 fn int_lit(t: &Token) -> Option<Literal> {
     match t {
-        DecLit(s) => Some(DecInt(s.to_string())),
-        HexLit(s) => Some(HexInt(s.to_string())),
+        DecIntLit(s) => Some(DecInt(s.to_string())),
+        HexIntLit(s) => Some(HexInt(s.to_string())),
         _ => None,
     }
 }
 
 fn long_lit(t: &Token) -> Option<Literal> {
     match t {
-        DecLit(s) => Some(DecLong(s.to_string())),
-        HexLit(s) => Some(HexLong(s.to_string())),
+        DecLongLit(s) => Some(DecLong(s.to_string())),
+        HexLongLit(s) => Some(HexLong(s.to_string())),
         _ => None,
     }
 }

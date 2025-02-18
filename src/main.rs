@@ -1,4 +1,5 @@
 mod utils;
+use decaf_skeleton_rust::scan;
 
 fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
     match output {
@@ -7,9 +8,21 @@ fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
     }
 }
 
+fn print_tokens(tokens: Vec<Vec<scan::Token>>) {
+    for (line_num, tokens_in_line) in tokens.iter().enumerate() {
+        for token in tokens_in_line {
+            println!(
+                "{} {}",
+                line_num + 1,
+                scan::Token::format_for_output(&token)
+            );
+        }
+    }
+}
+
 fn main() {
     let args = utils::cli::parse();
-    let _input = std::fs::read_to_string(&args.input).expect("Filename is incorrect.");
+    let input = std::fs::read_to_string(&args.input).expect("Filename is incorrect.");
 
     if args.debug {
         eprintln!(
@@ -25,7 +38,7 @@ fn main() {
             panic!("Invalid target");
         }
         utils::cli::CompilerAction::Scan => {
-            todo!("scan");
+            print_tokens(scan::scan(input));
         }
         utils::cli::CompilerAction::Parse => {
             todo!("parse");

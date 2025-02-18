@@ -4,6 +4,13 @@ use std::string::ToString;
 
 const FORM_FEED: char = 12u8 as char;
 
+// is this really not in the stdlib?
+#[derive(Debug, PartialEq)]
+pub enum Sum<A, B> {
+    Inl(A),
+    Inr(B),
+}
+
 pub trait Finite {}
 
 pub trait OfString {
@@ -46,7 +53,7 @@ pub enum Keyword {
 use Keyword::*;
 
 impl Keyword {
-    fn to_string(&self) -> &str {
+    fn to_string(&self) -> String {
         match self {
             Import => "import",
             Void => "void",
@@ -65,6 +72,7 @@ impl Keyword {
             False => "false",
             L => "L",
         }
+        .to_string()
     }
 
     fn of_string(word: &str) -> Option<Self> {
@@ -261,18 +269,36 @@ impl ToString for Symbol {
 pub enum Token {
     Key(Keyword),
     Ident(String),
-    DecLit(String),
-    HexLit(String),
+    DecIntLit(String),
+    HexIntLit(String),
+    DecLongLit(String),
+    HexLongLit(String),
     StrLit(String),
     CharLit(char),
     Sym(Symbol),
 }
+
+use Token::*;
 
 impl Token {
     fn of_ident_or_keyword(word: String) -> Self {
         match Keyword::of_string(&word) {
             Some(k) => Self::Key(k),
             None => Self::Ident(word),
+        }
+    }
+
+    pub fn format_for_output(&self) -> String {
+        match self {
+            Key(word) => word.to_string(),
+            Ident(s) => format!("IDENTIFIER {}", s),
+            DecIntLit(s) => format!("INTLITERAL {}", s),
+            HexIntLit(s) => format!("INTLITERAL 0x{}", s),
+            DecLongLit(s) => format!("LONGLITERAL {}L", s),
+            HexLongLit(s) => format!("LONGLITERAL 0x{}L", s),
+            StrLit(s) => format!("STRINGLITERAL \"{}\"", s),
+            CharLit(c) => format!("CHARLITERAL '{}'", c),
+            Sym(s) => s.to_string(),
         }
     }
 }
@@ -370,12 +396,12 @@ fn scan_ident_or_keyword(input: &mut Peekable<Chars>) -> String {
     eat_while(input, |x| is_alphanum(*x))
 }
 
-pub fn scan(input: String) -> Vec<Token> {
-    let mut tokens = Vec::new();
-    let mut counter = 0;
+pub fn scan(input: String) -> Vec<Vec<Token>> {
+    let mut all_tokens = Vec::new();
     let mut scanning_block_comment = false;
     for line in input.lines() {
         let mut line = line.chars().peekable();
+        let mut tokens = Vec::new();
         loop {
             if scanning_block_comment {
                 scanning_block_comment = scan_until_block_comment_end(&mut line);
@@ -385,18 +411,37 @@ pub fn scan(input: String) -> Vec<Token> {
             match line_clone.next() {
                 None => break,
                 Some(fst) => {
-                    println!("fst: {:?}", fst);
-
                     // lex ident or keyword
                     if is_alpha(fst) {
                         tokens.push(Token::of_ident_or_keyword(scan_ident_or_keyword(&mut line)));
                     }
                     // lex int literal
+                    // this is a horrible mess.  my fault of course, but also it would be so much cleaner if we could just treat L as a token...
+                    // for that matter, why not 0x too?
                     else if fst.is_ascii_digit() {
+                        let val;
+                        let hex;
                         if fst == '0' && line_clone.next() == Some('x') {
-                            tokens.push(Token::HexLit(scan_hex_lit(&mut line)))
+                            val = scan_hex_lit(&mut line);
+                            hex = true;
                         } else {
-                            tokens.push(Token::DecLit(scan_dec_lit(&mut line)))
+                            val = scan_dec_lit(&mut line);
+                            hex = false;
+                        }
+                        let mut line_clone = line.clone();
+                        if line_clone.next() == Some('L') {
+                            line.next();
+                            if hex {
+                                tokens.push(Token::HexLongLit(val));
+                            } else {
+                                tokens.push(Token::DecLongLit(val));
+                            }
+                        } else {
+                            if hex {
+                                tokens.push(Token::HexIntLit(val));
+                            } else {
+                                tokens.push(Token::DecIntLit(val));
+                            }
                         }
                     }
                     // lex comment
@@ -437,18 +482,15 @@ pub fn scan(input: String) -> Vec<Token> {
                         }
                         tokens.push(Token::Sym(sym.unwrap()));
                     }
-                    counter += 1;
-                    if counter >= 10 {
-                        break;
-                    }
                 }
             }
         }
+        all_tokens.push(tokens);
     }
     if scanning_block_comment {
         panic!("unterminated block comment");
     }
-    tokens
+    all_tokens
 }
 
 #[cfg(test)]
@@ -457,7 +499,7 @@ mod tests {
     use Token::*;
 
     fn test(input: &str, output: Vec<Token>) {
-        assert_eq!(scan(input.to_string()), output);
+        assert_eq!(scan(input.to_string()), vec![output]);
     }
 
     #[test]
@@ -478,7 +520,7 @@ mod tests {
                 Key(Int),
                 Ident("x".to_string()),
                 Sym(Assign(Eq)),
-                DecLit("5".to_string()),
+                DecIntLit("5".to_string()),
                 Sym(Misc(Semicolon)),
             ],
         );
