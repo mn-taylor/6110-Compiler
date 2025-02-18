@@ -97,139 +97,161 @@ fn parse_nothing<T>(_tokens: &mut T) -> Option<()> {
     Some(())
 }
 
-fn parse_atomic_expr<'a, T: Clone + Iterator<Item = &'a Token>>(
-    tokens: &mut T,
-) -> Option<AtomicExpr> {
-    // order matters here.  one that works is
-    // Neg, Not, Ex, IntCast, LongCast, Len, Lit, Call, Loc
-    let parse_neg = parse_concat(parse_one(exactly(Sym(AddSym(Sub)))), parse_atomic_expr);
-    let parse_not = parse_concat(parse_one(exactly(Sym(Misc(Not)))), parse_atomic_expr);
-    let parse_ex = parse_concat(
-        parse_one(exactly(Sym(Misc(LPar)))),
-        parse_concat(parse_or_expr, parse_one(exactly(Sym(Misc(RPar))))),
-    );
-    let parse_intcast = parse_concat(parse_one(exactly(Key(Int))), &parse_ex);
-    let parse_longcast = parse_concat(parse_one(exactly(Key(Long))), &parse_ex);
-    let parse_len = parse_concat(
-        parse_one(exactly(Key(Len))),
-        parse_concat(
+impl Parse for AtomicExpr {
+    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<AtomicExpr> {
+        // order matters here.  one that works is
+        // Neg, Not, Ex, IntCast, LongCast, Len, Lit, Call, Loc
+        let parse_neg = parse_concat(parse_one(exactly(Sym(AddSym(Sub)))), Self::parse);
+        let parse_not = parse_concat(parse_one(exactly(Sym(Misc(Not)))), Self::parse);
+        let parse_ex = parse_concat(
             parse_one(exactly(Sym(Misc(LPar)))),
-            parse_concat(parse_one(ident), parse_one(exactly(Sym(Misc(RPar))))),
-        ),
-    );
-    // parse_lit defined elsewhere
-    let parse_call = parse_concat(
-        parse_one(ident),
-        parse_concat(
-            parse_one(exactly(Sym(Misc(LPar)))),
+            parse_concat(OrExpr::parse, parse_one(exactly(Sym(Misc(RPar))))),
+        );
+        let parse_intcast = parse_concat(parse_one(exactly(Key(Int))), &parse_ex);
+        let parse_longcast = parse_concat(parse_one(exactly(Key(Long))), &parse_ex);
+        let parse_len = parse_concat(
+            parse_one(exactly(Key(Len))),
             parse_concat(
-                parse_or(parse_comma_sep_list(parse_arg), parse_nothing),
-                parse_one(exactly(Sym(Misc(RPar)))),
+                parse_one(exactly(Sym(Misc(LPar)))),
+                parse_concat(parse_one(ident), parse_one(exactly(Sym(Misc(RPar))))),
             ),
-        ),
-    );
-    // parse_loc defined elsewhere
-    if let Some(((), neg_exp)) = parse_neg(tokens) {
-        Some(NegEx(Box::new(neg_exp)))
-    } else if let Some(((), not_exp)) = parse_not(tokens) {
-        Some(AtomicExpr::NotEx(Box::new(not_exp)))
-    } else if let Some(((), (par_exp, ()))) = parse_ex(tokens) {
-        Some(Ex(Box::new(par_exp)))
-    } else if let Some(((), ((), (int_exp, ())))) = parse_intcast(tokens) {
-        Some(IntCast(Box::new(int_exp)))
-    } else if let Some(((), ((), (long_exp, ())))) = parse_longcast(tokens) {
-        Some(LongCast(Box::new(long_exp)))
-    } else if let Some(((), ((), (len_id, ())))) = parse_len(tokens) {
-        Some(LenEx(len_id))
-    } else if let Some(lit) = parse_lit(tokens) {
-        Some(Lit(lit))
-    } else if let Some((name, ((), (args, ())))) = parse_call(tokens) {
-        let args = match args {
-            Inl(args) => args,
-            Inr(()) => vec![],
-        };
-        Some(Call(name, args))
-    } else if let Some(loc) = parse_location(tokens) {
-        Some(Loc(Box::new(loc)))
-    } else {
-        None
+        );
+        // parse_lit defined elsewhere
+        let parse_call = parse_concat(
+            parse_one(ident),
+            parse_concat(
+                parse_one(exactly(Sym(Misc(LPar)))),
+                parse_concat(
+                    parse_or(parse_comma_sep_list(parse_arg), parse_nothing),
+                    parse_one(exactly(Sym(Misc(RPar)))),
+                ),
+            ),
+        );
+        // parse_loc defined elsewhere
+        if let Some(((), neg_exp)) = parse_neg(tokens) {
+            Some(NegEx(Box::new(neg_exp)))
+        } else if let Some(((), not_exp)) = parse_not(tokens) {
+            Some(AtomicExpr::NotEx(Box::new(not_exp)))
+        } else if let Some(((), (par_exp, ()))) = parse_ex(tokens) {
+            Some(Ex(Box::new(par_exp)))
+        } else if let Some(((), ((), (int_exp, ())))) = parse_intcast(tokens) {
+            Some(IntCast(Box::new(int_exp)))
+        } else if let Some(((), ((), (long_exp, ())))) = parse_longcast(tokens) {
+            Some(LongCast(Box::new(long_exp)))
+        } else if let Some(((), ((), (len_id, ())))) = parse_len(tokens) {
+            Some(LenEx(len_id))
+        } else if let Some(lit) = parse_lit(tokens) {
+            Some(Lit(lit))
+        } else if let Some((name, ((), (args, ())))) = parse_call(tokens) {
+            let args = match args {
+                Inl(args) => args,
+                Inr(()) => vec![],
+            };
+            Some(Call(name, args))
+        } else if let Some(loc) = parse_location(tokens) {
+            Some(Loc(Box::new(loc)))
+        } else {
+            None
+        }
     }
 }
 
-fn parse_or_expr<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<OrExpr> {
-    panic!()
+trait OfToken: Sized {
+    fn of_token(t: &Token) -> Option<Self>;
+}
+
+trait Parse: Sized {
+    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self>;
 }
 
 #[derive(Debug, PartialEq)]
-pub enum MulExpr {
-    Atomic(AtomicExpr),
-    Bin(AtomicExpr, MulOp, Box<MulExpr>),
+pub enum BinExpr<OpType, AtomType> {
+    Atomic(AtomType),
+    Bin(AtomType, OpType, Box<BinExpr<OpType, AtomType>>),
 }
 
-fn mul_op(t: &Token) -> Option<MulOp> {
-    match t {
-        Sym(MulSym(s)) => Some(s.clone()), //really sboud implement copy
-        _ => None,
+impl<OpType: OfToken, AtomType: Parse> Parse for BinExpr<OpType, AtomType> {
+    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+        let bin_expr = parse_concat(
+            AtomType::parse,
+            parse_or(
+                parse_concat(parse_one(OpType::of_token), Self::parse),
+                parse_nothing,
+            ),
+        );
+        Some(match bin_expr(tokens)? {
+            (lhs, Inl((op, rhs))) => BinExpr::Bin(lhs, op, Box::new(rhs)),
+            (atom, Inr(())) => BinExpr::Atomic(atom),
+        })
     }
 }
 
-fn parse_mul_expr<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<MulExpr> {
-    let mul_expr = parse_concat(
-        parse_atomic_expr,
-        parse_or(
-            parse_concat(parse_one(mul_op), parse_mul_expr),
-            parse_nothing,
-        ),
-    );
-    Some(match mul_expr(tokens)? {
-        (lhs, Inl((op, rhs))) => MulExpr::Bin(lhs, op, Box::new(rhs)),
-        (atom, Inr(())) => MulExpr::Atomic(atom),
-    })
+impl OfToken for AddOp {
+    fn of_token(t: &Token) -> Option<Self> {
+        match t {
+            Sym(AddSym(s)) => Some(s.clone()), //really sboud implement copy
+            _ => None,
+        }
+    }
+}
+
+impl OfToken for MulOp {
+    fn of_token(t: &Token) -> Option<Self> {
+        match t {
+            Sym(MulSym(s)) => Some(s.clone()), //really sboud implement copy
+            _ => None,
+        }
+    }
+}
+
+impl OfToken for RelOp {
+    fn of_token(t: &Token) -> Option<Self> {
+        match t {
+            Sym(RelSym(s)) => Some(s.clone()), //really sboud implement copy
+            _ => None,
+        }
+    }
+}
+
+impl OfToken for EqOp {
+    fn of_token(t: &Token) -> Option<Self> {
+        match t {
+            Sym(EqSym(s)) => Some(s.clone()), //really sboud implement copy
+            _ => None,
+        }
+    }
+}
+
+impl OfToken for AndOp {
+    fn of_token(t: &Token) -> Option<Self> {
+        match t {
+            Sym(And) => Some(AndOp {}),
+            _ => None,
+        }
+    }
+}
+
+impl OfToken for OrOp {
+    fn of_token(t: &Token) -> Option<Self> {
+        match t {
+            Sym(Or) => Some(OrOp {}),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
-pub enum AddExpr {
-    Mul(MulExpr),
-    Bin(MulExpr, AddOp, Box<AddExpr>),
-}
-
-fn parse_add_expr<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<AddExpr> {
-    let add_expr = parse_concat(
-        parse_mul_expr,
-        parse_or(
-            parse_concat(parse_one(add_op), parse_add_expr),
-            parse_nothing,
-        ),
-    );
-    Some(match add_expr(tokens)? {
-        (lhs, Inl((op, rhs))) => AddExpr::Bin(lhs, op, Box::new(rhs)),
-        (atom, Inr(())) => AddExpr::Atomic(atom),
-    })
-}
+pub struct AndOp {}
 
 #[derive(Debug, PartialEq)]
-pub enum RelExpr {
-    Add(AddExpr),
-    Bin(MulExpr, RelOp, Box<RelExpr>),
-}
+pub struct OrOp {}
 
-#[derive(Debug, PartialEq)]
-pub enum EqExpr {
-    Rel(RelExpr),
-    Bin(RelExpr, EqOp, Box<EqExpr>),
-}
-
-#[derive(Debug, PartialEq)]
-pub enum AndExpr {
-    Eq(EqExpr),
-    Bin(EqExpr, Box<AndExpr>),
-}
-
-#[derive(Debug, PartialEq)]
-pub enum OrExpr {
-    And(AndExpr),
-    Bin(AndExpr, Box<OrExpr>),
-}
+type MulExpr = BinExpr<MulOp, AtomicExpr>;
+type AddExpr = BinExpr<AddOp, MulExpr>;
+type RelExpr = BinExpr<RelOp, AddExpr>;
+type EqExpr = BinExpr<EqOp, RelExpr>;
+type AndExpr = BinExpr<AndOp, EqExpr>;
+type OrExpr = BinExpr<OrOp, AndExpr>;
 
 #[derive(Debug, PartialEq)]
 pub enum Location {
@@ -244,7 +266,7 @@ fn parse_location<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> 
             parse_one(ident),
             parse_concat(
                 parse_one(exactly(Sym(Misc(LBrack)))),
-                parse_concat(parse_or_expr, parse_one(exactly(Sym(Misc(RBrack))))),
+                parse_concat(OrExpr::parse, parse_one(exactly(Sym(Misc(RBrack))))),
             ),
         ),
         parse_one(ident),
@@ -270,7 +292,7 @@ pub enum Arg {
 
 use Arg::*;
 fn parse_arg<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Arg> {
-    let arg = parse_or(parse_or_expr, parse_one(str_lit));
+    let arg = parse_or(OrExpr::parse, parse_one(str_lit));
     Some(match arg(tokens)? {
         Inl(a) => ExprArg(a),
         Inr(s) => ExternArg(s),
