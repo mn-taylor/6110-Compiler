@@ -166,10 +166,45 @@ pub enum MulExpr {
     Bin(AtomicExpr, MulOp, Box<MulExpr>),
 }
 
+fn mul_op(t: &Token) -> Option<MulOp> {
+    match t {
+        Sym(MulSym(s)) => Some(s.clone()), //really sboud implement copy
+        _ => None,
+    }
+}
+
+fn parse_mul_expr<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<MulExpr> {
+    let mul_expr = parse_concat(
+        parse_atomic_expr,
+        parse_or(
+            parse_concat(parse_one(mul_op), parse_mul_expr),
+            parse_nothing,
+        ),
+    );
+    Some(match mul_expr(tokens)? {
+        (lhs, Inl((op, rhs))) => MulExpr::Bin(lhs, op, Box::new(rhs)),
+        (atom, Inr(())) => MulExpr::Atomic(atom),
+    })
+}
+
 #[derive(Debug, PartialEq)]
 pub enum AddExpr {
     Mul(MulExpr),
     Bin(MulExpr, AddOp, Box<AddExpr>),
+}
+
+fn parse_add_expr<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<AddExpr> {
+    let add_expr = parse_concat(
+        parse_mul_expr,
+        parse_or(
+            parse_concat(parse_one(add_op), parse_add_expr),
+            parse_nothing,
+        ),
+    );
+    Some(match add_expr(tokens)? {
+        (lhs, Inl((op, rhs))) => AddExpr::Bin(lhs, op, Box::new(rhs)),
+        (atom, Inr(())) => AddExpr::Atomic(atom),
+    })
 }
 
 #[derive(Debug, PartialEq)]
@@ -202,7 +237,23 @@ pub enum Location {
     ArrayIndex(Ident, OrExpr),
 }
 
-fn parse_location<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Location> {}
+use Location::*;
+fn parse_location<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Location> {
+    let parse_location = parse_or(
+        parse_concat(
+            parse_one(ident),
+            parse_concat(
+                parse_one(exactly(Sym(Misc(LBrack)))),
+                parse_concat(parse_or_expr, parse_one(exactly(Sym(Misc(RBrack))))),
+            ),
+        ),
+        parse_one(ident),
+    );
+    Some(match parse_location(tokens)? {
+        Inl((id, ((), (idx, ())))) => ArrayIndex(id, idx),
+        Inr(id) => Var(id),
+    })
+}
 
 #[derive(Debug, PartialEq)]
 pub enum AssignExpr {
@@ -217,9 +268,13 @@ pub enum Arg {
     ExternArg(String),
 }
 
+use Arg::*;
 fn parse_arg<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Arg> {
     let arg = parse_or(parse_or_expr, parse_one(str_lit));
-    match arg(tokens) {}
+    Some(match arg(tokens)? {
+        Inl(a) => ExprArg(a),
+        Inr(s) => ExternArg(s),
+    })
 }
 
 #[derive(Debug, PartialEq)]
@@ -527,6 +582,22 @@ mod tests {
                     DecInt("31231".to_string())
                 )
             ])
+        );
+    }
+
+    #[test]
+    fn atomic_expr1() {
+        assert_eq!(
+            parse_atomic_expr(&mut vec![CharLit('c')].iter()),
+            Some(Lit(Char('c')))
+        );
+    }
+
+    #[test]
+    fn atomic_expr2() {
+        assert_eq!(
+            parse_atomic_expr(&mut vec![Sym(Misc(Not)), CharLit('c')].iter()),
+            Some(NotEx(Box::new(Lit(Char('c')))))
         );
     }
 }
