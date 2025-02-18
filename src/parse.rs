@@ -97,6 +97,30 @@ fn parse_nothing<T>(_tokens: &mut T) -> Option<()> {
     Some(())
 }
 
+fn parse_method_call<'a, T: Clone + Iterator<Item = &'a Token>>(
+    tokens: &mut T,
+) -> Option<(Ident, Vec<Arg>)> {
+    let parse_call = parse_concat(
+        parse_one(ident),
+        parse_concat(
+            parse_one(exactly(Sym(Misc(LPar)))),
+            parse_concat(
+                parse_or(parse_comma_sep_list(parse_arg), parse_nothing),
+                parse_one(exactly(Sym(Misc(RPar)))),
+            ),
+        ),
+    );
+    Some(match parse_call(tokens)? {
+        (name, ((), (args, ()))) => {
+            let args = match args {
+                Inl(args) => args,
+                Inr(()) => vec![],
+            };
+            (name, args)
+        }
+    })
+}
+
 impl Parse for AtomicExpr {
     fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<AtomicExpr> {
         // order matters here.  one that works is
@@ -117,16 +141,7 @@ impl Parse for AtomicExpr {
             ),
         );
         // parse_lit defined elsewhere
-        let parse_call = parse_concat(
-            parse_one(ident),
-            parse_concat(
-                parse_one(exactly(Sym(Misc(LPar)))),
-                parse_concat(
-                    parse_or(parse_comma_sep_list(parse_arg), parse_nothing),
-                    parse_one(exactly(Sym(Misc(RPar)))),
-                ),
-            ),
-        );
+
         // parse_loc defined elsewhere
         if let Some(((), neg_exp)) = parse_neg(tokens) {
             Some(NegEx(Box::new(neg_exp)))
@@ -142,11 +157,7 @@ impl Parse for AtomicExpr {
             Some(LenEx(len_id))
         } else if let Some(lit) = parse_lit(tokens) {
             Some(Lit(lit))
-        } else if let Some((name, ((), (args, ())))) = parse_call(tokens) {
-            let args = match args {
-                Inl(args) => args,
-                Inr(()) => vec![],
-            };
+        } else if let Some((name, args)) = parse_method_call(tokens) {
             Some(Call(name, args))
         } else if let Some(loc) = parse_location(tokens) {
             Some(Loc(Box::new(loc)))
@@ -284,19 +295,26 @@ pub enum AssignExpr {
     Decrement,
 }
 
+impl Parse for AssignExpr {
+    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+        panic!()
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Arg {
     ExprArg(OrExpr),
     ExternArg(String),
 }
 
-use Arg::*;
-fn parse_arg<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Arg> {
-    let arg = parse_or(OrExpr::parse, parse_one(str_lit));
-    Some(match arg(tokens)? {
-        Inl(a) => ExprArg(a),
-        Inr(s) => ExternArg(s),
-    })
+impl Parse for Arg {
+    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+        let arg = parse_or(OrExpr::parse, parse_one(str_lit));
+        Some(match arg(tokens)? {
+            Inl(a) => ExprArg(a),
+            Inr(s) => ExternArg(s),
+        })
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -311,10 +329,98 @@ pub enum Stmt {
     Continue,
 }
 
+impl Parse for Stmt {
+    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+        // order doesnt' matter much
+        let parse_ass = parse_concat(
+            parse_location,
+            parse_concat(AssignExpr::parse, parse_one(exactly(Sym(Misc(Semicolon))))),
+        );
+        let parse_if = parse_concat(
+            parse_one(exactly(Key(If))),
+            parse_concat(
+                parse_one(exactly(Sym(Misc(LPar)))),
+                parse_concat(
+                    OrExpr::parse,
+                    parse_concat(
+                        parse_one(exactly(Sym(Misc(RPar)))),
+                        parse_concat(
+                            Block::parse,
+                            parse_or(
+                                parse_concat(parse_one(exactly(Key(Else))), Block::parse),
+                                parse_nothing,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        );
+        let parse_for = parse_concat(
+            parse_one(exactly(Key(For))),
+            parse_concat(
+                parse_one(exactly(Sym(Misc(LPar)))),
+                parse_concat(
+                    parse_one(ident),
+                    parse_concat(
+                        parse_one(exactly(Sym(Assign(AssignOp::Eq)))),
+                        parse_concat(
+                            OrExpr::parse,
+                            parse_concat(
+                                parse_one(exactly(Sym(Misc(Semicolon)))),
+                                parse_concat(
+                                    OrExpr::parse,
+                                    parse_concat(
+                                        parse_for_update,
+                                        parse_concat(
+                                            parse_one(exactly(Sym(Misc(RPar)))),
+                                            Block::parse,
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        );
+        let parse_while = parse_concat(
+            parse_one(exactly(Key(While))),
+            parse_concat(
+                parse_one(exactly(Sym(Misc(LPar)))),
+                parse_concat(
+                    OrExpr::parse,
+                    parse_concat(parse_one(exactly(Sym(Misc(RPar)))), Block::parse),
+                ),
+            ),
+        );
+        let parse_return = parse_concat(
+            parse_one(exactly(Key(Return))),
+            parse_concat(
+                parse_or(OrExpr::parse, parse_nothing),
+                parse_one(exactly(Sym(Misc(Semicolon)))),
+            ),
+        );
+        let parse_break = parse_concat(
+            parse_one(exactly(Key(Break))),
+            parse_one(exactly(Sym(Misc(Semicolon)))),
+        );
+        let parse_continue = parse_concat(
+            parse_one(exactly(Key(Continue))),
+            parse_one(exactly(Sym(Misc(Semicolon)))),
+        );
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Block {
     pub fields: Vec<Field>,
     pub stmts: Vec<Stmt>,
+}
+
+impl Parse for Block {
+    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+        panic!()
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -610,7 +716,7 @@ mod tests {
     #[test]
     fn atomic_expr1() {
         assert_eq!(
-            parse_atomic_expr(&mut vec![CharLit('c')].iter()),
+            AtomicExpr::parse(&mut vec![CharLit('c')].iter()),
             Some(Lit(Char('c')))
         );
     }
@@ -618,7 +724,7 @@ mod tests {
     #[test]
     fn atomic_expr2() {
         assert_eq!(
-            parse_atomic_expr(&mut vec![Sym(Misc(Not)), CharLit('c')].iter()),
+            AtomicExpr::parse(&mut vec![Sym(Misc(Not)), CharLit('c')].iter()),
             Some(NotEx(Box::new(Lit(Char('c')))))
         );
     }
