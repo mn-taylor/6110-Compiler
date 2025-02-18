@@ -105,7 +105,7 @@ fn parse_method_call<'a, T: Clone + Iterator<Item = &'a Token>>(
         parse_concat(
             parse_one(exactly(Sym(Misc(LPar)))),
             parse_concat(
-                parse_or(parse_comma_sep_list(parse_arg), parse_nothing),
+                parse_or(parse_comma_sep_list(Arg::parse), parse_nothing),
                 parse_one(exactly(Sym(Misc(RPar)))),
             ),
         ),
@@ -159,7 +159,7 @@ impl Parse for AtomicExpr {
             Some(Lit(lit))
         } else if let Some((name, args)) = parse_method_call(tokens) {
             Some(Call(name, args))
-        } else if let Some(loc) = parse_location(tokens) {
+        } else if let Some(loc) = Location::parse(tokens) {
             Some(Loc(Box::new(loc)))
         } else {
             None
@@ -270,34 +270,63 @@ pub enum Location {
     ArrayIndex(Ident, OrExpr),
 }
 
-use Location::*;
-fn parse_location<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Location> {
-    let parse_location = parse_or(
-        parse_concat(
-            parse_one(ident),
+impl Parse for Location {
+    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+        let parse_location = parse_or(
             parse_concat(
-                parse_one(exactly(Sym(Misc(LBrack)))),
-                parse_concat(OrExpr::parse, parse_one(exactly(Sym(Misc(RBrack))))),
+                parse_one(ident),
+                parse_concat(
+                    parse_one(exactly(Sym(Misc(LBrack)))),
+                    parse_concat(OrExpr::parse, parse_one(exactly(Sym(Misc(RBrack))))),
+                ),
             ),
-        ),
-        parse_one(ident),
-    );
-    Some(match parse_location(tokens)? {
-        Inl((id, ((), (idx, ())))) => ArrayIndex(id, idx),
-        Inr(id) => Var(id),
-    })
+            parse_one(ident),
+        );
+        Some(match parse_location(tokens)? {
+            Inl((id, ((), (idx, ())))) => Location::ArrayIndex(id, idx),
+            Inr(id) => Location::Var(id),
+        })
+    }
 }
 
 #[derive(Debug, PartialEq)]
 pub enum AssignExpr {
     RegularAssign(AssignOp, OrExpr),
-    Increment,
-    Decrement,
+    IncrAssign(IncrOp),
 }
 
+impl OfToken for AssignOp {
+    fn of_token(t: &Token) -> Option<Self> {
+        match t {
+            Sym(Assign(op)) => Some(op.clone()),
+            _ => None,
+        }
+    }
+}
+
+impl OfToken for IncrOp {
+    fn of_token(t: &Token) -> Option<Self> {
+        match t {
+            Sym(Incr(op)) => Some(op.clone()),
+            _ => None,
+        }
+    }
+}
+
+impl<U: OfToken> Parse for U {
+    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+        parse_one(Self::of_token)(tokens)
+    }
+}
+
+use AssignExpr::*;
 impl Parse for AssignExpr {
     fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
-        panic!()
+        let ass_expr = parse_or(parse_concat(AssignOp::parse, OrExpr::parse), IncrOp::parse);
+        Some(match ass_expr(tokens)? {
+            Inl((op, expr)) => RegularAssign(op, expr),
+            Inr(op) => IncrAssign(op),
+        })
     }
 }
 
@@ -311,8 +340,8 @@ impl Parse for Arg {
     fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
         let arg = parse_or(OrExpr::parse, parse_one(str_lit));
         Some(match arg(tokens)? {
-            Inl(a) => ExprArg(a),
-            Inr(s) => ExternArg(s),
+            Inl(a) => Arg::ExprArg(a),
+            Inr(s) => Arg::ExternArg(s),
         })
     }
 }
@@ -321,7 +350,7 @@ impl Parse for Arg {
 pub enum Stmt {
     Assignment(Location, AssignExpr),
     Call(Ident, Vec<Arg>),
-    If(OrExpr, Block, Block),
+    If(OrExpr, Block, Option<Block>),
     For(Ident, OrExpr, OrExpr, Location, AssignExpr, Block),
     While(OrExpr, Block),
     Return(Option<OrExpr>),
@@ -333,7 +362,7 @@ impl Parse for Stmt {
     fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
         // order doesnt' matter much
         let parse_ass = parse_concat(
-            parse_location,
+            Location::parse,
             parse_concat(AssignExpr::parse, parse_one(exactly(Sym(Misc(Semicolon))))),
         );
         let parse_if = parse_concat(
@@ -370,10 +399,16 @@ impl Parse for Stmt {
                                 parse_concat(
                                     OrExpr::parse,
                                     parse_concat(
-                                        parse_for_update,
+                                        parse_one(exactly(Sym(Misc(Semicolon)))),
                                         parse_concat(
-                                            parse_one(exactly(Sym(Misc(RPar)))),
-                                            Block::parse,
+                                            Location::parse,
+                                            parse_concat(
+                                                AssignExpr::parse,
+                                                parse_concat(
+                                                    parse_one(exactly(Sym(Misc(RPar)))),
+                                                    Block::parse,
+                                                ),
+                                            ),
                                         ),
                                     ),
                                 ),
@@ -408,6 +443,34 @@ impl Parse for Stmt {
             parse_one(exactly(Key(Continue))),
             parse_one(exactly(Sym(Misc(Semicolon)))),
         );
+        if let Some((loc, (ass_ex, ()))) = parse_ass(tokens) {
+            Some(Stmt::Assignment(loc, ass_ex))
+        } else if let Some(((), ((), (exp, ((), (block, maybe_else_block)))))) = parse_if(tokens) {
+            let maybe_block = match maybe_else_block {
+                Inl(((), block)) => Some(block),
+                Inr(()) => None,
+            };
+            Some(Stmt::If(exp, block, maybe_block))
+        } else if let Some((
+            (),
+            ((), (id, ((), (start, ((), (test, ((), (loc, (ass, ((), block)))))))))),
+        )) = parse_for(tokens)
+        {
+            Some(Stmt::For(id, start, test, loc, ass, block))
+        } else if let Some(((), ((), (test, ((), block))))) = parse_while(tokens) {
+            Some(Stmt::While(test, block))
+        } else if let Some(((), (maybe_expr, ()))) = parse_return(tokens) {
+            Some(match maybe_expr {
+                Inl(expr) => Stmt::Return(Some(expr)),
+                Inr(()) => Stmt::Return(None),
+            })
+        } else if let Some(((), ())) = parse_break(tokens) {
+            Some(Stmt::Break)
+        } else if let Some(((), ())) = parse_continue(tokens) {
+            Some(Stmt::Continue)
+        } else {
+            None
+        }
     }
 }
 
@@ -419,7 +482,22 @@ pub struct Block {
 
 impl Parse for Block {
     fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
-        panic!()
+        let block = parse_concat(
+            parse_one(exactly(Sym(Misc(LBrace)))),
+            parse_concat(
+                parse_star(parse_field_decl),
+                parse_concat(
+                    parse_star(Stmt::parse),
+                    parse_one(exactly(Sym(Misc(RBrace)))),
+                ),
+            ),
+        );
+        Some(match block(tokens)? {
+            ((), (field_decls, (stmts, ()))) => Block {
+                fields: field_decls.into_iter().flatten().collect(),
+                stmts,
+            },
+        })
     }
 }
 
@@ -590,6 +668,16 @@ fn typ(token: &Token) -> Option<Type> {
     }
 }
 
+fn typ_or_void(token: &Token) -> Option<Option<Type>> {
+    match token {
+        Key(Void) => Some(None),
+        _ => match typ(token) {
+            Some(t) => Some(Some(t)),
+            None => None,
+        },
+    }
+}
+
 use Field::*;
 
 fn parse_field_decl<'a, T: Clone + Iterator<Item = &'a Token>>(
@@ -625,8 +713,37 @@ fn parse_field_decl<'a, T: Clone + Iterator<Item = &'a Token>>(
     }
 }
 
+impl Parse for Param {
+    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+        let param = parse_concat(parse_one(typ), parse_one(ident));
+        Some(match param(tokens)? {
+            (param_type, name) => Param { param_type, name },
+        })
+    }
+}
+
 fn parse_method<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Method> {
-    panic!()
+    let method = parse_concat(
+        parse_one(typ_or_void),
+        parse_concat(
+            parse_one(ident),
+            parse_concat(
+                parse_one(exactly(Sym(Misc(LPar)))),
+                parse_concat(
+                    parse_comma_sep_list(Param::parse),
+                    parse_concat(parse_one(exactly(Sym(Misc(RPar)))), Block::parse),
+                ),
+            ),
+        ),
+    );
+    Some(match method(tokens)? {
+        (meth_type, (name, ((), (params, ((), body))))) => Method {
+            meth_type,
+            name,
+            params,
+            body,
+        },
+    })
 }
 
 pub fn parse_program<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Program {

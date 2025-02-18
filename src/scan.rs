@@ -104,6 +104,23 @@ impl ToString for AssignOp {
 }
 
 #[derive(Debug, PartialEq, Sequence, Clone)]
+pub enum IncrOp {
+    Increment,
+    Decrement,
+}
+
+use IncrOp::*;
+impl ToString for IncrOp {
+    fn to_string(&self) -> String {
+        match self {
+            Increment => "++",
+            Decrement => "--",
+        }
+        .to_string()
+    }
+}
+
+#[derive(Debug, PartialEq, Sequence, Clone)]
 pub enum MulOp {
     Mul,
     Div,
@@ -184,8 +201,6 @@ pub enum MiscSymbol {
     RBrack,
     LBrace,
     RBrace,
-    PlusPlus,
-    MinusMinus,
     Semicolon,
     Comma,
 }
@@ -202,8 +217,6 @@ impl ToString for MiscSymbol {
             RBrack => "]",
             LBrace => "{",
             RBrace => "}",
-            PlusPlus => "++",
-            MinusMinus => "--",
             Semicolon => ";",
             Comma => ",",
         }
@@ -220,6 +233,7 @@ pub enum Symbol {
     And,
     Or,
     Assign(AssignOp),
+    Incr(IncrOp),
     Misc(MiscSymbol),
 }
 
@@ -237,6 +251,7 @@ impl ToString for Symbol {
             And => "&&".to_string(),
             Or => "||".to_string(),
             Assign(op) => op.to_string(),
+            Incr(op) => op.to_string(),
             Misc(symb) => symb.to_string(),
         }
     }
