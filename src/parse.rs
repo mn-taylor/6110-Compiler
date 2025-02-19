@@ -361,6 +361,8 @@ impl Parse for Stmt {
             Location::parse,
             parse_concat(AssignExpr::parse, parse_one(exactly(Sym(Misc(Semicolon))))),
         );
+        let parse_meth_stmt =
+            parse_concat(parse_method_call, parse_one(exactly(Sym(Misc(Semicolon)))));
         let parse_if = parse_concat(
             parse_one(exactly(Key(If))),
             parse_concat(
@@ -441,6 +443,8 @@ impl Parse for Stmt {
         );
         if let Some((loc, (ass_ex, ()))) = parse_ass(tokens) {
             Some(Stmt::Assignment(loc, ass_ex))
+        } else if let Some(((name, args), ())) = parse_meth_stmt(tokens) {
+            Some(Stmt::Call(name, args))
         } else if let Some(((), ((), (exp, ((), (block, maybe_else_block)))))) = parse_if(tokens) {
             let maybe_block = match maybe_else_block {
                 Inl(((), block)) => Some(block),
