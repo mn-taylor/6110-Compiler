@@ -60,8 +60,7 @@ fn parse_lit<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Optio
     if let Some(c) = parse_one(char_lit)(tokens) {
         return Some(Char(c));
     }
-    let parse_long = parse_concat(parse_one(long_lit), parse_one(exactly(Key(L))));
-    if let Some((l, ())) = parse_long(tokens) {
+    if let Some(l) = parse_one(long_lit)(tokens) {
         return Some(l);
     }
     parse_one(int_lit)(tokens)
@@ -798,7 +797,7 @@ mod tests {
                     Sym(Misc(Comma)),
                     Ident("br32".to_string()),
                     Sym(Misc(LBrack)),
-                    DecLit("31231".to_string()),
+                    DecIntLit("31231".to_string()),
                     Sym(Misc(RBrack)),
                     Sym(Misc(Semicolon))
                 ]

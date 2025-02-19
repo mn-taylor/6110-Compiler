@@ -8,14 +8,17 @@ fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
     }
 }
 
-fn print_tokens(tokens: Vec<Vec<scan::Token>>) {
+fn print_tokens(tokens: Vec<Vec<Result<scan::Token, String>>>) {
     for (line_num, tokens_in_line) in tokens.iter().enumerate() {
         for token in tokens_in_line {
-            println!(
-                "{} {}",
-                line_num + 1,
-                scan::Token::format_for_output(&token)
-            );
+            match token {
+                Ok(token) => println!(
+                    "{} {}",
+                    line_num + 1,
+                    scan::Token::format_for_output(&token)
+                ),
+                Err(err) => println!("ERROR on line {}: {}", line_num + 1, err),
+            }
         }
     }
 }

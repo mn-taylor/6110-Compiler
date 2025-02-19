@@ -47,7 +47,6 @@ pub enum Keyword {
     Len,
     True,
     False,
-    L,
 }
 
 use Keyword::*;
@@ -70,7 +69,6 @@ impl Keyword {
             Continue => "continue",
             True => "true",
             False => "false",
-            L => "L",
         }
         .to_string()
     }
@@ -280,6 +278,19 @@ pub enum Token {
 
 use Token::*;
 
+fn format_char_for_output(c: char) -> String {
+    match c {
+        '"' => "\\\"".to_string(),
+        '\'' => "\\\'".to_string(),
+        '\\' => "\\\\".to_string(),
+        '\t' => "\\t".to_string(),
+        '\n' => "\\n".to_string(),
+        '\r' => "\\r".to_string(),
+        FORM_FEED => "\\f".to_string(),
+        _ => c.to_string(),
+    }
+}
+
 impl Token {
     fn of_ident_or_keyword(word: String) -> Self {
         match Keyword::of_string(&word) {
@@ -290,14 +301,22 @@ impl Token {
 
     pub fn format_for_output(&self) -> String {
         match self {
+            Key(True) => format!("BOOLEANLITERAL true"),
+            Key(False) => format!("BOOLEANLITERAL false"),
             Key(word) => word.to_string(),
             Ident(s) => format!("IDENTIFIER {}", s),
             DecIntLit(s) => format!("INTLITERAL {}", s),
             HexIntLit(s) => format!("INTLITERAL 0x{}", s),
             DecLongLit(s) => format!("LONGLITERAL {}L", s),
             HexLongLit(s) => format!("LONGLITERAL 0x{}L", s),
-            StrLit(s) => format!("STRINGLITERAL \"{}\"", s),
-            CharLit(c) => format!("CHARLITERAL '{}'", c),
+            StrLit(s) => format!(
+                "STRINGLITERAL \"{}\"",
+                s.to_string()
+                    .chars()
+                    .map(format_char_for_output)
+                    .collect::<String>()
+            ),
+            CharLit(c) => format!("CHARLITERAL '{}'", format_char_for_output(*c)),
             Sym(s) => s.to_string(),
         }
     }
@@ -324,42 +343,65 @@ fn eat_while(input: &mut Peekable<Chars>, test: fn(&char) -> bool) -> String {
     return s;
 }
 
-fn scan_char(input: &mut Peekable<Chars>) -> char {
-    let fst = input.next().unwrap(); // TODO error handling
-    match fst {
+fn scan_char(input: &mut Peekable<Chars>) -> Result<char, String> {
+    let fst = match input.next() {
+        Some(fst) => fst,
+        None => return Err(format!("expected char but line ended")),
+    };
+    Ok(match fst {
         '\\' => {
-            let snd = input.next().unwrap();
+            let snd = match input.next() {
+                Some(snd) => snd,
+                None => return Err(format!("cannot lex \\ as char")),
+            };
             match snd {
-                '"' => '\"',
+                '"' => '"',
                 '\'' => '\'',
                 '\\' => '\\',
                 't' => '\t',
                 'n' => '\n',
                 'r' => '\r',
                 'f' => FORM_FEED,
-                _ => panic!(),
+                _ => return Err(format!("cannot lex {}{} as char", fst, snd)),
             }
         }
-        '\"' => panic!(),
-        '\'' => panic!(),
+        '\"' => return Err(format!("cannot lex \" as char")),
+        '\'' => return Err(format!("cannt lex ' as char")),
         _ => fst,
+    })
+}
+
+fn scan_char_lit(input: &mut Peekable<Chars>) -> Result<Token, String> {
+    let fst = input.next();
+    if fst != Some('\'') {
+        return Err(format!("expected \' to begin char literal, got {:?}", fst));
     }
+    let ret = scan_char(input)?;
+    let last = input.next();
+    if last != Some('\'') {
+        return Err(format!("expected \' to end char literal, got {:?}", last));
+    }
+    Ok(CharLit(ret))
 }
 
-fn scan_char_lit(input: &mut Peekable<Chars>) -> char {
-    assert_eq!(input.next(), Some('\''));
-    let ret = scan_char(input);
-    assert_eq!(input.next(), Some('\''));
-    ret
-}
-
-fn scan_str_lit(input: &mut Peekable<Chars>) -> String {
+fn scan_str_lit(input: &mut Peekable<Chars>) -> Result<Token, String> {
     let mut ret = String::new();
-    assert_eq!(input.next(), Some('\"'));
-    while input.peek() != Some(&'\"') {
-        ret.push(scan_char(input));
+    let fst = input.next().unwrap();
+    assert_eq!(fst, '\"');
+    loop {
+        match input.peek() {
+            None => {
+                return Err(format!(
+                    "expected \" to end string literal, got end of line"
+                ))
+            }
+            Some('\"') => {
+                input.next();
+                return Ok(StrLit(ret));
+            }
+            Some(_) => ret.push(scan_char(input)?),
+        }
     }
-    ret
 }
 
 fn scan_dec_lit(input: &mut Peekable<Chars>) -> String {
@@ -372,8 +414,6 @@ fn scan_hex_lit(input: &mut Peekable<Chars>) -> String {
 
 // returns true if it found the end of the comment
 fn scan_until_block_comment_end(input: &mut Peekable<Chars>) -> bool {
-    input.next();
-    input.next();
     let mut prev = None;
     for c in input {
         if c == '/' && prev == Some('*') {
@@ -396,65 +436,93 @@ fn scan_ident_or_keyword(input: &mut Peekable<Chars>) -> String {
     eat_while(input, |x| is_alphanum(*x))
 }
 
-pub fn scan(input: String) -> Vec<Vec<Token>> {
+fn scan_integer_lit(input: &mut Peekable<Chars>) -> Token {
+    let mut input_clone = input.clone();
+    let val;
+    let hex;
+    if input_clone.next() == Some('0') && input_clone.next() == Some('x') {
+        input.next();
+        input.next();
+        val = scan_hex_lit(input);
+        hex = true;
+    } else {
+        val = scan_dec_lit(input);
+        hex = false;
+    }
+    let long = input.peek() == Some(&'L');
+    if long {
+        input.next();
+    };
+    match (hex, long) {
+        (true, true) => Token::HexLongLit(val),
+        (true, false) => Token::HexIntLit(val),
+        (false, true) => Token::DecLongLit(val),
+        (false, false) => Token::DecIntLit(val),
+    }
+}
+
+fn scan_sym(input: &mut Peekable<Chars>) -> Result<Token, String> {
+    let mut sym = None;
+    let mut input_clone = input.clone();
+    let fst = input.next().unwrap();
+    // first try to parse two-character symbol
+    if let Some(snd) = input_clone.nth(1) {
+        if let Some(s) = Symbol::of_string(&[fst, snd].iter().collect::<String>()) {
+            sym = Some(s);
+            // advance index again, since we scan two chars
+            input.next();
+        }
+    }
+    // if that didn't work, try to parse one-character symbol
+    if let None = sym {
+        sym = Symbol::of_string(&fst.to_string());
+    }
+    match sym {
+        Some(sym) => Ok(Sym(sym)),
+        None => Err(format!("unknown symbol {}", fst)),
+    }
+}
+
+pub fn scan(input: String) -> Vec<Vec<Result<Token, String>>> {
     let mut all_tokens = Vec::new();
     let mut scanning_block_comment = false;
     for line in input.lines() {
         let mut line = line.chars().peekable();
         let mut tokens = Vec::new();
         loop {
-            if scanning_block_comment {
-                scanning_block_comment = scan_until_block_comment_end(&mut line);
-                continue;
-            }
             let mut line_clone = line.clone();
             match line_clone.next() {
                 None => break,
                 Some(fst) => {
+                    if scanning_block_comment {
+                        scanning_block_comment = !scan_until_block_comment_end(&mut line);
+                        continue;
+                    }
+
+                    let snd = line_clone.next();
                     // lex ident or keyword
                     if is_alpha(fst) {
-                        tokens.push(Token::of_ident_or_keyword(scan_ident_or_keyword(&mut line)));
+                        tokens.push(Ok(Token::of_ident_or_keyword(scan_ident_or_keyword(
+                            &mut line,
+                        ))));
                     }
                     // lex int literal
-                    // this is a horrible mess.  my fault of course, but also it would be so much cleaner if we could just treat L as a token...
-                    // for that matter, why not 0x too?
                     else if fst.is_ascii_digit() {
-                        let val;
-                        let hex;
-                        if fst == '0' && line_clone.next() == Some('x') {
-                            val = scan_hex_lit(&mut line);
-                            hex = true;
-                        } else {
-                            val = scan_dec_lit(&mut line);
-                            hex = false;
-                        }
-                        let mut line_clone = line.clone();
-                        if line_clone.next() == Some('L') {
-                            line.next();
-                            if hex {
-                                tokens.push(Token::HexLongLit(val));
-                            } else {
-                                tokens.push(Token::DecLongLit(val));
-                            }
-                        } else {
-                            if hex {
-                                tokens.push(Token::HexIntLit(val));
-                            } else {
-                                tokens.push(Token::DecIntLit(val));
-                            }
-                        }
+                        tokens.push(Ok(scan_integer_lit(&mut line)));
+                    } else if fst == '\'' {
+                        tokens.push(scan_char_lit(&mut line));
+                    } else if fst == '"' {
+                        tokens.push(scan_str_lit(&mut line));
                     }
                     // lex comment
-                    else if fst == '/' {
-                        if line_clone.next() == Some('/') {
-                            break;
+                    else if fst == '/' && snd == Some('/') {
+                        break;
                         // go to next line
                         // could also do line.last();
-                        } else {
-                            line.next();
-                            line.next();
-                            scanning_block_comment = true;
-                        }
+                    } else if fst == '/' && snd == Some('*') {
+                        line.next();
+                        line.next();
+                        scanning_block_comment = true;
                     }
                     // lex space
                     else if fst.is_ascii_whitespace() {
@@ -462,25 +530,7 @@ pub fn scan(input: String) -> Vec<Vec<Token>> {
                     }
                     // lex symbol
                     else {
-                        let mut sym = None;
-                        // first try to parse two-character symbol
-                        if let Some(snd) = line_clone.nth(1) {
-                            if let Some(s) =
-                                Symbol::of_string(&[fst, snd].iter().collect::<String>())
-                            {
-                                sym = Some(s);
-                                line.next();
-                                line.next();
-                            }
-                        }
-                        // if that didn't work, try to parse one-character symbol
-                        if let None = sym {
-                            if let Some(s) = Symbol::of_string(&fst.to_string()) {
-                                sym = Some(s);
-                                line.next();
-                            }
-                        }
-                        tokens.push(Token::Sym(sym.unwrap()));
+                        tokens.push(scan_sym(&mut line));
                     }
                 }
             }
@@ -499,7 +549,13 @@ mod tests {
     use Token::*;
 
     fn test(input: &str, output: Vec<Token>) {
-        assert_eq!(scan(input.to_string()), vec![output]);
+        assert_eq!(
+            scan(input.to_string()),
+            vec![output
+                .into_iter()
+                .map(Ok::<Token, String>)
+                .collect::<Vec<_>>()]
+        );
     }
 
     #[test]
@@ -508,8 +564,16 @@ mod tests {
     }
 
     #[test]
-    fn nothing() {
-        test("", vec![]);
+    fn scan_one_char_lit() {
+        assert_eq!(
+            scan_char_lit(&mut "'h'".to_string().chars().peekable()),
+            Ok(CharLit('h'))
+        );
+    }
+
+    #[test]
+    fn scan_one_char() {
+        assert_eq!(scan_char(&mut "h".to_string().chars().peekable()), Ok('h'));
     }
 
     #[test]
