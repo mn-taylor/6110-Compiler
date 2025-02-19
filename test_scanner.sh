@@ -26,7 +26,9 @@ for f in $files; do
     prefix_length=${#prefix};
     nice_f=${f:$prefix_length};
     # echo "Scanning $nice_f";
-    ./run.sh -t scan ./public-tests/phase1-scanner/public/input/$nice_f > ./public-tests/phase1-scanner/public/input/${nice_f::-4}.out;
+    if ./run.sh -t scan ./public-tests/phase1-scanner/public/input/$nice_f > ./public-tests/phase1-scanner/public/input/${nice_f::-4}.out 2>/dev/null;
+    then echo $nice_f failed
+    fi
     # diff ./public-tests/phase1-scanner/public/input/${nice_f::-4}.out ./public-tests/phase1-scanner/public/output/${nice_f::-4}.out
     if ! grep "ERROR" ./public-tests/phase1-scanner/public/input/${nice_f::-4}.out > /dev/null; then
 	echo $nice_f failed
