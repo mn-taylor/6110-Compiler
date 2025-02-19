@@ -166,7 +166,7 @@ trait OfToken: Sized {
 trait Parse: Sized {
     fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self>;
     fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
-        println!("trying to parse {}", std::any::type_name::<Self>());
+        // println!("trying to parse {}", std::any::type_name::<Self>());
         Self::parse_no_debug(tokens)
     }
 }
@@ -625,7 +625,7 @@ fn str_lit(t: &Token) -> Option<String> {
 
 fn exactly(t: Token) -> impl Fn(&Token) -> Option<()> {
     move |token| {
-        println!("trying to parse {:?}, finding {:?}", t, token);
+        // println!("trying to parse {:?}, finding {:?}", t, token);
         if *token == t {
             Some(())
         } else {
