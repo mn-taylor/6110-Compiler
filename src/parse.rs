@@ -112,7 +112,9 @@ fn parse_method_call<'a, T: Clone + Iterator<Item = &'a Token>>(
 }
 
 impl Parse for AtomicExpr {
-    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<AtomicExpr> {
+    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(
+        tokens: &mut T,
+    ) -> Option<AtomicExpr> {
         // order matters here.  one that works is
         // Neg, Not, Ex, IntCast, LongCast, Len, Lit, Call, Loc
         let parse_neg = parse_concat(parse_one(exactly(Sym(AddSym(Sub)))), Self::parse);
@@ -162,7 +164,11 @@ trait OfToken: Sized {
 }
 
 trait Parse: Sized {
-    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self>;
+    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self>;
+    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+        println!("trying to parse {}", std::any::type_name::<Self>());
+        Self::parse_no_debug(tokens)
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -172,7 +178,7 @@ pub enum BinExpr<OpType, AtomType> {
 }
 
 impl<OpType: OfToken, AtomType: Parse> Parse for BinExpr<OpType, AtomType> {
-    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
         let bin_expr = parse_concat(
             AtomType::parse,
             parse_or(
@@ -261,7 +267,7 @@ pub enum Location {
 }
 
 impl Parse for Location {
-    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
         let parse_location = parse_or(
             parse_concat(
                 parse_one(ident),
@@ -304,14 +310,14 @@ impl OfToken for IncrOp {
 }
 
 impl<U: OfToken> Parse for U {
-    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
         parse_one(Self::of_token)(tokens)
     }
 }
 
 use AssignExpr::*;
 impl Parse for AssignExpr {
-    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
         let ass_expr = parse_or(parse_concat(AssignOp::parse, OrExpr::parse), IncrOp::parse);
         Some(match ass_expr(tokens)? {
             Inl((op, expr)) => RegularAssign(op, expr),
@@ -327,7 +333,7 @@ pub enum Arg {
 }
 
 impl Parse for Arg {
-    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
         let arg = parse_or(OrExpr::parse, parse_one(str_lit));
         Some(match arg(tokens)? {
             Inl(a) => Arg::ExprArg(a),
@@ -349,7 +355,7 @@ pub enum Stmt {
 }
 
 impl Parse for Stmt {
-    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
         // order doesnt' matter much
         let parse_ass = parse_concat(
             Location::parse,
@@ -471,7 +477,7 @@ pub struct Block {
 }
 
 impl Parse for Block {
-    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
         let block = parse_concat(
             parse_one(exactly(Sym(Misc(LBrace)))),
             parse_concat(
@@ -615,7 +621,7 @@ fn str_lit(t: &Token) -> Option<String> {
 
 fn exactly(t: Token) -> impl Fn(&Token) -> Option<()> {
     move |token| {
-        println!("{:?}, {:?}", token, t);
+        println!("trying to parse {:?}, finding {:?}", t, token);
         if *token == t {
             Some(())
         } else {
@@ -704,7 +710,7 @@ fn parse_field_decl<'a, T: Clone + Iterator<Item = &'a Token>>(
 }
 
 impl Parse for Param {
-    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
         let param = parse_concat(parse_one(typ), parse_one(ident));
         Some(match param(tokens)? {
             (param_type, name) => Param { param_type, name },
@@ -712,28 +718,36 @@ impl Parse for Param {
     }
 }
 
-fn parse_method<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Method> {
-    let method = parse_concat(
-        parse_one(typ_or_void),
-        parse_concat(
-            parse_one(ident),
+impl Parse for Method {
+    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Method> {
+        let method = parse_concat(
+            parse_one(typ_or_void),
             parse_concat(
-                parse_one(exactly(Sym(Misc(LPar)))),
+                parse_one(ident),
                 parse_concat(
-                    parse_comma_sep_list(Param::parse),
-                    parse_concat(parse_one(exactly(Sym(Misc(RPar)))), Block::parse),
+                    parse_one(exactly(Sym(Misc(LPar)))),
+                    parse_concat(
+                        parse_or(parse_comma_sep_list(Param::parse), parse_nothing),
+                        parse_concat(parse_one(exactly(Sym(Misc(RPar)))), Block::parse),
+                    ),
                 ),
             ),
-        ),
-    );
-    Some(match method(tokens)? {
-        (meth_type, (name, ((), (params, ((), body))))) => Method {
-            meth_type,
-            name,
-            params,
-            body,
-        },
-    })
+        );
+        Some(match method(tokens)? {
+            (meth_type, (name, ((), (maybe_params, ((), body))))) => {
+                let params = match maybe_params {
+                    Inl(params) => params,
+                    Inr(()) => Vec::new(),
+                };
+                Method {
+                    meth_type,
+                    name,
+                    params,
+                    body,
+                }
+            }
+        })
+    }
 }
 
 pub fn parse_program<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Program {
@@ -744,7 +758,7 @@ pub fn parse_program<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) 
             .into_iter()
             .flatten()
             .collect(),
-        methods: parse_star(parse_method)(tokens).unwrap(),
+        methods: parse_star(Method::parse)(tokens).unwrap(),
     }
 }
 

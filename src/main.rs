@@ -1,4 +1,5 @@
 mod utils;
+use decaf_skeleton_rust::parse;
 use decaf_skeleton_rust::scan;
 
 fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
@@ -44,7 +45,20 @@ fn main() {
             print_tokens(scan::scan(input));
         }
         utils::cli::CompilerAction::Parse => {
-            todo!("parse");
+            let tokens = scan::scan(input);
+            let mut tokens =
+                tokens
+                    .iter()
+                    .flatten()
+                    .map(|x: &Result<scan::Token, String>| match x {
+                        Ok(x) => x,
+                        Err(_) => panic!("oops couldnt scan"),
+                    });
+            println!("{:?}", tokens.clone().collect::<Vec<_>>());
+            parse::parse_program(&mut tokens);
+            if tokens.collect::<Vec<_>>().len() > 0 {
+                panic!("oops didnt parse everythign");
+            }
         }
         utils::cli::CompilerAction::Inter => {
             todo!("inter");
