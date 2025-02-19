@@ -367,7 +367,13 @@ fn scan_char(input: &mut Peekable<Chars>) -> Result<char, String> {
         }
         '\"' => return Err(format!("cannot lex \" as char")),
         '\'' => return Err(format!("cannt lex ' as char")),
-        _ => fst,
+        _ => {
+            if 32 as char <= fst && fst <= 126 as char {
+                fst
+            } else {
+                return Err(format!("cannot lex uint_8 {} as char", fst as u8));
+            }
+        }
     })
 }
 

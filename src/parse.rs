@@ -53,7 +53,6 @@ fn char_lit(t: &Token) -> Option<char> {
 }
 
 fn parse_lit<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Literal> {
-    // order doesn't much matter, just need to try long before int
     if let Some(b) = parse_one(bool_lit)(tokens) {
         return Some(Literal::Bool(b));
     }
