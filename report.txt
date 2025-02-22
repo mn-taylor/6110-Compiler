@@ -1,0 +1,3 @@
+I wrote the scanner manually (no using ANTLR or similar).  I wrote a loop that repeatedly looks at the first one or two characters of the input and then, based on that, decides what token to try to scan.  Then it calls one of the helper functions "scan_str_lit", "scan_sym", etc.
+
+I wrote a recursive-descent parser manually (no using ANTLR or similar).  I decided that a "parsing function" was a function of type "token-iterator -> Option<T>".  Then I defined functions parse_or, parse_concat, parse_star that take parsing functions as input and return another parsing function.  Then writing the recursive-descent parser in terms of these basically amounted to copying down the spec.

@@ -51,7 +51,9 @@ pub enum Keyword {
 
 use Keyword::*;
 
-impl Keyword {
+impl Finite for Keyword {}
+
+impl ToString for Keyword {
     fn to_string(&self) -> String {
         match self {
             Import => "import",
@@ -71,15 +73,6 @@ impl Keyword {
             False => "false",
         }
         .to_string()
-    }
-
-    fn of_string(word: &str) -> Option<Self> {
-        for val in all::<Self>() {
-            if val.to_string() == word {
-                return Some(val);
-            }
-        }
-        return None;
     }
 }
 
@@ -552,7 +545,6 @@ pub fn scan(input: String) -> Vec<Vec<Result<Token, String>>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use Token::*;
 
     fn test(input: &str, output: Vec<Token>) {
         assert_eq!(
