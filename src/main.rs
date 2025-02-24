@@ -11,21 +11,19 @@ fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
 
 fn write_tokens(
     mut writer: Box<dyn std::io::Write>,
-    tokens: &Vec<Vec<Result<scan::Token, String>>>,
+    tokens: &Vec<(Result<scan::Token, String>, scan::ErrLoc)>,
 ) {
-    for (line_num, tokens_in_line) in tokens.iter().enumerate() {
-        for token in tokens_in_line {
-            match token {
-                Ok(token) => writeln!(
-                    writer,
-                    "{} {}",
-                    line_num + 1,
-                    scan::Token::format_for_output(&token)
-                ),
-                Err(err) => writeln!(writer, "ERROR on line {}: {}", line_num + 1, err),
-            }
-            .unwrap();
+    for token in tokens {
+        match token {
+            (Ok(token), e) => writeln!(
+                writer,
+                "{} {}",
+                e.line,
+                scan::Token::format_for_output(&token)
+            ),
+            (Err(err), e) => writeln!(writer, "ERROR on line {}: {}", e.line, err),
         }
+        .unwrap();
     }
 }
 
@@ -49,21 +47,17 @@ fn main() {
         utils::cli::CompilerAction::Scan => {
             let tokens = scan::scan(input);
             write_tokens(writer, &tokens);
-            tokens.iter().flatten().for_each(|x| match x {
-                Ok(_) => (),
-                Err(err) => panic!("{}", err),
+            tokens.iter().for_each(|x| match x {
+                (Ok(_), _) => (),
+                (Err(err), _) => panic!("{}", err),
             });
         }
         utils::cli::CompilerAction::Parse => {
             let tokens = scan::scan(input);
-            let mut tokens =
-                tokens
-                    .iter()
-                    .flatten()
-                    .map(|x: &Result<scan::Token, String>| match x {
-                        Ok(x) => x,
-                        Err(_) => panic!("oops couldnt scan"),
-                    });
+            let mut tokens = tokens.iter().map(|(x, _)| match x {
+                Ok(x) => x,
+                Err(_) => panic!("oops couldnt scan"),
+            });
             // println!("{:?}", tokens.clone().collect::<Vec<_>>());
             parse::parse_program(&mut tokens);
             if tokens.collect::<Vec<_>>().len() > 0 {

@@ -494,11 +494,11 @@ fn scan_sym(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> Resul
 }
 
 pub struct ErrLoc {
-    line: u32,
-    col: u32,
+    pub line: u32,
+    pub col: u32,
 }
 
-pub fn scan(input: String) -> Vec<Result<(Token, ErrLoc), String>> {
+pub fn scan(input: String) -> Vec<(Result<Token, String>, ErrLoc)> {
     let mut tokens = Vec::new();
     let mut scanning_block_comment = false;
     for (linenum, line) in input.lines().enumerate() {
@@ -524,18 +524,18 @@ pub fn scan(input: String) -> Vec<Result<(Token, ErrLoc), String>> {
                     let second = line_clone.next().map(snd);
                     // lex ident or keyword
                     if is_alpha(fst) {
-                        tokens.push(Ok((
-                            Token::of_ident_or_keyword(scan_ident_or_keyword(&mut line)),
+                        tokens.push((
+                            Ok(Token::of_ident_or_keyword(scan_ident_or_keyword(&mut line))),
                             e,
-                        )));
+                        ));
                     }
                     // lex int literal
                     else if fst.is_ascii_digit() {
-                        tokens.push(Ok((scan_integer_lit(&mut line), e)));
+                        tokens.push((Ok(scan_integer_lit(&mut line)), e));
                     } else if fst == '\'' {
-                        tokens.push(scan_char_lit(&mut line).map(|x| (x, e)));
+                        tokens.push((scan_char_lit(&mut line), e));
                     } else if fst == '"' {
-                        tokens.push(scan_str_lit(&mut line).map(|x| (x, e)));
+                        tokens.push((scan_str_lit(&mut line), e));
                     }
                     // lex comment
                     else if fst == '/' && second == Some('/') {
@@ -553,7 +553,7 @@ pub fn scan(input: String) -> Vec<Result<(Token, ErrLoc), String>> {
                     }
                     // lex symbol
                     else {
-                        tokens.push(scan_sym(&mut line).map(|x| (x, e)));
+                        tokens.push((scan_sym(&mut line), e));
                     }
                 }
             }
