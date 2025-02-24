@@ -315,16 +315,13 @@ impl Token {
     }
 }
 
-use std::iter::Peekable;
-use std::str::Chars;
-
-fn eat_while(input: &mut Peekable<Chars>, test: fn(&char) -> bool) -> String {
+fn eat_while(input: &mut (impl Clone + Iterator<Item = char>), test: fn(char) -> bool) -> String {
     let mut s = String::new();
     loop {
-        match input.peek() {
+        match input.clone().next() {
             Some(c) => {
                 if test(c) {
-                    s.push(*c);
+                    s.push(c);
                     input.next();
                 } else {
                     break;
@@ -336,7 +333,7 @@ fn eat_while(input: &mut Peekable<Chars>, test: fn(&char) -> bool) -> String {
     return s;
 }
 
-fn scan_char(input: &mut Peekable<Chars>) -> Result<char, String> {
+fn scan_char(input: &mut impl Iterator<Item = char>) -> Result<char, String> {
     let fst = match input.next() {
         Some(fst) => fst,
         None => return Err(format!("expected char but line ended")),
@@ -370,7 +367,7 @@ fn scan_char(input: &mut Peekable<Chars>) -> Result<char, String> {
     })
 }
 
-fn scan_char_lit(input: &mut Peekable<Chars>) -> Result<Token, String> {
+fn scan_char_lit(input: &mut impl Iterator<Item = char>) -> Result<Token, String> {
     let fst = input.next();
     if fst != Some('\'') {
         return Err(format!("expected \' to begin char literal, got {:?}", fst));
@@ -383,12 +380,12 @@ fn scan_char_lit(input: &mut Peekable<Chars>) -> Result<Token, String> {
     Ok(CharLit(ret))
 }
 
-fn scan_str_lit(input: &mut Peekable<Chars>) -> Result<Token, String> {
+fn scan_str_lit(input: &mut (impl Clone + Iterator<Item = char>)) -> Result<Token, String> {
     let mut ret = String::new();
     let fst = input.next().unwrap();
     assert_eq!(fst, '\"');
     loop {
-        match input.peek() {
+        match input.clone().next() {
             None => {
                 return Err(format!(
                     "expected \" to end string literal, got end of line"
@@ -403,16 +400,16 @@ fn scan_str_lit(input: &mut Peekable<Chars>) -> Result<Token, String> {
     }
 }
 
-fn scan_dec_lit(input: &mut Peekable<Chars>) -> String {
+fn scan_dec_lit(input: &mut (impl Clone + Iterator<Item = char>)) -> String {
     eat_while(input, |x| x.is_ascii_digit())
 }
 
-fn scan_hex_lit(input: &mut Peekable<Chars>) -> String {
+fn scan_hex_lit(input: &mut (impl Clone + Iterator<Item = char>)) -> String {
     eat_while(input, |x| x.is_ascii_hexdigit())
 }
 
 // returns true if it found the end of the comment
-fn scan_until_block_comment_end(input: &mut Peekable<Chars>) -> bool {
+fn scan_until_block_comment_end(input: &mut impl Iterator<Item = char>) -> bool {
     let mut prev = None;
     for c in input {
         if c == '/' && prev == Some('*') {
@@ -431,11 +428,11 @@ fn is_alphanum(c: char) -> bool {
     is_alpha(c) || c.is_ascii_digit()
 }
 
-fn scan_ident_or_keyword(input: &mut Peekable<Chars>) -> String {
-    eat_while(input, |x| is_alphanum(*x))
+fn scan_ident_or_keyword(input: &mut (impl Clone + Iterator<Item = char>)) -> String {
+    eat_while(input, |x| is_alphanum(x))
 }
 
-fn scan_integer_lit(input: &mut Peekable<Chars>) -> Token {
+fn scan_integer_lit(input: &mut (impl Clone + Iterator<Item = char>)) -> Token {
     let mut input_clone = input.clone();
     let val;
     let hex;
@@ -448,7 +445,7 @@ fn scan_integer_lit(input: &mut Peekable<Chars>) -> Token {
         val = scan_dec_lit(input);
         hex = false;
     }
-    let long = input.peek() == Some(&'L');
+    let long = input.clone().next() == Some('L');
     if long {
         input.next();
     };
@@ -460,7 +457,7 @@ fn scan_integer_lit(input: &mut Peekable<Chars>) -> Token {
     }
 }
 
-fn scan_sym(input: &mut Peekable<Chars>) -> Result<Token, String> {
+fn scan_sym(input: &mut (impl Clone + Iterator<Item = char>)) -> Result<Token, String> {
     let mut sym = None;
     let mut input_clone = input.clone();
     let fst = input.next().unwrap();
@@ -486,7 +483,7 @@ pub fn scan(input: String) -> Vec<Vec<Result<Token, String>>> {
     let mut all_tokens = Vec::new();
     let mut scanning_block_comment = false;
     for line in input.lines() {
-        let mut line = line.chars().peekable();
+        let mut line = line.chars();
         let mut tokens = Vec::new();
         loop {
             let mut line_clone = line.clone();
@@ -564,14 +561,14 @@ mod tests {
     #[test]
     fn scan_one_char_lit() {
         assert_eq!(
-            scan_char_lit(&mut "'h'".to_string().chars().peekable()),
+            scan_char_lit(&mut "'h'".to_string().chars()),
             Ok(CharLit('h'))
         );
     }
 
     #[test]
     fn scan_one_char() {
-        assert_eq!(scan_char(&mut "h".to_string().chars().peekable()), Ok('h'));
+        assert_eq!(scan_char(&mut "h".to_string().chars()), Ok('h'));
     }
 
     #[test]

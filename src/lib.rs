@@ -1,3 +1,3 @@
-pub mod IR;
+pub mod ir;
 pub mod parse;
 pub mod scan;
