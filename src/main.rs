@@ -21,7 +21,7 @@ fn write_tokens(
                 e.line,
                 scan::Token::format_for_output(&token)
             ),
-            (Err(err), e) => writeln!(writer, "ERROR on line {}: {}", e.line, err),
+            (Err(err), e) => writeln!(writer, "ERROR on line {} col {}: {}", e.line, e.col, err),
         }
         .unwrap();
     }
