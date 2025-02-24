@@ -493,13 +493,13 @@ fn scan_sym(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> Resul
     }
 }
 
-struct ErrLoc {
+pub struct ErrLoc {
     line: u32,
     col: u32,
 }
 
-pub fn scan(input: String) -> Vec<Vec<Result<Token, String>>> {
-    let mut all_tokens = Vec::new();
+pub fn scan(input: String) -> Vec<Result<(Token, ErrLoc), String>> {
+    let mut tokens = Vec::new();
     let mut scanning_block_comment = false;
     for (linenum, line) in input.lines().enumerate() {
         let mut line = line.chars().enumerate().map(|(col, c)| {
@@ -511,7 +511,6 @@ pub fn scan(input: String) -> Vec<Vec<Result<Token, String>>> {
                 c,
             )
         });
-        let mut tokens = Vec::new();
         loop {
             let mut line_clone = line.clone();
             match line_clone.next() {
@@ -525,17 +524,18 @@ pub fn scan(input: String) -> Vec<Vec<Result<Token, String>>> {
                     let second = line_clone.next().map(snd);
                     // lex ident or keyword
                     if is_alpha(fst) {
-                        tokens.push(Ok(Token::of_ident_or_keyword(scan_ident_or_keyword(
-                            &mut line,
-                        ))));
+                        tokens.push(Ok((
+                            Token::of_ident_or_keyword(scan_ident_or_keyword(&mut line)),
+                            e,
+                        )));
                     }
                     // lex int literal
                     else if fst.is_ascii_digit() {
-                        tokens.push(Ok(scan_integer_lit(&mut line)));
+                        tokens.push(Ok((scan_integer_lit(&mut line), e)));
                     } else if fst == '\'' {
-                        tokens.push(scan_char_lit(&mut line));
+                        tokens.push(scan_char_lit(&mut line).map(|x| (x, e)));
                     } else if fst == '"' {
-                        tokens.push(scan_str_lit(&mut line));
+                        tokens.push(scan_str_lit(&mut line).map(|x| (x, e)));
                     }
                     // lex comment
                     else if fst == '/' && second == Some('/') {
@@ -553,17 +553,16 @@ pub fn scan(input: String) -> Vec<Vec<Result<Token, String>>> {
                     }
                     // lex symbol
                     else {
-                        tokens.push(scan_sym(&mut line));
+                        tokens.push(scan_sym(&mut line).map(|x| (x, e)));
                     }
                 }
             }
         }
-        all_tokens.push(tokens);
     }
     if scanning_block_comment {
         panic!("unterminated block comment");
     }
-    all_tokens
+    tokens
 }
 
 #[cfg(test)]
