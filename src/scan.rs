@@ -315,11 +315,14 @@ impl Token {
     }
 }
 
-fn eat_while(input: &mut (impl Clone + Iterator<Item = char>), test: fn(char) -> bool) -> String {
+fn eat_while(
+    input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>),
+    test: fn(char) -> bool,
+) -> String {
     let mut s = String::new();
     loop {
         match input.clone().next() {
-            Some(c) => {
+            Some((_, c)) => {
                 if test(c) {
                     s.push(c);
                     input.next();
@@ -333,18 +336,18 @@ fn eat_while(input: &mut (impl Clone + Iterator<Item = char>), test: fn(char) ->
     return s;
 }
 
-fn scan_char(input: &mut impl Iterator<Item = char>) -> Result<char, String> {
-    let fst = match input.next() {
-        Some(fst) => fst,
+fn scan_char(input: &mut impl Iterator<Item = (ErrLoc, char)>) -> Result<char, String> {
+    let first = match input.next() {
+        Some((_, first)) => first,
         None => return Err(format!("expected char but line ended")),
     };
-    Ok(match fst {
+    Ok(match first {
         '\\' => {
-            let snd = match input.next() {
-                Some(snd) => snd,
+            let second = match input.next() {
+                Some((_, second)) => second,
                 None => return Err(format!("cannot lex \\ as char")),
             };
-            match snd {
+            match second {
                 '"' => '"',
                 '\'' => '\'',
                 '\\' => '\\',
@@ -352,40 +355,45 @@ fn scan_char(input: &mut impl Iterator<Item = char>) -> Result<char, String> {
                 'n' => '\n',
                 'r' => '\r',
                 'f' => FORM_FEED,
-                _ => return Err(format!("cannot lex {}{} as char", fst, snd)),
+                _ => return Err(format!("cannot lex {}{} as char", first, second)),
             }
         }
         '\"' => return Err(format!("cannot lex \" as char")),
         '\'' => return Err(format!("cannt lex ' as char")),
         _ => {
-            if 32 as char <= fst && fst <= 126 as char {
-                fst
+            if 32 as char <= first && first <= 126 as char {
+                first
             } else {
-                return Err(format!("cannot lex uint_8 {} as char", fst as u8));
+                return Err(format!("cannot lex uint_8 {} as char", first as u8));
             }
         }
     })
 }
 
-fn scan_char_lit(input: &mut impl Iterator<Item = char>) -> Result<Token, String> {
-    let fst = input.next();
-    if fst != Some('\'') {
-        return Err(format!("expected \' to begin char literal, got {:?}", fst));
+fn scan_char_lit(input: &mut impl Iterator<Item = (ErrLoc, char)>) -> Result<Token, String> {
+    let first = input.next().map(snd);
+    if first != Some('\'') {
+        return Err(format!(
+            "expected \' to begin char literal, got {:?}",
+            first
+        ));
     }
     let ret = scan_char(input)?;
-    let last = input.next();
+    let last = input.next().map(snd);
     if last != Some('\'') {
         return Err(format!("expected \' to end char literal, got {:?}", last));
     }
     Ok(CharLit(ret))
 }
 
-fn scan_str_lit(input: &mut (impl Clone + Iterator<Item = char>)) -> Result<Token, String> {
+fn scan_str_lit(
+    input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>),
+) -> Result<Token, String> {
     let mut ret = String::new();
-    let fst = input.next().unwrap();
-    assert_eq!(fst, '\"');
+    let first = input.next().map(snd).unwrap();
+    assert_eq!(first, '\"');
     loop {
-        match input.clone().next() {
+        match input.clone().next().map(snd) {
             None => {
                 return Err(format!(
                     "expected \" to end string literal, got end of line"
@@ -400,18 +408,18 @@ fn scan_str_lit(input: &mut (impl Clone + Iterator<Item = char>)) -> Result<Toke
     }
 }
 
-fn scan_dec_lit(input: &mut (impl Clone + Iterator<Item = char>)) -> String {
+fn scan_dec_lit(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> String {
     eat_while(input, |x| x.is_ascii_digit())
 }
 
-fn scan_hex_lit(input: &mut (impl Clone + Iterator<Item = char>)) -> String {
+fn scan_hex_lit(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> String {
     eat_while(input, |x| x.is_ascii_hexdigit())
 }
 
 // returns true if it found the end of the comment
-fn scan_until_block_comment_end(input: &mut impl Iterator<Item = char>) -> bool {
+fn scan_until_block_comment_end(input: &mut impl Iterator<Item = (ErrLoc, char)>) -> bool {
     let mut prev = None;
-    for c in input {
+    for (_, c) in input {
         if c == '/' && prev == Some('*') {
             return true;
         }
@@ -428,15 +436,15 @@ fn is_alphanum(c: char) -> bool {
     is_alpha(c) || c.is_ascii_digit()
 }
 
-fn scan_ident_or_keyword(input: &mut (impl Clone + Iterator<Item = char>)) -> String {
+fn scan_ident_or_keyword(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> String {
     eat_while(input, |x| is_alphanum(x))
 }
 
-fn scan_integer_lit(input: &mut (impl Clone + Iterator<Item = char>)) -> Token {
+fn scan_integer_lit(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> Token {
     let mut input_clone = input.clone();
     let val;
     let hex;
-    if input_clone.next() == Some('0') && input_clone.next() == Some('x') {
+    if input_clone.next().map(snd) == Some('0') && input_clone.next().map(snd) == Some('x') {
         input.next();
         input.next();
         val = scan_hex_lit(input);
@@ -445,7 +453,7 @@ fn scan_integer_lit(input: &mut (impl Clone + Iterator<Item = char>)) -> Token {
         val = scan_dec_lit(input);
         hex = false;
     }
-    let long = input.clone().next() == Some('L');
+    let long = input.clone().next().map(snd) == Some('L');
     if long {
         input.next();
     };
@@ -457,13 +465,19 @@ fn scan_integer_lit(input: &mut (impl Clone + Iterator<Item = char>)) -> Token {
     }
 }
 
-fn scan_sym(input: &mut (impl Clone + Iterator<Item = char>)) -> Result<Token, String> {
+fn snd<A, B>(x: (A, B)) -> B {
+    match x {
+        (_, b) => b,
+    }
+}
+
+fn scan_sym(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> Result<Token, String> {
     let mut sym = None;
     let mut input_clone = input.clone();
-    let fst = input.next().unwrap();
+    let first = snd(input.next().unwrap());
     // first try to parse two-character symbol
-    if let Some(snd) = input_clone.nth(1) {
-        if let Some(s) = Symbol::of_string(&[fst, snd].iter().collect::<String>()) {
+    if let Some((_, second)) = input_clone.nth(1) {
+        if let Some(s) = Symbol::of_string(&[first, second].iter().collect::<String>()) {
             sym = Some(s);
             // advance index again, since we scan two chars
             input.next();
@@ -471,31 +485,44 @@ fn scan_sym(input: &mut (impl Clone + Iterator<Item = char>)) -> Result<Token, S
     }
     // if that didn't work, try to parse one-character symbol
     if let None = sym {
-        sym = Symbol::of_string(&fst.to_string());
+        sym = Symbol::of_string(&first.to_string());
     }
     match sym {
         Some(sym) => Ok(Sym(sym)),
-        None => Err(format!("unknown symbol {}", fst)),
+        None => Err(format!("unknown symbol {}", first)),
     }
+}
+
+struct ErrLoc {
+    line: u32,
+    col: u32,
 }
 
 pub fn scan(input: String) -> Vec<Vec<Result<Token, String>>> {
     let mut all_tokens = Vec::new();
     let mut scanning_block_comment = false;
-    for line in input.lines() {
-        let mut line = line.chars();
+    for (linenum, line) in input.lines().enumerate() {
+        let mut line = line.chars().enumerate().map(|(col, c)| {
+            (
+                ErrLoc {
+                    line: (linenum + 1) as u32,
+                    col: (col + 1) as u32,
+                },
+                c,
+            )
+        });
         let mut tokens = Vec::new();
         loop {
             let mut line_clone = line.clone();
             match line_clone.next() {
                 None => break,
-                Some(fst) => {
+                Some((e, fst)) => {
                     if scanning_block_comment {
                         scanning_block_comment = !scan_until_block_comment_end(&mut line);
                         continue;
                     }
 
-                    let snd = line_clone.next();
+                    let second = line_clone.next().map(snd);
                     // lex ident or keyword
                     if is_alpha(fst) {
                         tokens.push(Ok(Token::of_ident_or_keyword(scan_ident_or_keyword(
@@ -511,11 +538,11 @@ pub fn scan(input: String) -> Vec<Vec<Result<Token, String>>> {
                         tokens.push(scan_str_lit(&mut line));
                     }
                     // lex comment
-                    else if fst == '/' && snd == Some('/') {
+                    else if fst == '/' && second == Some('/') {
                         break;
                         // go to next line
                         // could also do line.last();
-                    } else if fst == '/' && snd == Some('*') {
+                    } else if fst == '/' && second == Some('*') {
                         line.next();
                         line.next();
                         scanning_block_comment = true;
