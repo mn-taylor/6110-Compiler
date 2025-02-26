@@ -38,9 +38,92 @@ pub enum Literal {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct Block {
+    pub fields: Vec<Field>,
+    pub stmts: Vec<Stmt>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Method {
+    pub meth_type: Option<Type>,
+    pub name: WithLoc<Ident>,
+    pub params: Vec<Param>,
+    pub body: Block,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Program {
+    pub imports: Vec<Ident>,
+    pub fields: Vec<Field>,
+    pub methods: Vec<Method>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct AndOp {}
+
+#[derive(Debug, PartialEq)]
+pub struct OrOp {}
+
+#[derive(Debug, PartialEq)]
+pub enum AtomicExpr {
+    Loc(Box<Location>),
+    Call(WithLoc<Ident>, Vec<Arg>),
+    Lit(WithLoc<Literal>),
+    IntCast(Box<OrExpr>),
+    LongCast(Box<OrExpr>),
+    LenEx(WithLoc<Ident>),
+    NegEx(Box<AtomicExpr>),
+    NotEx(Box<AtomicExpr>),
+    Ex(Box<OrExpr>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum BinExpr<OpType, AtomType> {
+    Atomic(AtomType),
+    Bin(AtomType, OpType, Box<BinExpr<OpType, AtomType>>),
+}
+
+type MulExpr = BinExpr<MulOp, AtomicExpr>;
+type AddExpr = BinExpr<AddOp, MulExpr>;
+type RelExpr = BinExpr<RelOp, AddExpr>;
+type EqExpr = BinExpr<EqOp, RelExpr>;
+type AndExpr = BinExpr<AndOp, EqExpr>;
+type OrExpr = BinExpr<OrOp, AndExpr>;
+
+#[derive(Debug, PartialEq)]
+pub enum Location {
+    Var(WithLoc<Ident>),
+    ArrayIndex(WithLoc<Ident>, OrExpr),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Arg {
+    ExprArg(OrExpr),
+    ExternArg(String),
+}
+
+#[derive(Debug, PartialEq)]
 pub struct WithLoc<T> {
     pub val: T,
     pub loc: ErrLoc,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AssignExpr {
+    RegularAssign(AssignOp, OrExpr),
+    IncrAssign(IncrOp),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Stmt {
+    Assignment(Location, AssignExpr),
+    Call(WithLoc<Ident>, Vec<Arg>),
+    If(OrExpr, Block, Option<Block>),
+    For(WithLoc<Ident>, OrExpr, OrExpr, Location, AssignExpr, Block),
+    While(OrExpr, Block),
+    Return(Option<OrExpr>),
+    Break,
+    Continue,
 }
 
 pub trait TokenErrIter<'a>: Clone + Iterator<Item = &'a (Token, ErrLoc)> {}
@@ -61,19 +144,6 @@ impl OfToken for Literal {
             _ => None,
         }
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum AtomicExpr {
-    Loc(Box<Location>),
-    Call(WithLoc<Ident>, Vec<Arg>),
-    Lit(WithLoc<Literal>),
-    IntCast(Box<OrExpr>),
-    LongCast(Box<OrExpr>),
-    LenEx(WithLoc<Ident>),
-    NegEx(Box<AtomicExpr>),
-    NotEx(Box<AtomicExpr>),
-    Ex(Box<OrExpr>),
 }
 
 use crate::scan::AddOp::*;
@@ -176,12 +246,6 @@ trait Parse: Sized {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum BinExpr<OpType, AtomType> {
-    Atomic(AtomType),
-    Bin(AtomType, OpType, Box<BinExpr<OpType, AtomType>>),
-}
-
 impl<OpType: OfToken, AtomType: Parse> Parse for BinExpr<OpType, AtomType> {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let bin_expr = parse_concat(
@@ -252,25 +316,6 @@ impl OfToken for OrOp {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct AndOp {}
-
-#[derive(Debug, PartialEq)]
-pub struct OrOp {}
-
-type MulExpr = BinExpr<MulOp, AtomicExpr>;
-type AddExpr = BinExpr<AddOp, MulExpr>;
-type RelExpr = BinExpr<RelOp, AddExpr>;
-type EqExpr = BinExpr<EqOp, RelExpr>;
-type AndExpr = BinExpr<AndOp, EqExpr>;
-type OrExpr = BinExpr<OrOp, AndExpr>;
-
-#[derive(Debug, PartialEq)]
-pub enum Location {
-    Var(WithLoc<Ident>),
-    ArrayIndex(WithLoc<Ident>, OrExpr),
-}
-
 impl Parse for Location {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let parse_location = parse_or(
@@ -288,12 +333,6 @@ impl Parse for Location {
             Inr(id) => Location::Var(id),
         })
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum AssignExpr {
-    RegularAssign(AssignOp, OrExpr),
-    IncrAssign(IncrOp),
 }
 
 impl OfToken for AssignOp {
@@ -337,12 +376,6 @@ impl Parse for AssignExpr {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum Arg {
-    ExprArg(OrExpr),
-    ExternArg(String),
-}
-
 impl Parse for Arg {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let arg = parse_or(OrExpr::parse, parse_one(str_lit));
@@ -351,18 +384,6 @@ impl Parse for Arg {
             Inr(s) => Arg::ExternArg(s),
         })
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Stmt {
-    Assignment(Location, AssignExpr),
-    Call(WithLoc<Ident>, Vec<Arg>),
-    If(OrExpr, Block, Option<Block>),
-    For(WithLoc<Ident>, OrExpr, OrExpr, Location, AssignExpr, Block),
-    While(OrExpr, Block),
-    Return(Option<OrExpr>),
-    Break,
-    Continue,
 }
 
 impl Parse for Stmt {
@@ -485,12 +506,6 @@ impl Parse for Stmt {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Block {
-    pub fields: Vec<Field>,
-    pub stmts: Vec<Stmt>,
-}
-
 impl Parse for Block {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let block = parse_concat(
@@ -510,21 +525,6 @@ impl Parse for Block {
             },
         })
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Method {
-    pub meth_type: Option<Type>,
-    pub name: WithLoc<Ident>,
-    pub params: Vec<Param>,
-    pub body: Block,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Program {
-    pub imports: Vec<Ident>,
-    pub fields: Vec<Field>,
-    pub methods: Vec<Method>,
 }
 
 // there is no good reason for this to return an option, but i want it to be
