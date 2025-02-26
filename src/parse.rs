@@ -43,6 +43,10 @@ pub enum Literal {
     Bool(bool),
 }
 
+pub trait TokenErrIter<'a>: Clone + Iterator<Item = &'a Token> {}
+
+impl<'a, T: Clone + Iterator<Item = &'a Token>> TokenErrIter<'a> for T {}
+
 impl OfToken for Literal {
     fn of_token(t: &Token) -> Option<Literal> {
         //bool, char, int, long
@@ -81,9 +85,7 @@ fn parse_nothing<T>(_tokens: &mut T) -> Option<()> {
     Some(())
 }
 
-fn parse_method_call<'a, T: Clone + Iterator<Item = &'a Token>>(
-    tokens: &mut T,
-) -> Option<(Ident, Vec<Arg>)> {
+fn parse_method_call<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<(Ident, Vec<Arg>)> {
     let parse_call = parse_concat(
         parse_one(ident),
         parse_concat(
@@ -106,9 +108,7 @@ fn parse_method_call<'a, T: Clone + Iterator<Item = &'a Token>>(
 }
 
 impl Parse for AtomicExpr {
-    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(
-        tokens: &mut T,
-    ) -> Option<AtomicExpr> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<AtomicExpr> {
         // order matters here.  one that works is
         // Neg, Not, Ex, IntCast, LongCast, Len, Lit, Call, Loc
         let parse_neg = parse_concat(parse_one(exactly(Sym(AddSym(Sub)))), Self::parse);
@@ -158,8 +158,8 @@ trait OfToken: Sized {
 }
 
 trait Parse: Sized {
-    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self>;
-    fn parse<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self>;
+    fn parse<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Self> {
         // println!("trying to parse {}", std::any::type_name::<Self>());
         Self::parse_no_debug(tokens)
     }
@@ -172,7 +172,7 @@ pub enum BinExpr<OpType, AtomType> {
 }
 
 impl<OpType: OfToken, AtomType: Parse> Parse for BinExpr<OpType, AtomType> {
-    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let bin_expr = parse_concat(
             AtomType::parse,
             parse_or(
@@ -261,7 +261,7 @@ pub enum Location {
 }
 
 impl Parse for Location {
-    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let parse_location = parse_or(
             parse_concat(
                 parse_one(ident),
@@ -304,14 +304,14 @@ impl OfToken for IncrOp {
 }
 
 impl<U: OfToken> Parse for U {
-    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         parse_one(Self::of_token)(tokens)
     }
 }
 
 use AssignExpr::*;
 impl Parse for AssignExpr {
-    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let ass_expr = parse_or(parse_concat(AssignOp::parse, OrExpr::parse), IncrOp::parse);
         Some(match ass_expr(tokens)? {
             Inl((op, expr)) => RegularAssign(op, expr),
@@ -327,7 +327,7 @@ pub enum Arg {
 }
 
 impl Parse for Arg {
-    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let arg = parse_or(OrExpr::parse, parse_one(str_lit));
         Some(match arg(tokens)? {
             Inl(a) => Arg::ExprArg(a),
@@ -349,7 +349,7 @@ pub enum Stmt {
 }
 
 impl Parse for Stmt {
-    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         // order doesnt' matter much
         let parse_ass = parse_concat(
             Location::parse,
@@ -475,7 +475,7 @@ pub struct Block {
 }
 
 impl Parse for Block {
-    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let block = parse_concat(
             parse_one(exactly(Sym(Misc(LBrace)))),
             parse_concat(
@@ -557,7 +557,7 @@ fn fst<A, B>(x: (A, B)) -> A {
     x.0
 }
 
-fn parse_comma_sep_list<'a, T: Clone + Iterator<Item = &'a Token>, U>(
+fn parse_comma_sep_list<'a, T: TokenErrIter<'a>, U>(
     elt: impl Fn(&mut T) -> Option<U>,
 ) -> impl Fn(&mut T) -> Option<Vec<U>> {
     move |tokens| {
@@ -576,7 +576,7 @@ fn parse_comma_sep_list<'a, T: Clone + Iterator<Item = &'a Token>, U>(
     }
 }
 
-fn parse_one<'a, T: Clone + Iterator<Item = &'a Token>, U>(
+fn parse_one<'a, T: TokenErrIter<'a>, U>(
     f: impl Fn(&Token) -> Option<U>,
 ) -> impl Fn(&mut T) -> Option<U> {
     move |tokens: &mut T| {
@@ -632,7 +632,7 @@ fn ident(token: &Token) -> Option<Ident> {
 use crate::scan::Keyword::*;
 use crate::scan::Token::*;
 
-fn parse_import<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Ident> {
+fn parse_import<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Ident> {
     let parse_import = parse_concat(
         parse_one(exactly(Key(Import))),
         parse_concat(parse_one(ident), parse_one(exactly(Sym(Misc(Semicolon))))),
@@ -666,9 +666,7 @@ fn typ_or_void(token: &Token) -> Option<Option<Type>> {
 
 use Field::*;
 
-fn parse_field_decl<'a, T: Clone + Iterator<Item = &'a Token>>(
-    tokens: &mut T,
-) -> Option<Vec<Field>> {
+fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field>> {
     let parse_array_field_decl = parse_concat(
         parse_one(ident),
         parse_concat(
@@ -700,7 +698,7 @@ fn parse_field_decl<'a, T: Clone + Iterator<Item = &'a Token>>(
 }
 
 impl Parse for Param {
-    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Self> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let param = parse_concat(parse_one(typ), parse_one(ident));
         Some(match param(tokens)? {
             (param_type, name) => Param { param_type, name },
@@ -709,7 +707,7 @@ impl Parse for Param {
 }
 
 impl Parse for Method {
-    fn parse_no_debug<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Method> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Method> {
         let method = parse_concat(
             parse_one(typ_or_void),
             parse_concat(
@@ -740,7 +738,7 @@ impl Parse for Method {
     }
 }
 
-pub fn parse_program<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Program {
+pub fn parse_program<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Program {
     Program {
         imports: parse_star(parse_import)(tokens).unwrap(),
         fields: parse_star(parse_field_decl)(tokens)
