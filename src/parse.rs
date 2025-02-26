@@ -15,12 +15,6 @@ pub enum Type {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct WithLiteral<T> {
-    pub val: T,
-    pub loc: ErrLoc,
-}
-
-#[derive(Debug, PartialEq)]
 pub enum Field {
     Scalar(Type, Ident),
     Array(Type, Ident, Literal),
@@ -41,6 +35,12 @@ pub enum Literal {
     HexLong(String),
     Char(char),
     Bool(bool),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct WithLoc<T> {
+    pub val: T,
+    pub loc: ErrLoc,
 }
 
 pub trait TokenErrIter<'a>: Clone + Iterator<Item = &'a (Token, ErrLoc)> {}
@@ -67,7 +67,7 @@ impl OfToken for Literal {
 pub enum AtomicExpr {
     Loc(Box<Location>),
     Call(Ident, Vec<Arg>),
-    Lit(Literal),
+    Lit(WithLoc<Literal>),
     IntCast(Box<OrExpr>),
     LongCast(Box<OrExpr>),
     LenEx(Ident),
@@ -141,7 +141,7 @@ impl Parse for AtomicExpr {
             Some(LongCast(Box::new(long_exp)))
         } else if let Some(((), ((), (len_id, ())))) = parse_len(tokens) {
             Some(LenEx(len_id))
-        } else if let Some(lit) = Literal::parse(tokens) {
+        } else if let Some(lit) = WithLoc::<Literal>::parse(tokens) {
             Some(Lit(lit))
         } else if let Some((name, args)) = parse_method_call(tokens) {
             Some(Call(name, args))
@@ -158,6 +158,13 @@ trait OfToken: Sized {
     fn of_tokenloc(t: &(Token, ErrLoc)) -> Option<Self> {
         let (t, _) = t;
         Self::of_token(t)
+    }
+    fn of_token_withloc(te: &(Token, ErrLoc)) -> Option<WithLoc<Self>> {
+        let (t, e) = te;
+        Some(WithLoc {
+            val: Self::of_token(t)?,
+            loc: e.clone(),
+        })
     }
 }
 
@@ -310,6 +317,12 @@ impl OfToken for IncrOp {
 impl<U: OfToken> Parse for U {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         parse_one(Self::of_tokenloc)(tokens)
+    }
+}
+
+impl<U: OfToken> Parse for WithLoc<U> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
+        parse_one(U::of_token_withloc)(tokens)
     }
 }
 
