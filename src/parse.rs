@@ -15,6 +15,12 @@ pub enum Type {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct WithLiteral<T> {
+    pub val: T,
+    pub loc: ErrLoc,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Field {
     Scalar(Type, Ident),
     Array(Type, Ident, Literal),
@@ -37,32 +43,20 @@ pub enum Literal {
     Bool(bool),
 }
 
-fn bool_lit(t: &Token) -> Option<bool> {
-    match t {
-        Key(True) => Some(true),
-        Key(False) => Some(false),
-        _ => None,
+impl OfToken for Literal {
+    fn of_token(t: &Token) -> Option<Literal> {
+        //bool, char, int, long
+        match t {
+            Key(True) => Some(Literal::Bool(true)),
+            Key(False) => Some(Literal::Bool(false)),
+            CharLit(c) => Some(Char(*c)),
+            DecIntLit(s) => Some(DecInt(s.to_string())),
+            HexIntLit(s) => Some(HexInt(s.to_string())),
+            DecLongLit(s) => Some(DecLong(s.to_string())),
+            HexLongLit(s) => Some(HexLong(s.to_string())),
+            _ => None,
+        }
     }
-}
-
-fn char_lit(t: &Token) -> Option<char> {
-    match t {
-        CharLit(c) => Some(*c),
-        _ => None,
-    }
-}
-
-fn parse_lit<'a, T: Clone + Iterator<Item = &'a Token>>(tokens: &mut T) -> Option<Literal> {
-    if let Some(b) = parse_one(bool_lit)(tokens) {
-        return Some(Literal::Bool(b));
-    }
-    if let Some(c) = parse_one(char_lit)(tokens) {
-        return Some(Char(c));
-    }
-    if let Some(l) = parse_one(long_lit)(tokens) {
-        return Some(l);
-    }
-    parse_one(int_lit)(tokens)
 }
 
 #[derive(Debug, PartialEq)]
@@ -147,7 +141,7 @@ impl Parse for AtomicExpr {
             Some(LongCast(Box::new(long_exp)))
         } else if let Some(((), ((), (len_id, ())))) = parse_len(tokens) {
             Some(LenEx(len_id))
-        } else if let Some(lit) = parse_lit(tokens) {
+        } else if let Some(lit) = Literal::parse(tokens) {
             Some(Lit(lit))
         } else if let Some((name, args)) = parse_method_call(tokens) {
             Some(Call(name, args))
@@ -604,14 +598,6 @@ fn int_lit(t: &Token) -> Option<Literal> {
     match t {
         DecIntLit(s) => Some(DecInt(s.to_string())),
         HexIntLit(s) => Some(HexInt(s.to_string())),
-        _ => None,
-    }
-}
-
-fn long_lit(t: &Token) -> Option<Literal> {
-    match t {
-        DecLongLit(s) => Some(DecLong(s.to_string())),
-        HexLongLit(s) => Some(HexLong(s.to_string())),
         _ => None,
     }
 }

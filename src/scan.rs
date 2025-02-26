@@ -493,6 +493,7 @@ fn scan_sym(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> Resul
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct ErrLoc {
     pub line: u32,
     pub col: u32,
