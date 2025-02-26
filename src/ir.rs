@@ -1,45 +1,70 @@
-// use crate::parse::Type;
-// use crate::scan::Sum;
+use crate::parse;
+use crate::scan;
+use parse::Ident;
+use parse::Type;
+use parse::WithLoc;
+use parse::{AddOp, EqOp, MulOp, RelOp};
+use scan::Sum;
 
-// enum Literal {
-//     IntLit(i32),
-//     LongLit(i64),
-//     CharLit(char),
-//     BoolLit(bool),
-// }
+enum Bop {
+    MulBop(MulOp),
+    AddBop(AddOp),
+    RelBop(RelOp),
+    EqBop(EqOp),
+    And,
+    Or,
+}
 
-// enum Stmt {
-//     AssignStmt(Var, Expr),
-//     SelfAssign(Var, Op, Expr),
-//     // about same as in parser
-// }
+enum Literal {
+    IntLit(i32),
+    LongLit(i64),
+    CharLit(char),
+    BoolLit(bool),
+}
 
-// enum Expr {
-//     Bin(Expr, Op, Expr),
-//     Unary(UnaryOp, Expr),
-//     Len(Ident),
-//     IntCast(Box<Expr>),
-//     LongCast(Box<Expr>),
-//     Loc(Box<Location>),
-//     Call(Ident, Vec<Arg>),
-// }
+enum Location {
+    Var(WithLoc<Ident>),
+    ArrayIndex(WithLoc<Ident>, Expr),
+}
 
-// type ExprWithType = (Expr, Type);
+enum Stmt {
+    AssignStmt(Ident, Expr),
+    SelfAssign(Ident, Bop, Expr),
+    // will represent ++, -- as SelfAssign
+    If(Expr, Block, Option<Block>),
+    For(Ident, Expr, Expr, Location, Ident, Expr, Block),
+    While(Expr, Block),
+    Return(Option<Expr>),
+    Break,
+    Continue,
+}
 
-// struct GlobalScope {
-//     vars: Vec<(Ident, Type)>,
-//     parent: Sum<Box<LocalScope>, Box<GlobalScope>>,
-//     methods: Vec<Method>,
-//     exts: Vec<Ident>,
-// }
+enum Expr {
+    Bin(Expr, Bop, Expr),
+    Unary(UnaryOp, Expr),
+    Len(Ident),
+    IntCast(Box<Expr>),
+    LongCast(Box<Expr>),
+    Loc(Box<Location>),
+    Call(Ident, Vec<Arg>),
+}
 
-// struct Method {
-//     body: Block,
-//     params: Vec<(Ident, Expr)>,
-// }
+type ExprWithType = (Expr, Type);
 
-// struct Block {
-//     vars: Vec<(String, Type)>,
-//     parent: Sum<Box<Block>, Box<GlobalScope>>,
-//     stmts: Vec<Stmt>,
-// }
+struct GlobalScope {
+    vars: Vec<(Ident, Type)>,
+    parent: Sum<Box<LocalScope>, Box<GlobalScope>>,
+    methods: Vec<Method>,
+    exts: Vec<Ident>,
+}
+
+struct Method {
+    body: Block,
+    params: Vec<(Ident, Expr)>,
+}
+
+struct Block {
+    vars: Vec<(String, Type)>,
+    parent: Sum<Box<Block>, Box<GlobalScope>>,
+    stmts: Vec<Stmt>,
+}
