@@ -43,9 +43,9 @@ pub enum Literal {
     Bool(bool),
 }
 
-pub trait TokenErrIter<'a>: Clone + Iterator<Item = &'a Token> {}
+pub trait TokenErrIter<'a>: Clone + Iterator<Item = &'a (Token, ErrLoc)> {}
 
-impl<'a, T: Clone + Iterator<Item = &'a Token>> TokenErrIter<'a> for T {}
+impl<'a, T: Clone + Iterator<Item = &'a (Token, ErrLoc)>> TokenErrIter<'a> for T {}
 
 impl OfToken for Literal {
     fn of_token(t: &Token) -> Option<Literal> {
@@ -155,6 +155,10 @@ impl Parse for AtomicExpr {
 
 trait OfToken: Sized {
     fn of_token(t: &Token) -> Option<Self>;
+    fn of_tokenloc(t: &(Token, ErrLoc)) -> Option<Self> {
+        let (t, _) = t;
+        Self::of_token(t)
+    }
 }
 
 trait Parse: Sized {
@@ -176,7 +180,7 @@ impl<OpType: OfToken, AtomType: Parse> Parse for BinExpr<OpType, AtomType> {
         let bin_expr = parse_concat(
             AtomType::parse,
             parse_or(
-                parse_concat(parse_one(OpType::of_token), Self::parse),
+                parse_concat(parse_one(OpType::of_tokenloc), Self::parse),
                 parse_nothing,
             ),
         );
@@ -305,7 +309,7 @@ impl OfToken for IncrOp {
 
 impl<U: OfToken> Parse for U {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
-        parse_one(Self::of_token)(tokens)
+        parse_one(Self::of_tokenloc)(tokens)
     }
 }
 
@@ -577,9 +581,9 @@ fn parse_comma_sep_list<'a, T: TokenErrIter<'a>, U>(
 }
 
 fn parse_one<'a, T: TokenErrIter<'a>, U>(
-    f: impl Fn(&Token) -> Option<U>,
+    f: impl Fn(&(Token, ErrLoc)) -> Option<U>,
 ) -> impl Fn(&mut T) -> Option<U> {
-    move |tokens: &mut T| {
+    move |tokens| {
         let tokens_clone = tokens.clone();
         if let Some(next) = tokens.next() {
             if let Some(val) = f(next) {
@@ -594,7 +598,8 @@ fn parse_one<'a, T: TokenErrIter<'a>, U>(
 use Literal::*;
 
 // sad dthat output type is not intlit
-fn int_lit(t: &Token) -> Option<Literal> {
+fn int_lit(t: &(Token, ErrLoc)) -> Option<Literal> {
+    let (t, _) = t;
     match t {
         DecIntLit(s) => Some(DecInt(s.to_string())),
         HexIntLit(s) => Some(HexInt(s.to_string())),
@@ -602,15 +607,16 @@ fn int_lit(t: &Token) -> Option<Literal> {
     }
 }
 
-fn str_lit(t: &Token) -> Option<String> {
+fn str_lit(t: &(Token, ErrLoc)) -> Option<String> {
+    let (t, _) = t;
     match t {
         StrLit(s) => Some(s.to_string()),
         _ => None,
     }
 }
 
-fn exactly(t: Token) -> impl Fn(&Token) -> Option<()> {
-    move |token| {
+fn exactly(t: Token) -> impl Fn(&(Token, ErrLoc)) -> Option<()> {
+    move |(token, _)| {
         // println!("trying to parse {:?}, finding {:?}", t, token);
         if *token == t {
             Some(())
@@ -620,7 +626,9 @@ fn exactly(t: Token) -> impl Fn(&Token) -> Option<()> {
     }
 }
 
-fn ident(token: &Token) -> Option<Ident> {
+// TODO: instead of doing this by hand, use oftokenloc
+fn ident(token: &(Token, ErrLoc)) -> Option<Ident> {
+    let (token, _) = token;
     match token {
         Ident(name) => Some(Ident {
             name: name.to_string(),
@@ -645,22 +653,26 @@ fn parse_import<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Ident> {
 
 use Type::*;
 
-fn typ(token: &Token) -> Option<Type> {
-    match token {
-        Key(Int) => Some(IntType),
-        Key(Long) => Some(LongType),
-        Key(Keyword::Bool) => Some(BoolType),
-        _ => None,
+impl OfToken for Type {
+    fn of_token(t: &Token) -> Option<Self> {
+        match t {
+            Key(Int) => Some(IntType),
+            Key(Long) => Some(LongType),
+            Key(Keyword::Bool) => Some(BoolType),
+            _ => None,
+        }
     }
 }
 
-fn typ_or_void(token: &Token) -> Option<Option<Type>> {
-    match token {
-        Key(Void) => Some(None),
-        _ => match typ(token) {
-            Some(t) => Some(Some(t)),
-            None => None,
-        },
+impl OfToken for Option<Type> {
+    fn of_token(t: &Token) -> Option<Self> {
+        match t {
+            Key(Void) => Some(None),
+            _ => match Type::of_token(t) {
+                Some(t) => Some(Some(t)),
+                None => None,
+            },
+        }
     }
 }
 
@@ -677,7 +689,7 @@ fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field
     // subtle opportunity for bug: parse_array_field_decl needs to be on the left here
     let parse_scalar_or_arr = parse_or(parse_array_field_decl, parse_one(ident));
     let parse_field = parse_concat(
-        parse_one(typ),
+        parse_one(Type::of_tokenloc),
         parse_concat(
             parse_comma_sep_list(&parse_scalar_or_arr),
             parse_one(exactly(Sym(Misc(Semicolon)))),
@@ -699,7 +711,7 @@ fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field
 
 impl Parse for Param {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
-        let param = parse_concat(parse_one(typ), parse_one(ident));
+        let param = parse_concat(parse_one(Type::of_tokenloc), parse_one(ident));
         Some(match param(tokens)? {
             (param_type, name) => Param { param_type, name },
         })
@@ -709,7 +721,7 @@ impl Parse for Param {
 impl Parse for Method {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Method> {
         let method = parse_concat(
-            parse_one(typ_or_void),
+            parse_one(Option::<Type>::of_tokenloc),
             parse_concat(
                 parse_one(ident),
                 parse_concat(

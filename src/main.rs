@@ -54,13 +54,17 @@ fn main() {
         }
         utils::cli::CompilerAction::Parse => {
             let tokens = scan::scan(input);
-            let mut tokens = tokens.iter().map(|(x, _)| match x {
-                Ok(x) => x,
-                Err(_) => panic!("oops couldnt scan"),
-            });
+            let tokens = tokens
+                .into_iter()
+                .map(|x| match x {
+                    (Ok(x), e) => (x, e),
+                    (Err(_), _) => panic!("oops couldnt scan"),
+                })
+                .collect::<Vec<_>>();
+            let mut tokens = tokens.iter();
             // println!("{:?}", tokens.clone().collect::<Vec<_>>());
             parse::parse_program(&mut tokens);
-            if tokens.collect::<Vec<_>>().len() > 0 {
+            if let Some(_) = tokens.next() {
                 panic!("oops didnt parse everythign");
             }
         }
