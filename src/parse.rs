@@ -87,7 +87,7 @@ fn parse_nothing<T>(_tokens: &mut T) -> Option<()> {
 
 fn parse_method_call<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<(Ident, Vec<Arg>)> {
     let parse_call = parse_concat(
-        parse_one(ident),
+        Ident::parse,
         parse_concat(
             parse_one(exactly(Sym(Misc(LPar)))),
             parse_concat(
@@ -123,7 +123,7 @@ impl Parse for AtomicExpr {
             parse_one(exactly(Key(Len))),
             parse_concat(
                 parse_one(exactly(Sym(Misc(LPar)))),
-                parse_concat(parse_one(ident), parse_one(exactly(Sym(Misc(RPar))))),
+                parse_concat(Ident::parse, parse_one(exactly(Sym(Misc(RPar))))),
             ),
         );
         // parse_lit defined elsewhere
@@ -268,13 +268,13 @@ impl Parse for Location {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let parse_location = parse_or(
             parse_concat(
-                parse_one(ident),
+                Ident::parse,
                 parse_concat(
                     parse_one(exactly(Sym(Misc(LBrack)))),
                     parse_concat(OrExpr::parse, parse_one(exactly(Sym(Misc(RBrack))))),
                 ),
             ),
-            parse_one(ident),
+            Ident::parse,
         );
         Some(match parse_location(tokens)? {
             Inl((id, ((), (idx, ())))) => Location::ArrayIndex(id, idx),
@@ -385,7 +385,7 @@ impl Parse for Stmt {
             parse_concat(
                 parse_one(exactly(Sym(Misc(LPar)))),
                 parse_concat(
-                    parse_one(ident),
+                    Ident::parse,
                     parse_concat(
                         parse_one(exactly(Sym(Assign(AssignOp::Eq)))),
                         parse_concat(
@@ -626,14 +626,14 @@ fn exactly(t: Token) -> impl Fn(&(Token, ErrLoc)) -> Option<()> {
     }
 }
 
-// TODO: instead of doing this by hand, use oftokenloc
-fn ident(token: &(Token, ErrLoc)) -> Option<Ident> {
-    let (token, _) = token;
-    match token {
-        Ident(name) => Some(Ident {
-            name: name.to_string(),
-        }),
-        _ => None,
+impl OfToken for Ident {
+    fn of_token(t: &Token) -> Option<Ident> {
+        match t {
+            Ident(name) => Some(Ident {
+                name: name.to_string(),
+            }),
+            _ => None,
+        }
     }
 }
 
@@ -643,7 +643,7 @@ use crate::scan::Token::*;
 fn parse_import<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Ident> {
     let parse_import = parse_concat(
         parse_one(exactly(Key(Import))),
-        parse_concat(parse_one(ident), parse_one(exactly(Sym(Misc(Semicolon))))),
+        parse_concat(Ident::parse, parse_one(exactly(Sym(Misc(Semicolon))))),
     );
     match parse_import(tokens) {
         Some(((), (name, ()))) => Some(name),
@@ -680,14 +680,14 @@ use Field::*;
 
 fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field>> {
     let parse_array_field_decl = parse_concat(
-        parse_one(ident),
+        Ident::parse,
         parse_concat(
             parse_one(exactly(Sym(Misc(LBrack)))),
             parse_concat(parse_one(int_lit), parse_one(exactly(Sym(Misc(RBrack))))),
         ),
     );
     // subtle opportunity for bug: parse_array_field_decl needs to be on the left here
-    let parse_scalar_or_arr = parse_or(parse_array_field_decl, parse_one(ident));
+    let parse_scalar_or_arr = parse_or(parse_array_field_decl, Ident::parse);
     let parse_field = parse_concat(
         parse_one(Type::of_tokenloc),
         parse_concat(
@@ -711,7 +711,7 @@ fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field
 
 impl Parse for Param {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
-        let param = parse_concat(parse_one(Type::of_tokenloc), parse_one(ident));
+        let param = parse_concat(parse_one(Type::of_tokenloc), Ident::parse);
         Some(match param(tokens)? {
             (param_type, name) => Param { param_type, name },
         })
@@ -723,7 +723,7 @@ impl Parse for Method {
         let method = parse_concat(
             parse_one(Option::<Type>::of_tokenloc),
             parse_concat(
-                parse_one(ident),
+                Ident::parse,
                 parse_concat(
                     parse_one(exactly(Sym(Misc(LPar)))),
                     parse_concat(
