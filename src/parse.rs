@@ -66,11 +66,11 @@ impl OfToken for Literal {
 #[derive(Debug, PartialEq)]
 pub enum AtomicExpr {
     Loc(Box<Location>),
-    Call(Ident, Vec<Arg>),
+    Call(WithLoc<Ident>, Vec<Arg>),
     Lit(WithLoc<Literal>),
     IntCast(Box<OrExpr>),
     LongCast(Box<OrExpr>),
-    LenEx(Ident),
+    LenEx(WithLoc<Ident>),
     NegEx(Box<AtomicExpr>),
     NotEx(Box<AtomicExpr>),
     Ex(Box<OrExpr>),
@@ -85,9 +85,9 @@ fn parse_nothing<T>(_tokens: &mut T) -> Option<()> {
     Some(())
 }
 
-fn parse_method_call<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<(Ident, Vec<Arg>)> {
+fn parse_method_call<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<(WithLoc<Ident>, Vec<Arg>)> {
     let parse_call = parse_concat(
-        Ident::parse,
+        WithLoc::<Ident>::parse,
         parse_concat(
             parse_one(exactly(Sym(Misc(LPar)))),
             parse_concat(
@@ -123,7 +123,7 @@ impl Parse for AtomicExpr {
             parse_one(exactly(Key(Len))),
             parse_concat(
                 parse_one(exactly(Sym(Misc(LPar)))),
-                parse_concat(Ident::parse, parse_one(exactly(Sym(Misc(RPar))))),
+                parse_concat(WithLoc::<Ident>::parse, parse_one(exactly(Sym(Misc(RPar))))),
             ),
         );
         // parse_lit defined elsewhere
@@ -267,21 +267,21 @@ type OrExpr = BinExpr<OrOp, AndExpr>;
 
 #[derive(Debug, PartialEq)]
 pub enum Location {
-    Var(Ident),
-    ArrayIndex(Ident, OrExpr),
+    Var(WithLoc<Ident>),
+    ArrayIndex(WithLoc<Ident>, OrExpr),
 }
 
 impl Parse for Location {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let parse_location = parse_or(
             parse_concat(
-                Ident::parse,
+                WithLoc::<Ident>::parse,
                 parse_concat(
                     parse_one(exactly(Sym(Misc(LBrack)))),
                     parse_concat(OrExpr::parse, parse_one(exactly(Sym(Misc(RBrack))))),
                 ),
             ),
-            Ident::parse,
+            WithLoc::<Ident>::parse,
         );
         Some(match parse_location(tokens)? {
             Inl((id, ((), (idx, ())))) => Location::ArrayIndex(id, idx),
@@ -356,9 +356,9 @@ impl Parse for Arg {
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
     Assignment(Location, AssignExpr),
-    Call(Ident, Vec<Arg>),
+    Call(WithLoc<Ident>, Vec<Arg>),
     If(OrExpr, Block, Option<Block>),
-    For(Ident, OrExpr, OrExpr, Location, AssignExpr, Block),
+    For(WithLoc<Ident>, OrExpr, OrExpr, Location, AssignExpr, Block),
     While(OrExpr, Block),
     Return(Option<OrExpr>),
     Break,
@@ -398,7 +398,7 @@ impl Parse for Stmt {
             parse_concat(
                 parse_one(exactly(Sym(Misc(LPar)))),
                 parse_concat(
-                    Ident::parse,
+                    WithLoc::<Ident>::parse,
                     parse_concat(
                         parse_one(exactly(Sym(Assign(AssignOp::Eq)))),
                         parse_concat(
@@ -515,7 +515,7 @@ impl Parse for Block {
 #[derive(Debug, PartialEq)]
 pub struct Method {
     pub meth_type: Option<Type>,
-    pub name: Ident,
+    pub name: WithLoc<Ident>,
     pub params: Vec<Param>,
     pub body: Block,
 }
@@ -736,7 +736,7 @@ impl Parse for Method {
         let method = parse_concat(
             parse_one(Option::<Type>::of_tokenloc),
             parse_concat(
-                Ident::parse,
+                WithLoc::<Ident>::parse,
                 parse_concat(
                     parse_one(exactly(Sym(Misc(LPar)))),
                     parse_concat(
