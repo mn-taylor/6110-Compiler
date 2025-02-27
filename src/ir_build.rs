@@ -1,8 +1,8 @@
-use crate::ir::Expr;
-use crate::ir::Expr::*;
-use crate::ir::*;
+use crate::ir;
 use crate::parse;
-use crate::parse::BinExpr;
+use crate::scan;
+use ir::Expr;
+use ir::Expr::*;
 
 fn build_program(program: parse::Program) {
     // define global scope
@@ -60,17 +60,56 @@ fn build_for(ast_for: parse::For, parent_scope: Scope) {
     return None;
 }
 
+use ir::Bop;
+
 trait ToExpr {
-    fn to_expr(x: Self) -> Expr;
+    fn to_expr(self) -> Expr;
 }
 
-trait ToOp {
-    fn to_op(x: Self) -> Op;
+trait ToBop {
+    fn to_op(self) -> Bop;
 }
 
-impl<O: ToOp, A: ToExpr> ToExpr for BinExpr<O, A> {
-    fn to_expr(e: Self) {
-        match e {
+impl ToBop for scan::AddOp {
+    fn to_op(self) -> Bop {
+        Bop::AddBop(self)
+    }
+}
+
+impl ToBop for scan::MulOp {
+    fn to_op(self) -> Bop {
+        Bop::MulBop(self)
+    }
+}
+
+impl ToBop for scan::RelOp {
+    fn to_op(self) -> Bop {
+        Bop::RelBop(self)
+    }
+}
+
+impl ToBop for scan::EqOp {
+    fn to_op(self) -> Bop {
+        Bop::EqBop(self)
+    }
+}
+
+impl ToBop for parse::AndOp {
+    fn to_op(self) -> Bop {
+        Bop::And
+    }
+}
+
+impl ToBop for parse::OrOp {
+    fn to_op(self) -> Bop {
+        Bop::Or
+    }
+}
+
+use parse::BinExpr;
+impl<O: ToBop, A: ToExpr> ToExpr for BinExpr<O, A> {
+    fn to_expr(self) -> Expr {
+        match self {
             BinExpr::Atomic(e) => A::to_expr(e),
             BinExpr::Bin(a1, o1, rhs1) => match *rhs1 {
                 BinExpr::Atomic(a2) => Bin(
@@ -79,13 +118,47 @@ impl<O: ToOp, A: ToExpr> ToExpr for BinExpr<O, A> {
                     Box::new(A::to_expr(a2)),
                 ),
                 BinExpr::Bin(a2, o2, rhs2) => Bin(
-                    Box::new(Bin(a1, O::to_op(o1), a2)),
+                    Box::new(Bin(
+                        Box::new(A::to_expr(a1)),
+                        O::to_op(o1),
+                        Box::new(A::to_expr(a2)),
+                    )),
                     O::to_op(o2),
-                    Box::new(A::to_expr(rhs2)),
+                    Box::new(Self::to_expr(*rhs2)),
                 ),
             },
         }
     }
 }
 
-fn expr_of_bin_expr<AtomType, OpType>(expr: parse::BinExpr<OpType, AtomType>) -> Expr {}
+use ir::UnOp::*;
+use parse::AtomicExpr;
+impl ToExpr for AtomicExpr {
+    fn to_expr(self) -> Expr {
+        match self {
+            AtomicExpr::Loc(l) => Loc(Box::new(build_location(*l))),
+            AtomicExpr::Call(id, args) => Call(id, args),
+            AtomicExpr::Lit(lit) => Lit(lit.map(build_literal)),
+            AtomicExpr::IntCast(e) => Unary(IntCast, Box::new(parse::OrExpr::to_expr(*e))),
+            AtomicExpr::LongCast(e) => Unary(LongCast, Box::new(parse::OrExpr::to_expr(*e))),
+            AtomicExpr::LenEx(id) => Len(id),
+            AtomicExpr::NegEx(e) => Unary(Neg, Box::new(Self::to_expr(*e))),
+            AtomicExpr::NotEx(e) => Unary(Not, Box::new(Self::to_expr(*e))),
+            AtomicExpr::Ex(e) => parse::OrExpr::to_expr(*e),
+        }
+    }
+}
+
+use ir::Literal;
+fn build_literal(lit: parse::Literal) -> Literal {
+    panic!();
+}
+
+use ir::Location;
+use ir::Location::*;
+fn build_location(l: parse::Location) -> Location {
+    match l {
+        parse::Location::Var(id) => Var(id),
+        parse::Location::ArrayIndex(id, idx) => ArrayIndex(id, parse::OrExpr::to_expr(idx)),
+    }
+}

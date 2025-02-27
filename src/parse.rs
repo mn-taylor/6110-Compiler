@@ -83,12 +83,12 @@ pub enum BinExpr<OpType, AtomType> {
     Bin(AtomType, OpType, Box<BinExpr<OpType, AtomType>>),
 }
 
-type MulExpr = BinExpr<MulOp, AtomicExpr>;
-type AddExpr = BinExpr<AddOp, MulExpr>;
-type RelExpr = BinExpr<RelOp, AddExpr>;
-type EqExpr = BinExpr<EqOp, RelExpr>;
-type AndExpr = BinExpr<AndOp, EqExpr>;
-type OrExpr = BinExpr<OrOp, AndExpr>;
+pub type MulExpr = BinExpr<MulOp, AtomicExpr>;
+pub type AddExpr = BinExpr<AddOp, MulExpr>;
+pub type RelExpr = BinExpr<RelOp, AddExpr>;
+pub type EqExpr = BinExpr<EqOp, RelExpr>;
+pub type AndExpr = BinExpr<AndOp, EqExpr>;
+pub type OrExpr = BinExpr<OrOp, AndExpr>;
 
 #[derive(Debug, PartialEq)]
 pub enum Location {
@@ -106,6 +106,15 @@ pub enum Arg {
 pub struct WithLoc<T> {
     pub val: T,
     pub loc: ErrLoc,
+}
+
+impl<T> WithLoc<T> {
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> WithLoc<U> {
+        WithLoc {
+            val: f(self.val),
+            loc: self.loc,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]

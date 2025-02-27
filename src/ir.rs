@@ -41,17 +41,20 @@ pub enum Stmt {
     Continue,
 }
 
-// todo
-pub enum UnOp {}
+pub enum UnOp {
+    Neg,
+    Not,
+    IntCast,
+    LongCast,
+}
 
 pub enum Expr {
     Bin(Box<Expr>, Bop, Box<Expr>),
     Unary(UnOp, Box<Expr>),
-    Len(Ident),
-    IntCast(Box<Expr>),
-    LongCast(Box<Expr>),
+    Len(WithLoc<Ident>),
+    Lit(WithLoc<Literal>),
     Loc(Box<Location>),
-    Call(Ident, Vec<parse::Arg>),
+    Call(WithLoc<Ident>, Vec<parse::Arg>),
 }
 
 pub struct Program {
