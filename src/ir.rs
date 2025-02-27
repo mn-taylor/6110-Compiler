@@ -66,20 +66,20 @@ pub enum Expr {
 }
 
 pub struct Program {
-    fields: Vec<Field>,
-    methods: Vec<Method>,
-    imports: Vec<Ident>,
+    pub fields: Vec<Field>,
+    pub methods: Vec<Method>,
+    pub imports: Vec<Ident>,
 }
 
 pub struct Scope {
-    vars: Vec<(Ident, Type)>,
-    parent: Option<Scope>,
+    vars: Vec<Field>,
+    parent: Option<Box<Scope>>,
 }
 
 pub struct Method {
-    body: Block,
-    params: Vec<Param>,
-    scope: Scope,
+    pub body: Block,
+    pub params: Vec<Param>,
+    pub scope: Scope,
 }
 
 type Block = Vec<Stmt>;

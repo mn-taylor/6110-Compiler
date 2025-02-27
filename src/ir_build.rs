@@ -4,18 +4,16 @@ use crate::scan;
 use ir::Expr;
 use ir::Expr::*;
 
-fn build_program(program: parse::Program) {
-    // define global scope
-    // call functions to build imports, fields, and methods,
-
+use ir::{Method, Program, Scope};
+fn build_program(program: parse::Program) -> Program {
     Program {
         imports: program.imports,
-        methods: program.methods.map(build_method),
+        methods: program.methods.into_iter().map(build_method).collect(),
         fields: program.fields,
     }
 }
 
-fn build_method(method: parse::Method) {
+fn build_method(method: parse::Method) -> Method {
     let method_scope = Scope {
         vars: method.params,
         parent: None,
@@ -26,7 +24,7 @@ fn build_method(method: parse::Method) {
     Method {
         block: ir_block,
         params: method.params,
-        method_scope: method_scope,
+        scope: method_scope,
     }
 }
 
