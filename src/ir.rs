@@ -8,7 +8,7 @@ use parse::WithLoc;
 use scan::Sum;
 use scan::{AddOp, EqOp, MulOp, RelOp};
 
-enum Bop {
+pub enum Bop {
     MulBop(MulOp),
     AddBop(AddOp),
     RelBop(RelOp),
@@ -17,19 +17,19 @@ enum Bop {
     Or,
 }
 
-enum Literal {
+pub enum Literal {
     IntLit(i32),
     LongLit(i64),
     CharLit(char),
     BoolLit(bool),
 }
 
-enum Location {
+pub enum Location {
     Var(WithLoc<Ident>),
     ArrayIndex(WithLoc<Ident>, Expr),
 }
 
-enum Stmt {
+pub enum Stmt {
     AssignStmt(Ident, Expr),
     SelfAssign(Ident, Bop, Expr),
     // will represent ++, -- as SelfAssign
@@ -41,43 +41,34 @@ enum Stmt {
     Continue,
 }
 
-enum Expr {
-    Bin(Expr, Bop, Expr),
-    Unary(UnaryOp, Expr),
+// todo
+pub enum UnOp {}
+
+pub enum Expr {
+    Bin(Box<Expr>, Bop, Box<Expr>),
+    Unary(UnOp, Box<Expr>),
     Len(Ident),
     IntCast(Box<Expr>),
     LongCast(Box<Expr>),
     Loc(Box<Location>),
-    Call(Ident, Vec<Arg>),
+    Call(Ident, Vec<parse::Arg>),
 }
 
-type ExprWithType = (Expr, Type);
-
-struct Program {
+pub struct Program {
     fields: Vec<Field>,
     methods: Vec<Method>,
     imports: Vec<Ident>,
 }
 
-// fn scope_lookup(p: Program, id: Ident) {
-
-// }
-
-struct Scope {
+pub struct Scope {
     vars: Vec<(Ident, Type)>,
     parent: Option<Scope>,
 }
 
-struct Method {
+pub struct Method {
     body: Block,
     params: Vec<Param>,
     scope: Scope,
 }
 
 type Block = Vec<Stmt>;
-
-// struct Block {
-//     vars: Vec<Field>,
-//     parent: Option<Box<Block>>,
-//     stmts: Vec<Stmt>,
-// }
