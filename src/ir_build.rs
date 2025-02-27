@@ -144,11 +144,14 @@ impl ToExpr for AtomicExpr {
         match self {
             AtomicExpr::Loc(l) => Loc(Box::new(build_location(*l))),
             AtomicExpr::Call(id, args) => Call(id, args),
-            AtomicExpr::Lit(lit) => Lit(lit.map(build_literal)),
+            AtomicExpr::Lit(lit) => Lit(lit.map(|l| build_literal(l, false))),
             AtomicExpr::IntCast(e) => Unary(IntCast, Box::new(parse::OrExpr::to_expr(*e))),
             AtomicExpr::LongCast(e) => Unary(LongCast, Box::new(parse::OrExpr::to_expr(*e))),
             AtomicExpr::LenEx(id) => Len(id),
-            AtomicExpr::NegEx(e) => Unary(Neg, Box::new(Self::to_expr(*e))),
+            AtomicExpr::NegEx(e) => match *e {
+                AtomicExpr::Lit(l) => Lit(l.map(|l| build_literal(l, true))),
+                _ => Unary(Neg, Box::new(Self::to_expr(*e))),
+            },
             AtomicExpr::NotEx(e) => Unary(Not, Box::new(Self::to_expr(*e))),
             AtomicExpr::Ex(e) => parse::OrExpr::to_expr(*e),
         }
@@ -156,8 +159,30 @@ impl ToExpr for AtomicExpr {
 }
 
 use ir::Literal;
-fn build_literal(lit: parse::Literal) -> Literal {
-    panic!();
+use ir::Literal::*;
+// TODO: handle errors somehow
+fn build_literal(lit: parse::Literal, negated: bool) -> Literal {
+    let maybe_neg = |s| if negated { format!("-{}", s) } else { s };
+    match lit {
+        parse::Literal::DecInt(s) => IntLit(maybe_neg(s).parse().unwrap()),
+        parse::Literal::HexInt(s) => IntLit(i32::from_str_radix(&maybe_neg(s), 16).unwrap()),
+        parse::Literal::DecLong(s) => LongLit(maybe_neg(s).parse().unwrap()),
+        parse::Literal::HexLong(s) => LongLit(maybe_neg(s).parse().unwrap()),
+        parse::Literal::Char(c) => {
+            if negated {
+                panic!()
+            } else {
+                CharLit(c)
+            }
+        }
+        parse::Literal::Bool(b) => {
+            if negated {
+                panic!()
+            } else {
+                BoolLit(b)
+            }
+        }
+    }
 }
 
 use ir::Location;
