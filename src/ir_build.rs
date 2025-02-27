@@ -32,7 +32,13 @@ fn build_method(method: parse::Method) {
 
 fn build_for(ast_for: parse::For, parent_scope: Scope) {
     match ast_for {
-        Stmt::For(withloc_idex, initial_value, condition, location, assignment_expr) => {
+        parse::Stmt::For {
+            withloc_idex,
+            initial_value,
+            condition,
+            location,
+            assignment_expr,
+        } => {
             let for_scope = Scope {
                 vars: [(withloc_idex, initial_value)],
                 parent: scope,
@@ -44,15 +50,15 @@ fn build_for(ast_for: parse::For, parent_scope: Scope) {
             let assigment = build_assign(assignment_expr);
             let block = build_block(block);
 
-            return ir::Stmt::For(
-                withloc_idx,
-                inital_value,
-                ir_condition,
-                identifier,
-                assigment,
-                block,
-                for_scope,
-            );
+            return ir::Stmt::For {
+                var_to_set: withloc_idx,
+                initial_val: inital_value,
+                test: ir_condition,
+                var_to_update: identifier,
+                update_val: assigment,
+                body: block,
+                scope: for_scope,
+            };
         }
 
         _ => {}

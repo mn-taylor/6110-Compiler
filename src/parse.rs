@@ -128,7 +128,14 @@ pub enum Stmt {
     Assignment(Location, AssignExpr),
     Call(WithLoc<Ident>, Vec<Arg>),
     If(OrExpr, Block, Option<Block>),
-    For(WithLoc<Ident>, OrExpr, OrExpr, Location, AssignExpr, Block),
+    For {
+        var_to_set: WithLoc<Ident>,
+        initial_val: OrExpr,
+        test: OrExpr,
+        var_to_update: Location,
+        update_val: AssignExpr,
+        body: Block,
+    },
     While(OrExpr, Block),
     Return(Option<OrExpr>),
     Break,
@@ -494,10 +501,29 @@ impl Parse for Stmt {
             Some(Stmt::If(exp, block, maybe_block))
         } else if let Some((
             (),
-            ((), (id, ((), (start, ((), (test, ((), (loc, (ass, ((), block)))))))))),
+            (
+                (),
+                (
+                    var_to_set,
+                    (
+                        (),
+                        (
+                            initial_val,
+                            ((), (test, ((), (var_to_update, (update_val, ((), body)))))),
+                        ),
+                    ),
+                ),
+            ),
         )) = parse_for(tokens)
         {
-            Some(Stmt::For(id, start, test, loc, ass, block))
+            Some(Stmt::For {
+                var_to_set,
+                initial_val,
+                test,
+                var_to_update,
+                update_val,
+                body,
+            })
         } else if let Some(((), ((), (test, ((), block))))) = parse_while(tokens) {
             Some(Stmt::While(test, block))
         } else if let Some(((), (maybe_expr, ()))) = parse_return(tokens) {

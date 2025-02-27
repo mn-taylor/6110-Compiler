@@ -34,7 +34,15 @@ pub enum Stmt {
     SelfAssign(Ident, Bop, Expr),
     // will represent ++, -- as SelfAssign
     If(Expr, Block, Scope, Option<(Block, Scope)>),
-    For(Ident, Expr, Expr, Location, Ident, Expr, Block, Scope),
+    For {
+        var_to_set: WithLoc<Ident>,
+        initial_val: Expr,
+        test: Expr,
+        var_to_update: Location,
+        update_val: Expr,
+        body: Block,
+        scope: Scope,
+    },
     While(Expr, Block, Scope),
     Return(Option<Expr>),
     Break,
