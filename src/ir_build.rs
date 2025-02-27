@@ -143,17 +143,21 @@ impl ToExpr for AtomicExpr {
             AtomicExpr::Loc(l) => Loc(Box::new(build_location(*l))),
             AtomicExpr::Call(id, args) => Call(id, args),
             AtomicExpr::Lit(lit) => Lit(lit.map(|l| build_literal(l, false))),
-            AtomicExpr::IntCast(e) => Unary(IntCast, Box::new(parse::OrExpr::to_expr(*e))),
-            AtomicExpr::LongCast(e) => Unary(LongCast, Box::new(parse::OrExpr::to_expr(*e))),
+            AtomicExpr::IntCast(e) => Unary(IntCast, Box::new(build_expr(*e))),
+            AtomicExpr::LongCast(e) => Unary(LongCast, Box::new(build_expr(*e))),
             AtomicExpr::LenEx(id) => Len(id),
             AtomicExpr::NegEx(e) => match *e {
                 AtomicExpr::Lit(l) => Lit(l.map(|l| build_literal(l, true))),
                 _ => Unary(Neg, Box::new(Self::to_expr(*e))),
             },
             AtomicExpr::NotEx(e) => Unary(Not, Box::new(Self::to_expr(*e))),
-            AtomicExpr::Ex(e) => parse::OrExpr::to_expr(*e),
+            AtomicExpr::Ex(e) => build_expr(*e),
         }
     }
+}
+
+fn build_expr(e: parse::OrExpr) -> Expr {
+    parse::OrExpr::to_expr(e)
 }
 
 use ir::Literal;
@@ -188,6 +192,6 @@ use ir::Location::*;
 fn build_location(l: parse::Location) -> Location {
     match l {
         parse::Location::Var(id) => Var(id),
-        parse::Location::ArrayIndex(id, idx) => ArrayIndex(id, parse::OrExpr::to_expr(idx)),
+        parse::Location::ArrayIndex(id, idx) => ArrayIndex(id, build_expr(idx)),
     }
 }
