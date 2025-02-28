@@ -298,8 +298,8 @@ fn build_block(block: parse::Block, scope: Rc<ir::Scope>) -> ir::Block {
             Stmt::For(loc_info, expr1, expr2, loc, assign_expr, block) => statements.push(build_for(stmt, scope)),
             Stmt::While(expr, block) => statements.push(build_while(stmt)),
             Stmt::Return(expr) => statements.push(build_return(stmt)),
-            Stmt::Break => statements.push(stmt),
-            Stmt::Continue => statements.push(stmt),
+            Stmt::Break => statements.push(ir::Stmt::Break),
+            Stmt::Continue => statements.push(ir::Stmt::Continue),
         }
     }
 
