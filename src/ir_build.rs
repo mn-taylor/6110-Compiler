@@ -3,6 +3,7 @@ use crate::parse;
 use crate::scan;
 use ir::Expr;
 use ir::Expr::*;
+use std::rc::Rc;
 
 use ir::{Method, Program, Scope};
 fn build_program(program: parse::Program) -> Program {
@@ -230,7 +231,7 @@ fn build_assignment(assignment: parse::Stmt) -> ir::Stmt {
                 AssignExpr::IncrAssign(inc_op) => return ir::Stmt::AssignStmt(build_location(loc), assign_expr),
             }
         },
-        _=>{}
+        _=>{ panic!("should not get here") }
     }   
 }
 
@@ -246,38 +247,38 @@ fn build_call(call: parse::Stmt) -> ir::Stmt {
             }
             return ir::Stmt::Call(loc_info, new_args);
         },
-        _=>{}
+        _=>{ panic!("should not get here") }
     }
 }
 
-fn build_if(if_stmt: parse::Stmt, scope: ir::Scope) -> ir::Stmt {
-    let if_block_scope = ir::Scope {
+fn build_if(if_stmt: parse::Stmt, scope_ptr: Rc<ir::Scope>) -> ir::Stmt {
+    // let scope_ptr = Rc::new(scope);
+    let if_block_scope = Rc::new(ir::Scope {
         vars: Vec::new(),
-        parent: scope,
-    };
+        parent: Some(Rc::clone(&scope_ptr)),
+    });
 
     match if_stmt {
         parse::Stmt::If(expr, if_block, else_block) => {
-            let mut new_else_block: Option<(ir::Block, ir::Scope)>;
+            let new_else_block: Option<(ir::Block, Rc<ir::Scope>)>;
             match else_block {
                 Some(block) => {
-                    let else_block_scope = ir::Scope {
+                    let else_block_scope = Rc::new(ir::Scope {
                         vars: Vec::new(),
-                        parent: scope,
-                    };
-
-                    new_else_block = Some((build_block(block, else_block_scope), else_block_scope));
+                        parent: Some(Rc::clone(&scope_ptr)),
+                    });
+                    new_else_block = Some((build_block(block, Rc::clone(&else_block_scope)), Rc::clone(&else_block_scope)));
                 },
                 _=> new_else_block = None
             }
 
-            return ir::Stmt::If (build_expr(expr), build_block(if_block, if_block_scope), if_block_scope, new_else_block);
+            return ir::Stmt::If (build_expr(expr), build_block(if_block, Rc::clone(&if_block_scope)), Rc::clone(&if_block_scope), new_else_block);
         },
-        _=>{}
+        _=>{ panic!("should not get here") }
     }
 }
 
-fn build_block(block: parse::Block, scope: ir::Scope) -> ir::Block {
+fn build_block(block: parse::Block, scope: Rc<ir::Scope>) -> ir::Block {
     let statements: Vec<ir::Stmt>;
 
     for field in block.fields {

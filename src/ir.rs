@@ -7,6 +7,7 @@ use parse::Type;
 use parse::WithLoc;
 use scan::Sum;
 use scan::{AddOp, EqOp, MulOp, RelOp};
+use std::rc::Rc;
 
 pub enum Bop {
     MulBop(MulOp),
@@ -34,7 +35,7 @@ pub enum Stmt {
     Call(WithLoc<Ident>, Vec<parse::Arg>),
     // SelfAssign(Ident, Bop, Expr),
     // will represent ++, -- as SelfAssign
-    If(Expr, Block, Scope, Option<(Block, Scope)>),
+    If(Expr, Block, Rc<Scope>, Option<(Block, Rc<Scope>)>),
     For {
         var_to_set: WithLoc<Ident>,
         initial_val: Expr,
@@ -74,7 +75,7 @@ pub struct Program {
 
 pub struct Scope {
     pub vars: Vec<Field>,
-    pub parent: Option<Box<Scope>>,
+    pub parent: Option<Rc<Scope>>,
 }
 
 pub struct Method {
