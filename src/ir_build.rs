@@ -225,11 +225,7 @@ fn build_location(l: parse::Location) -> Location {
 fn build_assignment(assignment: parse::Stmt) -> ir::Stmt {
     match assignment {
         parse::Stmt::Assignment(loc, assign_expr) => { 
-            use crate::parse::AssignExpr;
-            match assign_expr {
-                AssignExpr::RegularAssign(assign_op, expr) => return ir::Stmt::AssignStmt(build_location(loc), AssignExpr::RegularAssign(assign_op, build_expr(expr))),
-                AssignExpr::IncrAssign(inc_op) => return ir::Stmt::AssignStmt(build_location(loc), assign_expr),
-            }
+            return ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr));
         },
         _=>{ panic!("should not get here") }
     }   
@@ -238,11 +234,11 @@ fn build_assignment(assignment: parse::Stmt) -> ir::Stmt {
 fn build_call(call: parse::Stmt) -> ir::Stmt {
     match call {
         parse::Stmt::Call(loc_info, args) => { 
-            let mut new_args: Vec<parse::Arg> = Vec::new();
+            let mut new_args: Vec<ir::Arg> = Vec::new();
             for arg in args {
                 match arg {
-                    parse::Arg::ExprArg(expr)=>new_args.push(parse::Arg::ExprArg(build_expr(expr))),
-                    parse::Arg::ExternArg(str)=>new_args.push(arg)
+                    parse::Arg::ExprArg(expr)=>new_args.push(ir::Arg::ExprArg(build_expr(expr))),
+                    parse::Arg::ExternArg(str)=>new_args.push(ir::Arg::ExternArg(str))
                 }
             }
             return ir::Stmt::Call(loc_info, new_args);
@@ -275,6 +271,14 @@ fn build_if(if_stmt: parse::Stmt, scope_ptr: Rc<ir::Scope>) -> ir::Stmt {
             return ir::Stmt::If (build_expr(expr), build_block(if_block, Rc::clone(&if_block_scope)), Rc::clone(&if_block_scope), new_else_block);
         },
         _=>{ panic!("should not get here") }
+    }
+}
+
+fn build_assign_expr(assign_expr: parse::AssignExpr) -> ir::AssignExpr {
+use crate::parse::AssignExpr;
+    match assign_expr {
+        AssignExpr::RegularAssign(assign_op, expr) => return ir::AssignExpr::RegularAssign(assign_op, build_expr(expr)),
+        AssignExpr::IncrAssign(inc_op) => return ir::AssignExpr::IncrAssign(inc_op),
     }
 }
 
