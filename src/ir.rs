@@ -38,7 +38,7 @@ pub enum Arg {
 }
 
 pub enum Stmt {
-    AssignStmt(Location, ir::AssignExpr),
+    AssignStmt(Location, AssignExpr),
     Call(WithLoc<Ident>, Vec<Arg>),
     // SelfAssign(Ident, Bop, Expr),
     // will represent ++, -- as SelfAssign
@@ -73,12 +73,12 @@ pub enum UnOp {
 }
 
 pub enum Expr {
-    pub Bin(Box<Expr>, Bop, Box<Expr>),
-    pub Unary(UnOp, Box<Expr>),
-    pub Len(WithLoc<Ident>),
-    pub Lit(WithLoc<Literal>),
-    pub Loc(Box<Location>),
-    pub Call(WithLoc<Ident>, Vec<parse::Arg>),
+    Bin(Box<Expr>, Bop, Box<Expr>),
+    Unary(UnOp, Box<Expr>),
+    Len(WithLoc<Ident>),
+    Lit(WithLoc<Literal>),
+    Loc(Box<Location>),
+    Call(WithLoc<Ident>, Vec<parse::Arg>),
 }
 
 pub struct Program {
@@ -95,7 +95,7 @@ pub struct Scope {
 pub struct Method {
     pub body: Block,
     pub params: Vec<Param>,
-    pub scope: Scope,
+    pub scope: Rc<Scope>,
 }
 
 pub type Block = Vec<Stmt>;

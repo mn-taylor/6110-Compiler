@@ -15,18 +15,24 @@ fn build_program(program: parse::Program) -> Program {
 }
 
 fn build_method(method: parse::Method) -> Method {
-    let fields: Vec<parse::Field> = Vec::new();
+    let mut fields: Vec<parse::Field> = Vec::new();
+    let mut params: Vec<parse::Param> = Vec::new();
 
     for param in method.params {
         fields.push(parse::Field::Scalar(param.param_type, param.name));
-    }
-
-    let mut method_scope = Scope {
-        vars: fields,
-        parent: None,
+        match param{
+            parse::Param{
+                param_type: ptype, 
+                name: name} => {params.push(parse::Param{param_type: ptype, name: name})}
+        }
     };
 
-    let ir_block = build_block(method.body, method_scope);
+    let method_scope = Rc::new(Scope {
+        vars: fields,
+        parent: None,
+    });
+
+    let ir_block = build_block(method.body,Rc::clone(&method_scope));
 
     Method {
         body: ir_block,
@@ -333,7 +339,7 @@ fn build_if(if_stmt: parse::Stmt, scope_ptr: Rc<ir::Scope>) -> ir::Stmt {
 }
 
 fn build_block(block: parse::Block, scope: Rc<ir::Scope>) -> ir::Block {
-    let mut statements: Vec<ir::Stmt>;
+    let mut statements: Vec<ir::Stmt> = vec![];
 
     let mut new_scope = ir::Scope {
         vars: Vec::new(),
@@ -344,12 +350,14 @@ fn build_block(block: parse::Block, scope: Rc<ir::Scope>) -> ir::Block {
         new_scope.vars.push(field);
     }
 
+    let rc_new_scope = Rc::new(new_scope);
+
     use crate::parse::Stmt;
     for stmt in block.stmts {
-        match stmt {
+        match &stmt {
             Stmt::Assignment(loc, assign_expr) => statements.push(build_assignment(stmt)),
             Stmt::Call(loc_info, args) => statements.push(build_call(stmt)),
-            Stmt::If(expr, block,else_block) => statements.push(build_if(stmt, Rc::new(new_scope))),
+            Stmt::If(expr, block,else_block) => statements.push(build_if(stmt, Rc::clone(&rc_new_scope))),
             Stmt::For{
                 var_to_set: loc,
                 initial_val: expr1,
@@ -357,8 +365,8 @@ fn build_block(block: parse::Block, scope: Rc<ir::Scope>) -> ir::Block {
                 var_to_update: var,
                 update_val: assign_expr,
                 body: block,
-            }=> statements.push(build_for(stmt,Rc::new(new_scope))),
-            Stmt::While(expr, block) => statements.push(build_while(stmt, Rc::new(new_scope))),
+            }=> statements.push(build_for(stmt,Rc::clone(&rc_new_scope))),
+            Stmt::While(expr, block) => statements.push(build_while(stmt, Rc::clone(&rc_new_scope))),
             Stmt::Return(expr) => statements.push(build_return(stmt)),
             Stmt::Break => statements.push(ir::Stmt::Break),
             Stmt::Continue => statements.push(ir::Stmt::Continue),
