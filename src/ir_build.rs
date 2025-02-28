@@ -6,7 +6,7 @@ use ir::Expr::*;
 use std::rc::Rc;
 
 use ir::{Method, Program, Scope};
-fn build_program(program: parse::Program) -> Program {
+pub fn build_program(program: parse::Program) -> Program {
     Program {
         imports: program.imports,
         methods: program.methods.into_iter().map(build_method).collect(),

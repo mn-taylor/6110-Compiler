@@ -1,6 +1,7 @@
 mod utils;
 use decaf_skeleton_rust::parse;
 use decaf_skeleton_rust::scan;
+use decaf_skeleton_rust::ir_build;
 
 fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
     match output {
@@ -69,7 +70,21 @@ fn main() {
             }
         }
         utils::cli::CompilerAction::Inter => {
-            todo!("inter");
+            let tokens = scan::scan(input);
+            let tokens = tokens
+                .into_iter()
+                .map(|x| match x {
+                    (Ok(x), e) => (x, e),
+                    (Err(_), _) => panic!("oops couldnt scan"),
+                })
+                .collect::<Vec<_>>();
+            let mut tokens = tokens.iter();
+            // println!("{:?}", tokens.clone().collect::<Vec<_>>());
+            let ast = parse::parse_program(&mut tokens);
+            if let Some(_) = tokens.next() {
+                panic!("oops didnt parse everythign");
+            }
+            ir_build::build_program(ast);
         }
         utils::cli::CompilerAction::Assembly => {
             todo!("assembly");
