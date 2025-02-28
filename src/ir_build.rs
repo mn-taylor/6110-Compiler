@@ -19,12 +19,8 @@ fn build_method(method: parse::Method) -> Method {
     let mut params: Vec<parse::Param> = Vec::new();
 
     for param in method.params {
+        params.push(param.clone());
         fields.push(parse::Field::Scalar(param.param_type, param.name));
-        match param{
-            parse::Param{
-                param_type: ptype, 
-                name: name} => {params.push(parse::Param{param_type: ptype, name: name})}
-        }
     };
 
     let method_scope = Rc::new(Scope {
@@ -36,7 +32,7 @@ fn build_method(method: parse::Method) -> Method {
 
     Method {
         body: ir_block,
-        params: method.params,
+        params: params,
         scope: method_scope,
     }
 }

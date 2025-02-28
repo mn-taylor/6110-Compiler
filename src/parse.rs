@@ -6,6 +6,14 @@ pub struct Ident {
     pub name: String,
 }
 
+impl Clone for Ident {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+        }
+    }
+}
+
 // not sure about best way to handle current cloning of Type
 #[derive(Clone, Debug, PartialEq)]
 pub enum Type {
@@ -16,11 +24,11 @@ pub enum Type {
 
 #[derive(Debug, PartialEq)]
 pub enum Field {
-    pub Scalar(Type, Ident),
-    pubArray(Type, Ident, Literal),
+    Scalar(Type, Ident),
+    Array(Type, Ident, Literal),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Param {
     pub param_type: Type,
     pub name: Ident,

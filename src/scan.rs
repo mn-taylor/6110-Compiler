@@ -140,8 +140,8 @@ impl ToString for MulOp {
 
 #[derive(Debug, PartialEq, Sequence, Clone)]
 pub enum AddOp {
-    pub Add,
-    pub Sub,
+    Add,
+    Sub,
 }
 
 use AddOp::*;
