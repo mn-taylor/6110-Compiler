@@ -16,8 +16,8 @@ pub enum Type {
 
 #[derive(Debug, PartialEq)]
 pub enum Field {
-    Scalar(Type, Ident),
-    Array(Type, Ident, Literal),
+    pub Scalar(Type, Ident),
+    pubArray(Type, Ident, Literal),
 }
 
 #[derive(Debug, PartialEq)]

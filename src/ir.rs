@@ -40,21 +40,28 @@ pub enum Stmt {
     Call(WithLoc<Ident>, Vec<Arg>),
     // SelfAssign(Ident, Bop, Expr),
     // will represent ++, -- as SelfAssign
-    If(Expr, Block, Rc<Scope>, Option<(Block, Rc<Scope>)>),
+    If(Expr, Block, Scope, Option<(Block, Scope)>),
     For {
         var_to_set: WithLoc<Ident>,
         initial_val: Expr,
         test: Expr,
         var_to_update: Location,
-        update_val: Expr,
+        update_val: AssignExpr,
         body: Block,
-        scope: Scope,
+        scope: Rc<Scope>,
     },
-    While(Expr, Block, Scope),
+    While(Expr, Block, Rc<Scope>),
     Return(Option<Expr>),
     Break,
     Continue,
 }
+
+pub enum AssignExpr {
+    RegularAssign(AssignOp, Expr),
+    IncrAssign(IncrOp),
+}
+
+
 
 pub enum UnOp {
     Neg,
@@ -64,12 +71,12 @@ pub enum UnOp {
 }
 
 pub enum Expr {
-    Bin(Box<Expr>, Bop, Box<Expr>),
-    Unary(UnOp, Box<Expr>),
-    Len(WithLoc<Ident>),
-    Lit(WithLoc<Literal>),
-    Loc(Box<Location>),
-    Call(WithLoc<Ident>, Vec<parse::Arg>),
+    pub Bin(Box<Expr>, Bop, Box<Expr>),
+    pub Unary(UnOp, Box<Expr>),
+    pub Len(WithLoc<Ident>),
+    pub Lit(WithLoc<Literal>),
+    pub Loc(Box<Location>),
+    pub Call(WithLoc<Ident>, Vec<parse::Arg>),
 }
 
 pub struct Program {
@@ -80,7 +87,7 @@ pub struct Program {
 
 pub struct Scope {
     pub vars: Vec<Field>,
-    pub parent: Option<Rc<Scope>>,
+    pub parent: Option<Box<Scope>>,
 }
 
 pub struct Method {
