@@ -28,40 +28,29 @@ fn build_method(method: parse::Method) -> Method {
     }
 }
 
-fn build_for(ast_for: parse::Stmt, parent_scope: Scope) {
-    match ast_for {
-        parse::Stmt::For {
-            var_to_set: withloc_idex,
-            initial_val: initial_value,
-            test: condition,
-            var_to_update: location,
-            update_val: assignment_expr,
-            body: body
-        } => {
-            let for_scope = Scope {
-                vars: [(withloc_idex, initial_value)],
-                parent: scope,
-            };
+fn build_for(var_to_set:parse::WithLoc<Ident>, initial_val:OrExpr, test: OrExpr, var_to_update: parse::Location, update_val:parse::AssignExpr, parent_scope: Scope) {
 
-            let ir_initial_value = build_expr(inital_value);
-            let ir_condition = build_expr(condition);
-            let identifier = build_expr(location);
-            let assigment = build_assign(assignment_expr);
-            let block = build_block(block,scope);
+    let for_scope = ir::Scope {
+        vars: [(withloc_idex, initial_value)],
+        parent: scope,
+    };
 
-            return ir::Stmt::For {
-                var_to_set: withloc_idx,
-                initial_val: inital_value,
-                test: ir_condition,
-                var_to_update: identifier,
-                update_val: assigment,
-                body: block,
-                scope: for_scope,
-            };
-        }
+    let ir_initial_value = build_expr(initial_value);
+    let ir_condition = build_expr(condition);
+    let identifier = build_location(location);
+    let assigment = build_assignment(assignment_expr);
+    let block = build_block(block,scope);
 
-        _ => {}
-    }
+    return ir::Stmt::For {
+        var_to_set: withloc_idx,
+        initial_val: inital_value,
+        test: ir_condition,
+        var_to_update: identifier,
+        update_val: assigment,
+        body: block,
+        scope: for_scope,
+    };
+
     return None;
 }
 

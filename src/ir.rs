@@ -73,8 +73,8 @@ pub struct Program {
 }
 
 pub struct Scope {
-    vars: Vec<Field>,
-    parent: Option<Box<Scope>>,
+    pub vars: Vec<Field>,
+    pub parent: Option<Box<Scope>>,
 }
 
 pub struct Method {
@@ -83,4 +83,4 @@ pub struct Method {
     pub scope: Scope,
 }
 
-type Block = Vec<Stmt>;
+pub type Block = Vec<Stmt>;
