@@ -28,14 +28,15 @@ fn build_method(method: parse::Method) -> Method {
     }
 }
 
-fn build_for(ast_for: parse::For, parent_scope: Scope) {
+fn build_for(ast_for: parse::Stmt, parent_scope: Scope) {
     match ast_for {
         parse::Stmt::For {
-            withloc_idex,
-            initial_value,
-            condition,
-            location,
-            assignment_expr,
+            var_to_set: withloc_idex,
+            initial_val: initial_value,
+            test: condition,
+            var_to_update: location,
+            update_val: assignment_expr,
+            body: body
         } => {
             let for_scope = Scope {
                 vars: [(withloc_idex, initial_value)],
@@ -46,7 +47,7 @@ fn build_for(ast_for: parse::For, parent_scope: Scope) {
             let ir_condition = build_expr(condition);
             let identifier = build_expr(location);
             let assigment = build_assign(assignment_expr);
-            let block = build_block(block);
+            let block = build_block(block,scope);
 
             return ir::Stmt::For {
                 var_to_set: withloc_idx,
@@ -63,6 +64,41 @@ fn build_for(ast_for: parse::For, parent_scope: Scope) {
     }
     return None;
 }
+
+fn build_while(ast_while: parse::Stmt, parent_scope: ir::Scope)->ir::Stmt{
+    match ast_while{
+        parse::Stmt::While(while_condition, block) =>{
+            let while_scope = Scope {
+                vars: [(withloc_idex, initial_value)],
+                parent: parent_scopescope,
+            };
+            
+            let ir_while_condition = build_expr(while_condition);
+            let ir_block = build_block(block, while_scope);
+
+            // confused if we should be making a new scope explicitly or it should be done in build block
+            return ir::Stmt::While(ir_while_condition, ir_block, while_scope)
+        }
+        _=> {}
+    }
+}
+
+fn build_return(ast_return: parse::Stmt)->ir::Stmt{
+    match ast_return {
+        parse::Stmt::Return(expr)=>{
+            if let Some(return_val) = expr{
+                let ir_return_val = build_expr(return_val);
+                return ir::Stmt::Return(Some(ir_return_val));
+            }else {
+                return ir::Stmt::Return(None);
+            }
+
+        },
+        _=>{}
+    }
+}
+
+
 
 use ir::Bop;
 
