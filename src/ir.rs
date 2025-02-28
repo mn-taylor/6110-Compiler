@@ -29,7 +29,7 @@ pub enum Location {
     ArrayIndex(WithLoc<Ident>, Expr),
 }
 
-enum Stmt {
+pub enum Stmt {
     AssignStmt(Location, parse::AssignExpr),
     Call(WithLoc<Ident>, Vec<parse::Arg>),
     // SelfAssign(Ident, Bop, Expr),
