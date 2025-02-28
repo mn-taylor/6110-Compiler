@@ -195,3 +195,83 @@ fn build_location(l: parse::Location) -> Location {
         parse::Location::ArrayIndex(id, idx) => ArrayIndex(id, build_expr(idx)),
     }
 }
+
+fn build_assignment(assignment: parse::Stmt) -> ir::Stmt {
+    match assignment {
+        parse::Stmt::Assignment(loc, assign_expr) => { 
+            use crate::parse::AssignExpr;
+            match assign_expr {
+                AssignExpr::RegularAssign(assign_op, expr) => return ir::Stmt::AssignStmt(build_location(loc), AssignExpr::RegularAssign(assign_op, build_expr(expr))),
+                AssignExpr::IncrAssign(inc_op) => return ir::Stmt::AssignStmt(build_location(loc), assign_expr),
+            }
+        },
+        _=>{}
+    }   
+}
+
+fn build_call(call: parse::Stmt) -> ir::Stmt {
+    match call {
+        parse::Stmt::Call(loc_info, args) => { 
+            let mut new_args: Vec<parse::Arg> = Vec::new();
+            for arg in args {
+                match arg {
+                    parse::Arg::ExprArg(expr)=>new_args.push(parse::Arg::ExprArg(build_expr(expr))),
+                    parse::Arg::ExternArg(str)=>new_args.push(arg)
+                }
+            }
+            return ir::Stmt::Call(loc_info, new_args);
+        },
+        _=>{}
+    }
+}
+
+fn build_if(if_stmt: parse::Stmt, scope: ir::Scope) -> ir::Stmt {
+    let if_block_scope = ir::Scope {
+        vars: Vec::new(),
+        parent: scope,
+    };
+
+    match if_stmt {
+        parse::Stmt::If(expr, if_block, else_block) => {
+            let mut new_else_block: Option<(ir::Block, ir::Scope)>;
+            match else_block {
+                Some(block) => {
+                    let else_block_scope = ir::Scope {
+                        vars: Vec::new(),
+                        parent: scope,
+                    };
+
+                    new_else_block = Some((build_block(block, else_block_scope), else_block_scope));
+                },
+                _=> new_else_block = None
+            }
+
+            return ir::Stmt::If (build_expr(expr), build_block(if_block, if_block_scope), if_block_scope, new_else_block);
+        },
+        _=>{}
+    }
+}
+
+fn build_block(block: parse::Block, scope: ir::Scope) -> ir::Block {
+    let statements: Vec<ir::Stmt>;
+
+    for field in block.fields {
+        scope.vars.push(field);
+    }
+
+    use crate::parse::Stmt;
+    for stmt in block.stmts {
+        match stmt {
+            Stmt::Assignment(loc, assign_expr) => statements.push(build_assignment(stmt)),
+            Stmt::Call(loc_info, args) => statements.push(build_call(stmt)),
+            Stmt::If(expr, block,else_block) => statements.push(build_if(stmt, scope)),
+            Stmt::For(loc_info, expr1, expr2, loc, assign_expr, block) => statements.push(build_for(stmt, scope)),
+            Stmt::While(expr, block) => statements.push(build_while(stmt)),
+            Stmt::Return(expr) => statements.push(build_return(stmt)),
+            Stmt::Break => statements.push(stmt),
+            Stmt::Continue => statements.push(stmt),
+        }
+    }
+
+    statements
+}

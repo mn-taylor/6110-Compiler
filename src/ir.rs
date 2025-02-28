@@ -29,9 +29,10 @@ pub enum Location {
     ArrayIndex(WithLoc<Ident>, Expr),
 }
 
-pub enum Stmt {
-    AssignStmt(Ident, Expr),
-    SelfAssign(Ident, Bop, Expr),
+enum Stmt {
+    AssignStmt(Location, parse::AssignExpr),
+    Call(WithLoc<Ident>, Vec<parse::Arg>),
+    // SelfAssign(Ident, Bop, Expr),
     // will represent ++, -- as SelfAssign
     If(Expr, Block, Scope, Option<(Block, Scope)>),
     For {
