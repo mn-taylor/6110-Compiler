@@ -1,15 +1,14 @@
 use crate::parse;
 use crate::scan;
+use crate::scan::AssignOp;
+use crate::scan::IncrOp;
 use parse::Field;
 use parse::Ident;
 use parse::Param;
 use parse::Type;
 use parse::WithLoc;
-use scan::Sum;
 use scan::{AddOp, EqOp, MulOp, RelOp};
 use std::rc::Rc;
-use crate::scan::IncrOp;
-use crate::scan::AssignOp;
 
 pub enum Bop {
     MulBop(MulOp),
@@ -62,8 +61,6 @@ pub enum AssignExpr {
     RegularAssign(AssignOp, Expr),
     IncrAssign(IncrOp),
 }
-
-
 
 pub enum UnOp {
     Neg,

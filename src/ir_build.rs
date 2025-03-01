@@ -15,33 +15,29 @@ pub fn build_program(program: parse::Program) -> Program {
 }
 
 fn build_method(method: parse::Method) -> Method {
-    let mut fields: Vec<parse::Field> = Vec::new();
-    let mut params: Vec<parse::Param> = Vec::new();
-
-    for param in method.params {
-        params.push(param.clone());
-        fields.push(parse::Field::Scalar(param.param_type, param.name));
-    };
+    let fields = method
+        .params
+        .clone()
+        .into_iter()
+        .map(|param| parse::Field::Scalar(param.param_type, param.name));
 
     let method_scope = Rc::new(Scope {
-        vars: fields,
+        vars: fields.collect(),
         parent: None,
     });
 
-    let ir_block = build_block(method.body,Rc::clone(&method_scope));
+    let ir_block = build_block(method.body, Rc::clone(&method_scope));
 
     Method {
         meth_type: method.meth_type,
         body: ir_block,
-        params: params,
+        params: method.params,
         scope: method_scope,
     }
 }
 
-
-
 // fn simplify_assignment(
-//     location: parse::Location, 
+//     location: parse::Location,
 //     assignment_expr: parse::AssignExpr
 // ) -> (Rc<ir::Location>, ir::Expr) {
 //     match assignment_expr {
@@ -50,15 +46,15 @@ fn build_method(method: parse::Method) -> Method {
 
 //             let simple_expr = match op {
 //                 scan::AssignOp::Eq => ir_right_expr,
-//                 scan::AssignOp::PlusEq => 
+//                 scan::AssignOp::PlusEq =>
 //                     ir::Expr::Bin(Box::new(ir_location_expr), ir::Bop::AddBop(scan::Add), Box::new(ir_right_expr)),
-//                 scan::AssignOp::MinusEq => 
+//                 scan::AssignOp::MinusEq =>
 //                     ir::Expr::Bin(Box::new(ir_location_expr), ir::Bop::AddBop(scan::Sub), Box::new(ir_right_expr)),
-//                 scan::AssignOp::MulEq => 
+//                 scan::AssignOp::MulEq =>
 //                     ir::Expr::Bin(Box::new(ir_location_expr), ir::Bop::MulBop(scan::Mul), Box::new(ir_right_expr)),
-//                 scan::AssignOp::DivEq => 
+//                 scan::AssignOp::DivEq =>
 //                     ir::Expr::Bin(Box::new(ir_location_expr), ir::Bop::MulBop(scan::Div), Box::new(ir_right_expr)),
-//                 scan::AssignOp::ModEq => 
+//                 scan::AssignOp::ModEq =>
 //                     ir::Expr::Bin(Box::new(ir_location_expr), ir::Bop::MulBop(scan::Mod), Box::new(ir_right_expr)),
 //             };
 
@@ -68,8 +64,7 @@ fn build_method(method: parse::Method) -> Method {
 //     }
 // }
 
-
-fn build_for(ast_for: parse::Stmt, parent_scope: Rc<Scope>)-> ir::Stmt {
+fn build_for(ast_for: parse::Stmt, parent_scope: Rc<Scope>) -> ir::Stmt {
     match ast_for {
         parse::Stmt::For {
             var_to_set: withloc_idx,
@@ -81,7 +76,7 @@ fn build_for(ast_for: parse::Stmt, parent_scope: Rc<Scope>)-> ir::Stmt {
         } => {
             let for_scope = Rc::new(Scope {
                 vars: vec![],
-                parent:Some(parent_scope),
+                parent: Some(parent_scope),
             });
 
             let ir_initial_value = build_expr(initial_value);
@@ -99,50 +94,41 @@ fn build_for(ast_for: parse::Stmt, parent_scope: Rc<Scope>)-> ir::Stmt {
                 body: block,
                 scope: for_scope,
             };
-        },
-        _=> {panic!("should not get here")}
+        }
+        _ => {
+            panic!("should not get here")
+        }
     }
 }
 
-
-fn build_while(ast_while: parse::Stmt, parent_scope: Rc<ir::Scope>)->ir::Stmt{
-    
-
+fn build_while(ast_while: parse::Stmt, parent_scope: Rc<ir::Scope>) -> ir::Stmt {
     let while_scope = Rc::new(Scope {
         vars: vec![],
         parent: Some(parent_scope),
     });
 
-    match ast_while{
-        parse::Stmt::While(while_condition, block) =>{     
+    match ast_while {
+        parse::Stmt::While(while_condition, block) => {
             let ir_while_condition = build_expr(while_condition);
             let ir_block = build_block(block, Rc::clone(&while_scope));
 
             // confused if we should be making a new scope explicitly or it should be done in build block
             return ir::Stmt::While(ir_while_condition, ir_block, while_scope);
         }
-        _=>{panic!("should not get here")}
-
+        _ => {
+            panic!("should not get here")
+        }
     }
-
 }
 
-fn build_return(ast_return: parse::Stmt)->ir::Stmt{
+fn build_return(ast_return: parse::Stmt) -> ir::Stmt {
     match ast_return {
-        parse::Stmt::Return(expr)=>{
-            if let Some(return_val) = expr{
-                let ir_return_val = build_expr(return_val);
-                return ir::Stmt::Return(Some(ir_return_val));
-            }else {
-                return ir::Stmt::Return(None);
-            }
-
-        },
-        _=>{panic!("should not get here")}
+        parse::Stmt::Return(expr) => ir::Stmt::Return(expr.map(build_expr)),
+        _ => {
+            panic!("should not get here")
+        }
     }
 }
-
-
 
 use ir::Bop;
 
@@ -278,39 +264,41 @@ fn build_location(l: parse::Location) -> Location {
 
 fn build_assignment(assignment: parse::Stmt) -> ir::Stmt {
     match assignment {
-        parse::Stmt::Assignment(loc, assign_expr ) => {
+        parse::Stmt::Assignment(loc, assign_expr) => {
             return ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr));
-        },
-        _=>{ panic!("should not get here") }
+        }
+        _ => {
+            panic!("should not get here")
+        }
     }
 }
 
 fn build_assign_expr(assign_expr: parse::AssignExpr) -> ir::AssignExpr {
     use crate::parse::AssignExpr;
     match assign_expr {
-        AssignExpr::RegularAssign(assign_op, expr) => return ir::AssignExpr::RegularAssign(assign_op, build_expr(expr)),
+        AssignExpr::RegularAssign(assign_op, expr) => {
+            return ir::AssignExpr::RegularAssign(assign_op, build_expr(expr))
+        }
         AssignExpr::IncrAssign(inc_op) => return ir::AssignExpr::IncrAssign(inc_op),
     }
 }
 
 fn build_call(call: parse::Stmt) -> ir::Stmt {
     match call {
-        parse::Stmt::Call(loc_info, args) => { 
-            let mut new_args: Vec<ir::Arg> = Vec::new();
-            for arg in args {
-                match arg {
-                    parse::Arg::ExprArg(expr)=>new_args.push(ir::Arg::ExprArg(build_expr(expr))),
-                    parse::Arg::ExternArg(str)=>new_args.push(ir::Arg::ExternArg(str))
-                }
-            }
-            return ir::Stmt::Call(loc_info, new_args);
-        },
-        _=>{ panic!("should not get here") }
+        parse::Stmt::Call(loc_info, args) => {
+            let new_args = args.into_iter().map(|arg| match arg {
+                parse::Arg::ExprArg(expr) => ir::Arg::ExprArg(build_expr(expr)),
+                parse::Arg::ExternArg(str) => ir::Arg::ExternArg(str),
+            });
+            return ir::Stmt::Call(loc_info, new_args.collect());
+        }
+        _ => {
+            panic!("should not get here")
+        }
     }
 }
 
 fn build_if(if_stmt: parse::Stmt, scope_ptr: Rc<ir::Scope>) -> ir::Stmt {
-    // let scope_ptr = Rc::new(scope);
     let if_block_scope = Rc::new(ir::Scope {
         vars: Vec::new(),
         parent: Some(Rc::clone(&scope_ptr)),
@@ -325,51 +313,55 @@ fn build_if(if_stmt: parse::Stmt, scope_ptr: Rc<ir::Scope>) -> ir::Stmt {
                         vars: Vec::new(),
                         parent: Some(Rc::clone(&scope_ptr)),
                     });
-                    new_else_block = Some((build_block(block, Rc::clone(&else_block_scope)), Rc::clone(&else_block_scope)));
-                },
-                _=> new_else_block = None
+                    new_else_block = Some((
+                        build_block(block, Rc::clone(&else_block_scope)),
+                        Rc::clone(&else_block_scope),
+                    ));
+                }
+                _ => new_else_block = None,
             }
 
-            return ir::Stmt::If (build_expr(expr), build_block(if_block, Rc::clone(&if_block_scope)), Rc::clone(&if_block_scope), new_else_block);
-        },
-        _=>{ panic!("should not get here") }
+            return ir::Stmt::If(
+                build_expr(expr),
+                build_block(if_block, Rc::clone(&if_block_scope)),
+                Rc::clone(&if_block_scope),
+                new_else_block,
+            );
+        }
+        _ => {
+            panic!("should not get here")
+        }
     }
 }
 
 fn build_block(block: parse::Block, scope: Rc<ir::Scope>) -> ir::Block {
-    let mut statements: Vec<ir::Stmt> = vec![];
-
-    let mut new_scope = ir::Scope {
-        vars: Vec::new(),
+    let new_scope = ir::Scope {
+        vars: block.fields,
         parent: Some(scope),
     };
-
-    for field in block.fields {
-        new_scope.vars.push(field);
-    }
 
     let rc_new_scope = Rc::new(new_scope);
 
     use crate::parse::Stmt;
-    for stmt in block.stmts {
-        match &stmt {
-            Stmt::Assignment(loc, assign_expr) => statements.push(build_assignment(stmt)),
-            Stmt::Call(loc_info, args) => statements.push(build_call(stmt)),
-            Stmt::If(expr, block,else_block) => statements.push(build_if(stmt, Rc::clone(&rc_new_scope))),
-            Stmt::For{
+    block
+        .stmts
+        .into_iter()
+        .map(|stmt| match &stmt {
+            Stmt::Assignment(loc, assign_expr) => build_assignment(stmt),
+            Stmt::Call(loc_info, args) => build_call(stmt),
+            Stmt::If(expr, block, else_block) => build_if(stmt, Rc::clone(&rc_new_scope)),
+            Stmt::For {
                 var_to_set: loc,
                 initial_val: expr1,
                 test: expr2,
                 var_to_update: var,
                 update_val: assign_expr,
                 body: block,
-            }=> statements.push(build_for(stmt,Rc::clone(&rc_new_scope))),
-            Stmt::While(expr, block) => statements.push(build_while(stmt, Rc::clone(&rc_new_scope))),
-            Stmt::Return(expr) => statements.push(build_return(stmt)),
-            Stmt::Break => statements.push(ir::Stmt::Break),
-            Stmt::Continue => statements.push(ir::Stmt::Continue),
-        }
-    }
-
-    statements
+            } => build_for(stmt, Rc::clone(&rc_new_scope)),
+            Stmt::While(expr, block) => build_while(stmt, Rc::clone(&rc_new_scope)),
+            Stmt::Return(expr) => build_return(stmt),
+            Stmt::Break => ir::Stmt::Break,
+            Stmt::Continue => ir::Stmt::Continue,
+        })
+        .collect()
 }
