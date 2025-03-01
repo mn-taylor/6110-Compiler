@@ -121,15 +121,6 @@ fn build_while(ast_while: parse::Stmt, parent_scope: Rc<ir::Scope>) -> ir::Stmt 
     }
 }
 
-fn build_return(ast_return: parse::Stmt) -> ir::Stmt {
-    match ast_return {
-        parse::Stmt::Return(expr) => ir::Stmt::Return(expr.map(build_expr)),
-        _ => {
-            panic!("should not get here")
-        }
-    }
-}
-
 use ir::Bop;
 
 trait ToExpr {
@@ -235,7 +226,7 @@ fn build_literal(lit: parse::Literal, negated: bool) -> Literal {
         parse::Literal::DecInt(s) => IntLit(maybe_neg(s).parse().unwrap()),
         parse::Literal::HexInt(s) => IntLit(i32::from_str_radix(&maybe_neg(s), 16).unwrap()),
         parse::Literal::DecLong(s) => LongLit(maybe_neg(s).parse().unwrap()),
-        parse::Literal::HexLong(s) => LongLit(maybe_neg(s).parse().unwrap()),
+        parse::Literal::HexLong(s) => LongLit(i64::from_str_radix(&maybe_neg(s), 16).unwrap()),
         parse::Literal::Char(c) => {
             if negated {
                 panic!()
@@ -359,7 +350,7 @@ fn build_block(block: parse::Block, scope: Rc<ir::Scope>) -> ir::Block {
                 body: block,
             } => build_for(stmt, Rc::clone(&rc_new_scope)),
             Stmt::While(expr, block) => build_while(stmt, Rc::clone(&rc_new_scope)),
-            Stmt::Return(expr) => build_return(stmt),
+            Stmt::Return(expr) => ir::Stmt::Return(expr.map(build_expr)),
             Stmt::Break => ir::Stmt::Break,
             Stmt::Continue => ir::Stmt::Continue,
         })
