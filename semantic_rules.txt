@@ -1,0 +1,16 @@
+Semantic Rules to check for
+ - Should have a main method that has type void and take no paramaters
+ - Integer Range Checking
+    - int 32 bits
+    - long 64 bits
+ - Arrays must be declared with integral size
+ - All identifiers must be defined before use
+ - A method calls come after their declaration. 
+    - Only check global scope for method calls
+ - No identifier can be defined more than once in the same scope
+ - Field and method names must all be distinct in the global scope
+ - When checking that method parameters are not defined again in the body, compare method params with every scope below.
+ - Len can only be called on arrays, and it returns an int, can be replaced since its evaluated at compile time.
+ - An Int and long can be cast into each other, while a bool can not be cast to a numerical type,
+ - All external functions are treated as it they return an int.
+ - We don't need to check that external arguments

@@ -93,6 +93,7 @@ pub struct Scope {
 }
 
 pub struct Method {
+    pub meth_type: Option<Type>,
     pub body: Block,
     pub params: Vec<Param>,
     pub scope: Rc<Scope>,

@@ -31,11 +31,13 @@ fn build_method(method: parse::Method) -> Method {
     let ir_block = build_block(method.body,Rc::clone(&method_scope));
 
     Method {
+        meth_type: method.meth_type,
         body: ir_block,
         params: params,
         scope: method_scope,
     }
 }
+
 
 
 // fn simplify_assignment(
