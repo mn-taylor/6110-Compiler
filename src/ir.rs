@@ -2,7 +2,6 @@ use crate::parse;
 use crate::scan;
 use crate::scan::AssignOp;
 use crate::scan::IncrOp;
-use parse::Field;
 use parse::Ident;
 use parse::Param;
 use parse::Primitive;
@@ -41,7 +40,7 @@ pub enum Stmt {
     Call(WithLoc<Ident>, Vec<Arg>),
     // SelfAssign(Ident, Bop, Expr),
     // will represent ++, -- as SelfAssign
-    If(Expr, Block, Rc<Scope>, Option<(Block, Rc<Scope>)>),
+    If(Expr, Block, Option<Block>),
     For {
         var_to_set: WithLoc<Ident>,
         initial_val: Expr,
@@ -49,9 +48,8 @@ pub enum Stmt {
         var_to_update: Location,
         update_val: AssignExpr,
         body: Block,
-        scope: Rc<Scope>,
     },
-    While(Expr, Block, Rc<Scope>),
+    While(Expr, Block),
     Return(Option<Expr>),
     Break,
     Continue,
@@ -84,16 +82,91 @@ pub struct Program {
     pub imports: Vec<Ident>,
 }
 
-pub struct Scope {
-    pub vars: Vec<Field>,
-    pub parent: Option<Rc<Scope>>,
+pub enum Type {
+    Prim(Primitive),
+    Arr(Primitive, i32),
+    Func(Vec<Primitive>, Option<Primitive>),
+    ExtCall,
+}
+
+pub trait Scope {
+    fn local_lookup(&self, id: &Ident) -> Option<Type>;
+    fn lookup(&self, parent: impl Fn(&Ident) -> Option<Type>) -> impl Fn(&Ident) -> Option<Type> {
+        move |id| match Self::local_lookup(self, id) {
+            Some(t) => Some(t),
+            None => parent(id),
+        }
+    }
+}
+
+pub enum Field {
+    Scalar(Primitive, Ident),
+    Array(Primitive, Ident, i32),
+}
+
+pub struct Block {
+    pub fields: Vec<Field>,
+    pub stmts: Vec<Stmt>,
 }
 
 pub struct Method {
     pub meth_type: Option<Primitive>,
     pub body: Block,
     pub params: Vec<Param>,
-    pub scope: Rc<Scope>,
+    pub name: Ident,
 }
 
-pub type Block = Vec<Stmt>;
+// scopes
+use Type::*;
+
+impl Scope for Block {
+    fn local_lookup(&self, id: &Ident) -> Option<Type> {
+        fields_lookup(&self.fields, id)
+    }
+}
+
+impl Scope for Method {
+    fn local_lookup(&self, id: &Ident) -> Option<Type> {
+        self.params
+            .iter()
+            .find(|other| other.name == *id)
+            .map(|t| Prim(t.param_type.clone()))
+    }
+}
+
+fn fields_lookup(fields: &Vec<Field>, id: &Ident) -> Option<Type> {
+    fields
+        .iter()
+        .find(|other| match other {
+            Field::Scalar(_, name) => name == id,
+            Field::Array(_, name, _) => name == id,
+        })
+        .map(|f| match f {
+            Field::Scalar(t, _) => Prim(t.clone()),
+            Field::Array(t, _, len) => Arr(t.clone(), *len),
+        })
+}
+
+fn methods_lookup(methods: &Vec<Method>, id: &Ident) -> Option<Type> {
+    methods.iter().find(|other| other.name == *id).map(|m| {
+        Func(
+            m.params.iter().map(|m| m.param_type.clone()).collect(),
+            m.meth_type.clone(),
+        )
+    })
+}
+
+impl Scope for Program {
+    fn local_lookup(&self, id: &Ident) -> Option<Type> {
+        if let Some(t) = fields_lookup(&self.fields, id) {
+            Some(t)
+        } else if let Some(t) = methods_lookup(&self.methods, id) {
+            Some(t)
+        } else {
+            self.imports
+                .iter()
+                .find(|other| *other == id)
+                .map(|_| ExtCall)
+        }
+    }
+}
