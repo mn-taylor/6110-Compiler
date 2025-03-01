@@ -253,17 +253,6 @@ fn build_location(l: parse::Location) -> Location {
     }
 }
 
-fn build_assignment(assignment: parse::Stmt) -> ir::Stmt {
-    match assignment {
-        parse::Stmt::Assignment(loc, assign_expr) => {
-            ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr))
-        }
-        _ => {
-            panic!("should not get here")
-        }
-    }
-}
-
 fn build_assign_expr(assign_expr: parse::AssignExpr) -> ir::AssignExpr {
     use crate::parse::AssignExpr;
     match assign_expr {
@@ -337,7 +326,9 @@ fn build_block(block: parse::Block, scope: Rc<ir::Scope>) -> ir::Block {
         .stmts
         .into_iter()
         .map(|stmt| match stmt {
-            Stmt::Assignment(_, _) => build_assignment(stmt),
+            Stmt::Assignment(loc, assign_expr) => {
+                ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr))
+            }
             Stmt::Call(_, _) => build_call(stmt),
             Stmt::If(_, _, _) => build_if(stmt, Rc::clone(&rc_new_scope)),
             Stmt::For { .. } => build_for(stmt, Rc::clone(&rc_new_scope)),
