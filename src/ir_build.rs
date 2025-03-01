@@ -72,7 +72,7 @@ fn build_for(ast_for: parse::Stmt, parent_scope: Rc<Scope>) -> ir::Stmt {
             test: condition,
             var_to_update: location,
             update_val: assignment_expr,
-            body: body,
+            body,
         } => {
             let for_scope = Rc::new(Scope {
                 vars: vec![],
@@ -337,19 +337,12 @@ fn build_block(block: parse::Block, scope: Rc<ir::Scope>) -> ir::Block {
     block
         .stmts
         .into_iter()
-        .map(|stmt| match &stmt {
-            Stmt::Assignment(loc, assign_expr) => build_assignment(stmt),
-            Stmt::Call(loc_info, args) => build_call(stmt),
-            Stmt::If(expr, block, else_block) => build_if(stmt, Rc::clone(&rc_new_scope)),
-            Stmt::For {
-                var_to_set: loc,
-                initial_val: expr1,
-                test: expr2,
-                var_to_update: var,
-                update_val: assign_expr,
-                body: block,
-            } => build_for(stmt, Rc::clone(&rc_new_scope)),
-            Stmt::While(expr, block) => build_while(stmt, Rc::clone(&rc_new_scope)),
+        .map(|stmt| match stmt {
+            Stmt::Assignment(_, _) => build_assignment(stmt),
+            Stmt::Call(_, _) => build_call(stmt),
+            Stmt::If(_, _, _) => build_if(stmt, Rc::clone(&rc_new_scope)),
+            Stmt::For { .. } => build_for(stmt, Rc::clone(&rc_new_scope)),
+            Stmt::While(_, _) => build_while(stmt, Rc::clone(&rc_new_scope)),
             Stmt::Return(expr) => ir::Stmt::Return(expr.map(build_expr)),
             Stmt::Break => ir::Stmt::Break,
             Stmt::Continue => ir::Stmt::Continue,
