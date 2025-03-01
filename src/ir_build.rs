@@ -207,51 +207,51 @@ fn build_assign_expr(assign_expr: parse::AssignExpr) -> ir::AssignExpr {
     }
 }
 
-fn build_block(block: parse::Block) -> ir::Block {
+fn build_stmt(stmt: parse::Stmt) -> ir::Stmt {
     use crate::parse::Stmt;
+    match stmt {
+        Stmt::Assignment(loc, assign_expr) => {
+            ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr))
+        }
+        Stmt::Call(id, args) => ir::Stmt::Call(
+            id,
+            args.into_iter()
+                .map(|arg| match arg {
+                    parse::Arg::ExprArg(expr) => ir::Arg::ExprArg(build_expr(expr)),
+                    parse::Arg::ExternArg(str) => ir::Arg::ExternArg(str),
+                })
+                .collect(),
+        ),
+        Stmt::If(cond, if_block, else_block) => ir::Stmt::If(
+            build_expr(cond),
+            build_block(if_block),
+            else_block.map(build_block),
+        ),
+        Stmt::For {
+            var_to_set,
+            initial_val,
+            test,
+            var_to_update,
+            update_val,
+            body,
+        } => ir::Stmt::For {
+            var_to_set,
+            initial_val: build_expr(initial_val),
+            test: build_expr(test),
+            var_to_update: build_location(var_to_update),
+            update_val: build_assign_expr(update_val),
+            body: build_block(body),
+        },
+        Stmt::While(cond, body) => ir::Stmt::While(build_expr(cond), build_block(body)),
+        Stmt::Return(expr) => ir::Stmt::Return(expr.map(build_expr)),
+        Stmt::Break => ir::Stmt::Break,
+        Stmt::Continue => ir::Stmt::Continue,
+    }
+}
+
+fn build_block(block: parse::Block) -> ir::Block {
     Block {
-        stmts: block
-            .stmts
-            .into_iter()
-            .map(|stmt| match stmt {
-                Stmt::Assignment(loc, assign_expr) => {
-                    ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr))
-                }
-                Stmt::Call(id, args) => ir::Stmt::Call(
-                    id,
-                    args.into_iter()
-                        .map(|arg| match arg {
-                            parse::Arg::ExprArg(expr) => ir::Arg::ExprArg(build_expr(expr)),
-                            parse::Arg::ExternArg(str) => ir::Arg::ExternArg(str),
-                        })
-                        .collect(),
-                ),
-                Stmt::If(cond, if_block, else_block) => ir::Stmt::If(
-                    build_expr(cond),
-                    build_block(if_block),
-                    else_block.map(build_block),
-                ),
-                Stmt::For {
-                    var_to_set,
-                    initial_val,
-                    test,
-                    var_to_update,
-                    update_val,
-                    body,
-                } => ir::Stmt::For {
-                    var_to_set,
-                    initial_val: build_expr(initial_val),
-                    test: build_expr(test),
-                    var_to_update: build_location(var_to_update),
-                    update_val: build_assign_expr(update_val),
-                    body: build_block(body),
-                },
-                Stmt::While(cond, body) => ir::Stmt::While(build_expr(cond), build_block(body)),
-                Stmt::Return(expr) => ir::Stmt::Return(expr.map(build_expr)),
-                Stmt::Break => ir::Stmt::Break,
-                Stmt::Continue => ir::Stmt::Continue,
-            })
-            .collect(),
+        stmts: block.stmts.into_iter().map(build_stmt).collect(),
         fields: block.fields.into_iter().map(build_field).collect(),
     }
 }
