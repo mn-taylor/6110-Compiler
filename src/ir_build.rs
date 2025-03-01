@@ -1,38 +1,39 @@
 use crate::ir;
 use crate::parse;
 use crate::scan;
+use ir::Block;
 use ir::Expr;
 use ir::Expr::*;
-use std::rc::Rc;
+use ir::Field;
+use ir::{Method, Program};
 
-use ir::{Method, Program, Scope};
 pub fn build_program(program: parse::Program) -> Program {
     Program {
         imports: program.imports,
         methods: program.methods.into_iter().map(build_method).collect(),
-        fields: program.fields,
+        fields: program.fields.into_iter().map(build_field).collect(),
+    }
+}
+
+fn build_field(field: parse::Field) -> Field {
+    match field {
+        parse::Field::Scalar(t, id) => Field::Scalar(t, id),
+        parse::Field::Array(t, id, len) => {
+            if let IntLit(len) = build_literal(len, false) {
+                Field::Array(t, id, len)
+            } else {
+                panic!()
+            }
+        }
     }
 }
 
 fn build_method(method: parse::Method) -> Method {
-    let fields = method
-        .params
-        .clone()
-        .into_iter()
-        .map(|param| parse::Field::Scalar(param.param_type, param.name));
-
-    let method_scope = Rc::new(Scope {
-        vars: fields.collect(),
-        parent: None,
-    });
-
-    let ir_block = build_block(method.body, Rc::clone(&method_scope));
-
     Method {
+        name: method.name.val,
         meth_type: method.meth_type,
-        body: ir_block,
+        body: build_block(method.body),
         params: method.params,
-        scope: method_scope,
     }
 }
 
@@ -64,7 +65,7 @@ fn build_method(method: parse::Method) -> Method {
 //     }
 // }
 
-fn build_for(ast_for: parse::Stmt, parent_scope: Rc<Scope>) -> ir::Stmt {
+fn build_for(ast_for: parse::Stmt) -> ir::Stmt {
     match ast_for {
         parse::Stmt::For {
             var_to_set: withloc_idx,
@@ -74,16 +75,11 @@ fn build_for(ast_for: parse::Stmt, parent_scope: Rc<Scope>) -> ir::Stmt {
             update_val: assignment_expr,
             body,
         } => {
-            let for_scope = Rc::new(Scope {
-                vars: vec![],
-                parent: Some(parent_scope),
-            });
-
             let ir_initial_value = build_expr(initial_value);
             let ir_condition = build_expr(condition);
             let identifier = build_location(location);
             let assignment = build_assign_expr(assignment_expr);
-            let block = build_block(body, Rc::clone(&for_scope));
+            let block = build_block(body);
 
             ir::Stmt::For {
                 var_to_set: withloc_idx,
@@ -92,7 +88,6 @@ fn build_for(ast_for: parse::Stmt, parent_scope: Rc<Scope>) -> ir::Stmt {
                 var_to_update: identifier,
                 update_val: assignment,
                 body: block,
-                scope: for_scope,
             }
         }
         _ => {
@@ -101,19 +96,14 @@ fn build_for(ast_for: parse::Stmt, parent_scope: Rc<Scope>) -> ir::Stmt {
     }
 }
 
-fn build_while(ast_while: parse::Stmt, parent_scope: Rc<ir::Scope>) -> ir::Stmt {
-    let while_scope = Rc::new(Scope {
-        vars: vec![],
-        parent: Some(parent_scope),
-    });
-
+fn build_while(ast_while: parse::Stmt) -> ir::Stmt {
     match ast_while {
         parse::Stmt::While(while_condition, block) => {
             let ir_while_condition = build_expr(while_condition);
-            let ir_block = build_block(block, Rc::clone(&while_scope));
+            let ir_block = build_block(block);
 
             // confused if we should be making a new scope explicitly or it should be done in build block
-            ir::Stmt::While(ir_while_condition, ir_block, while_scope)
+            ir::Stmt::While(ir_while_condition, ir_block)
         }
         _ => {
             panic!("should not get here")
@@ -278,34 +268,15 @@ fn build_call(call: parse::Stmt) -> ir::Stmt {
     }
 }
 
-fn build_if(if_stmt: parse::Stmt, scope_ptr: Rc<ir::Scope>) -> ir::Stmt {
-    let if_block_scope = Rc::new(ir::Scope {
-        vars: Vec::new(),
-        parent: Some(Rc::clone(&scope_ptr)),
-    });
-
+fn build_if(if_stmt: parse::Stmt) -> ir::Stmt {
     match if_stmt {
         parse::Stmt::If(expr, if_block, else_block) => {
             let new_else_block = match else_block {
-                Some(block) => {
-                    let else_block_scope = Rc::new(ir::Scope {
-                        vars: Vec::new(),
-                        parent: Some(Rc::clone(&scope_ptr)),
-                    });
-                    Some((
-                        build_block(block, Rc::clone(&else_block_scope)),
-                        Rc::clone(&else_block_scope),
-                    ))
-                }
+                Some(block) => Some(build_block(block)),
                 _ => None,
             };
 
-            ir::Stmt::If(
-                build_expr(expr),
-                build_block(if_block, Rc::clone(&if_block_scope)),
-                Rc::clone(&if_block_scope),
-                new_else_block,
-            )
+            ir::Stmt::If(build_expr(expr), build_block(if_block), new_else_block)
         }
         _ => {
             panic!("should not get here")
@@ -313,29 +284,25 @@ fn build_if(if_stmt: parse::Stmt, scope_ptr: Rc<ir::Scope>) -> ir::Stmt {
     }
 }
 
-fn build_block(block: parse::Block, scope: Rc<ir::Scope>) -> ir::Block {
-    let new_scope = ir::Scope {
-        vars: block.fields,
-        parent: Some(scope),
-    };
-
-    let rc_new_scope = Rc::new(new_scope);
-
+fn build_block(block: parse::Block) -> ir::Block {
     use crate::parse::Stmt;
-    block
-        .stmts
-        .into_iter()
-        .map(|stmt| match stmt {
-            Stmt::Assignment(loc, assign_expr) => {
-                ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr))
-            }
-            Stmt::Call(_, _) => build_call(stmt),
-            Stmt::If(_, _, _) => build_if(stmt, Rc::clone(&rc_new_scope)),
-            Stmt::For { .. } => build_for(stmt, Rc::clone(&rc_new_scope)),
-            Stmt::While(_, _) => build_while(stmt, Rc::clone(&rc_new_scope)),
-            Stmt::Return(expr) => ir::Stmt::Return(expr.map(build_expr)),
-            Stmt::Break => ir::Stmt::Break,
-            Stmt::Continue => ir::Stmt::Continue,
-        })
-        .collect()
+    Block {
+        stmts: block
+            .stmts
+            .into_iter()
+            .map(|stmt| match stmt {
+                Stmt::Assignment(loc, assign_expr) => {
+                    ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr))
+                }
+                Stmt::Call(_, _) => build_call(stmt),
+                Stmt::If(_, _, _) => build_if(stmt),
+                Stmt::For { .. } => build_for(stmt),
+                Stmt::While(_, _) => build_while(stmt),
+                Stmt::Return(expr) => ir::Stmt::Return(expr.map(build_expr)),
+                Stmt::Break => ir::Stmt::Break,
+                Stmt::Continue => ir::Stmt::Continue,
+            })
+            .collect(),
+        fields: block.fields.into_iter().map(build_field).collect(),
+    }
 }

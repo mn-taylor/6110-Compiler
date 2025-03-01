@@ -7,7 +7,6 @@ use parse::Param;
 use parse::Primitive;
 use parse::WithLoc;
 use scan::{AddOp, EqOp, MulOp, RelOp};
-use std::rc::Rc;
 
 pub enum Bop {
     MulBop(MulOp),
