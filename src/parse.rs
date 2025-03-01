@@ -16,7 +16,7 @@ impl Clone for Ident {
 
 // not sure about best way to handle current cloning of Type
 #[derive(Clone, Debug, PartialEq)]
-pub enum Type {
+pub enum Primitive {
     IntType,
     LongType,
     BoolType,
@@ -24,13 +24,13 @@ pub enum Type {
 
 #[derive(Debug, PartialEq)]
 pub enum Field {
-    Scalar(Type, Ident),
-    Array(Type, Ident, Literal),
+    Scalar(Primitive, Ident),
+    Array(Primitive, Ident, Literal),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Param {
-    pub param_type: Type,
+    pub param_type: Primitive,
     pub name: Ident,
 }
 
@@ -53,7 +53,7 @@ pub struct Block {
 
 #[derive(Debug, PartialEq)]
 pub struct Method {
-    pub meth_type: Option<Type>,
+    pub meth_type: Option<Primitive>,
     pub name: WithLoc<Ident>,
     pub params: Vec<Param>,
     pub body: Block,
@@ -705,9 +705,9 @@ fn parse_import<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Ident> {
     }
 }
 
-use Type::*;
+use Primitive::*;
 
-impl OfToken for Type {
+impl OfToken for Primitive {
     fn of_token(t: &Token) -> Option<Self> {
         match t {
             Key(Int) => Some(IntType),
@@ -718,11 +718,11 @@ impl OfToken for Type {
     }
 }
 
-impl OfToken for Option<Type> {
+impl OfToken for Option<Primitive> {
     fn of_token(t: &Token) -> Option<Self> {
         match t {
             Key(Void) => Some(None),
-            _ => Type::of_token(t).map(Some),
+            _ => Primitive::of_token(t).map(Some),
         }
     }
 }
@@ -740,7 +740,7 @@ fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field
     // subtle opportunity for bug: parse_array_field_decl needs to be on the left here
     let parse_scalar_or_arr = parse_or(parse_array_field_decl, Ident::parse);
     let parse_field = parse_concat(
-        parse_one(Type::of_tokenloc),
+        Primitive::parse,
         parse_concat(
             parse_comma_sep_list(&parse_scalar_or_arr),
             parse_one(exactly(Sym(Misc(Semicolon)))),
@@ -762,7 +762,7 @@ fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field
 
 impl Parse for Param {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
-        let param = parse_concat(parse_one(Type::of_tokenloc), Ident::parse);
+        let param = parse_concat(Primitive::parse, Ident::parse);
         let (param_type, name) = param(tokens)?;
         Some(Param { param_type, name })
     }
@@ -771,7 +771,7 @@ impl Parse for Param {
 impl Parse for Method {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Method> {
         let method = parse_concat(
-            parse_one(Option::<Type>::of_tokenloc),
+            parse_one(Option::<Primitive>::of_tokenloc),
             parse_concat(
                 WithLoc::<Ident>::parse,
                 parse_concat(

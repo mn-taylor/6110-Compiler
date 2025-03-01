@@ -5,7 +5,7 @@ use crate::scan::IncrOp;
 use parse::Field;
 use parse::Ident;
 use parse::Param;
-use parse::Type;
+use parse::Primitive;
 use parse::WithLoc;
 use scan::{AddOp, EqOp, MulOp, RelOp};
 use std::rc::Rc;
@@ -90,7 +90,7 @@ pub struct Scope {
 }
 
 pub struct Method {
-    pub meth_type: Option<Type>,
+    pub meth_type: Option<Primitive>,
     pub body: Block,
     pub params: Vec<Param>,
     pub scope: Rc<Scope>,
