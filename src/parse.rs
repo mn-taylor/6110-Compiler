@@ -190,15 +190,14 @@ fn parse_method_call<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<(WithLoc<
             ),
         ),
     );
-    Some(match parse_call(tokens)? {
-        (name, ((), (args, ()))) => {
-            let args = match args {
-                Inl(args) => args,
-                Inr(()) => vec![],
-            };
-            (name, args)
-        }
-    })
+    let (name, ((), (args, ()))) = parse_call(tokens)?;
+    Some((
+        name,
+        match args {
+            Inl(args) => args,
+            Inr(()) => vec![],
+        },
+    ))
 }
 
 impl Parse for AtomicExpr {
@@ -561,11 +560,10 @@ impl Parse for Block {
                 ),
             ),
         );
-        Some(match block(tokens)? {
-            ((), (field_decls, (stmts, ()))) => Block {
-                fields: field_decls.into_iter().flatten().collect(),
-                stmts,
-            },
+        let ((), (field_decls, (stmts, ()))) = block(tokens)?;
+        Some(Block {
+            fields: field_decls.into_iter().flatten().collect(),
+            stmts,
         })
     }
 }
@@ -582,7 +580,7 @@ fn parse_star<T, U>(f: impl Fn(&mut T) -> Option<U>) -> impl Fn(&mut T) -> Optio
     }
 }
 
-fn parse_concat<'a, T: Clone, U, V>(
+fn parse_concat<T: Clone, U, V>(
     f: impl Fn(&mut T) -> Option<U>,
     g: impl Fn(&mut T) -> Option<V>,
 ) -> impl Fn(&mut T) -> Option<(U, V)> {
@@ -724,10 +722,7 @@ impl OfToken for Option<Type> {
     fn of_token(t: &Token) -> Option<Self> {
         match t {
             Key(Void) => Some(None),
-            _ => match Type::of_token(t) {
-                Some(t) => Some(Some(t)),
-                None => None,
-            },
+            _ => Type::of_token(t).map(Some),
         }
     }
 }
@@ -768,9 +763,8 @@ fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field
 impl Parse for Param {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let param = parse_concat(parse_one(Type::of_tokenloc), Ident::parse);
-        Some(match param(tokens)? {
-            (param_type, name) => Param { param_type, name },
-        })
+        let (param_type, name) = param(tokens)?;
+        Some(Param { param_type, name })
     }
 }
 
@@ -789,19 +783,16 @@ impl Parse for Method {
                 ),
             ),
         );
-        Some(match method(tokens)? {
-            (meth_type, (name, ((), (maybe_params, ((), body))))) => {
-                let params = match maybe_params {
-                    Inl(params) => params,
-                    Inr(()) => Vec::new(),
-                };
-                Method {
-                    meth_type,
-                    name,
-                    params,
-                    body,
-                }
-            }
+        let (meth_type, (name, ((), (maybe_params, ((), body))))) = method(tokens)?;
+        let params = match maybe_params {
+            Inl(params) => params,
+            Inr(()) => Vec::new(),
+        };
+        Some(Method {
+            meth_type,
+            name,
+            params,
+            body,
         })
     }
 }

@@ -1,5 +1,6 @@
 use enum_iterator::all;
 use enum_iterator::Sequence;
+use std::fmt;
 use std::string::ToString;
 
 const FORM_FEED: char = 12u8 as char;
@@ -21,12 +22,7 @@ pub trait OfString {
 
 impl<T: ToString + Sequence + Finite> OfString for T {
     fn of_string(input: &str) -> Option<T> {
-        for val in all::<Self>() {
-            if val.to_string() == input {
-                return Some(val);
-            }
-        }
-        return None;
+        all::<Self>().find(|val| val.to_string() == input)
     }
 }
 
@@ -53,9 +49,9 @@ use Keyword::*;
 
 impl Finite for Keyword {}
 
-impl ToString for Keyword {
-    fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for Keyword {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let ret = match self {
             Import => "import",
             Void => "void",
             Int => "int",
@@ -71,8 +67,8 @@ impl ToString for Keyword {
             Continue => "continue",
             True => "true",
             False => "false",
-        }
-        .to_string()
+        };
+        write!(f, "{}", ret)
     }
 }
 
@@ -88,17 +84,17 @@ pub enum AssignOp {
 
 use AssignOp::*;
 
-impl ToString for AssignOp {
-    fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for AssignOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let ret = match self {
             Eq => "=",
             PlusEq => "+=",
             MinusEq => "-=",
             MulEq => "*=",
             DivEq => "/=",
             ModEq => "%=",
-        }
-        .to_string()
+        };
+        write!(f, "{}", ret)
     }
 }
 
@@ -109,13 +105,13 @@ pub enum IncrOp {
 }
 
 use IncrOp::*;
-impl ToString for IncrOp {
-    fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for IncrOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let ret = match self {
             Increment => "++",
             Decrement => "--",
-        }
-        .to_string()
+        };
+        write!(f, "{}", ret)
     }
 }
 
@@ -127,14 +123,14 @@ pub enum MulOp {
 }
 
 use MulOp::*;
-impl ToString for MulOp {
-    fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for MulOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let ret = match self {
             Mul => "*",
             Div => "/",
             Mod => "%",
-        }
-        .to_string()
+        };
+        write!(f, "{}", ret)
     }
 }
 
@@ -145,13 +141,13 @@ pub enum AddOp {
 }
 
 use AddOp::*;
-impl ToString for AddOp {
-    fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for AddOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let ret = match self {
             Add => "+",
             Sub => "-",
-        }
-        .to_string()
+        };
+        write!(f, "{}", ret)
     }
 }
 
@@ -163,15 +159,15 @@ pub enum RelOp {
     Ge,
 }
 
-impl ToString for RelOp {
-    fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for RelOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let ret = match self {
             RelOp::Lt => "<",
             RelOp::Gt => ">",
             RelOp::Le => "<=",
             RelOp::Ge => ">=",
-        }
-        .to_string()
+        };
+        write!(f, "{}", ret)
     }
 }
 
@@ -181,13 +177,13 @@ pub enum EqOp {
     Neq,
 }
 
-impl ToString for EqOp {
-    fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for EqOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let ret = match self {
             EqOp::Eq => "==",
             EqOp::Neq => "!=",
-        }
-        .to_string()
+        };
+        write!(f, "{}", ret)
     }
 }
 
@@ -206,9 +202,9 @@ pub enum MiscSymbol {
 
 use MiscSymbol::*;
 
-impl ToString for MiscSymbol {
-    fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for MiscSymbol {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let ret = match self {
             Not => "!",
             LPar => "(",
             RPar => ")",
@@ -218,8 +214,8 @@ impl ToString for MiscSymbol {
             RBrace => "}",
             Semicolon => ";",
             Comma => ",",
-        }
-        .to_string()
+        };
+        write!(f, "{}", ret)
     }
 }
 
@@ -240,18 +236,18 @@ impl Finite for Symbol {}
 
 use Symbol::*;
 
-impl ToString for Symbol {
-    fn to_string(&self) -> String {
+impl fmt::Display for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MulSym(b) => b.to_string(),
-            AddSym(b) => b.to_string(),
-            RelSym(b) => b.to_string(),
-            EqSym(b) => b.to_string(),
-            And => "&&".to_string(),
-            Or => "||".to_string(),
-            Assign(op) => op.to_string(),
-            Incr(op) => op.to_string(),
-            Misc(symb) => symb.to_string(),
+            MulSym(b) => b.fmt(f),
+            AddSym(b) => b.fmt(f),
+            RelSym(b) => b.fmt(f),
+            EqSym(b) => b.fmt(f),
+            And => "&&".fmt(f),
+            Or => "||".fmt(f),
+            Assign(op) => op.fmt(f),
+            Incr(op) => op.fmt(f),
+            Misc(symb) => symb.fmt(f),
         }
     }
 }
@@ -294,8 +290,8 @@ impl Token {
 
     pub fn format_for_output(&self) -> String {
         match self {
-            Key(True) => format!("BOOLEANLITERAL true"),
-            Key(False) => format!("BOOLEANLITERAL false"),
+            Key(True) => "BOOLEANLITERAL true".to_string(),
+            Key(False) => "BOOLEANLITERAL false".to_string(),
             Key(word) => word.to_string(),
             Ident(s) => format!("IDENTIFIER {}", s),
             DecIntLit(s) => format!("INTLITERAL {}", s),
@@ -320,32 +316,27 @@ fn eat_while(
     test: fn(char) -> bool,
 ) -> String {
     let mut s = String::new();
-    loop {
-        match input.clone().next() {
-            Some((_, c)) => {
-                if test(c) {
-                    s.push(c);
-                    input.next();
-                } else {
-                    break;
-                }
-            }
-            None => break,
+    while let Some((_, c)) = input.clone().next() {
+        if test(c) {
+            s.push(c);
+            input.next();
+        } else {
+            break;
         }
     }
-    return s;
+    s
 }
 
 fn scan_char(input: &mut impl Iterator<Item = (ErrLoc, char)>) -> Result<char, String> {
     let first = match input.next() {
         Some((_, first)) => first,
-        None => return Err(format!("expected char but line ended")),
+        None => return Err("expected char but line ended".to_string()),
     };
     Ok(match first {
         '\\' => {
             let second = match input.next() {
                 Some((_, second)) => second,
-                None => return Err(format!("cannot lex \\ as char")),
+                None => return Err("cannot lex \\ as char".to_string()),
             };
             match second {
                 '"' => '"',
@@ -358,8 +349,8 @@ fn scan_char(input: &mut impl Iterator<Item = (ErrLoc, char)>) -> Result<char, S
                 _ => return Err(format!("cannot lex {}{} as char", first, second)),
             }
         }
-        '\"' => return Err(format!("cannot lex \" as char")),
-        '\'' => return Err(format!("cannt lex ' as char")),
+        '\"' => return Err("cannot lex \" as char".to_string()),
+        '\'' => return Err("cannt lex ' as char".to_string()),
         _ => {
             if 32 as char <= first && first <= 126 as char {
                 first
@@ -392,20 +383,15 @@ fn scan_str_lit(
     let mut ret = String::new();
     let first = input.next().map(snd).unwrap();
     assert_eq!(first, '\"');
-    loop {
-        match input.clone().next().map(snd) {
-            None => {
-                return Err(format!(
-                    "expected \" to end string literal, got end of line"
-                ))
-            }
-            Some('\"') => {
-                input.next();
-                return Ok(StrLit(ret));
-            }
-            Some(_) => ret.push(scan_char(input)?),
+    while let Some((_, c)) = input.clone().next() {
+        if c == '\"' {
+            input.next();
+            return Ok(StrLit(ret));
+        } else {
+            ret.push(scan_char(input)?)
         }
     }
+    Err("expected \" to end string literal, got end of line".to_string())
 }
 
 fn scan_dec_lit(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> String {
@@ -437,7 +423,7 @@ fn is_alphanum(c: char) -> bool {
 }
 
 fn scan_ident_or_keyword(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> String {
-    eat_while(input, |x| is_alphanum(x))
+    eat_while(input, is_alphanum)
 }
 
 fn scan_integer_lit(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> Token {
@@ -466,9 +452,8 @@ fn scan_integer_lit(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) 
 }
 
 fn snd<A, B>(x: (A, B)) -> B {
-    match x {
-        (_, b) => b,
-    }
+    let (_, b) = x;
+    b
 }
 
 fn scan_sym(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> Result<Token, String> {
@@ -484,7 +469,7 @@ fn scan_sym(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> Resul
         }
     }
     // if that didn't work, try to parse one-character symbol
-    if let None = sym {
+    if sym.is_none() {
         sym = Symbol::of_string(&first.to_string());
     }
     match sym {

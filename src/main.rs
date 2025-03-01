@@ -1,7 +1,7 @@
 mod utils;
+use decaf_skeleton_rust::ir_build;
 use decaf_skeleton_rust::parse;
 use decaf_skeleton_rust::scan;
-use decaf_skeleton_rust::ir_build;
 
 fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
     match output {
@@ -20,7 +20,7 @@ fn write_tokens(
                 writer,
                 "{} {}",
                 e.line,
-                scan::Token::format_for_output(&token)
+                scan::Token::format_for_output(token)
             ),
             (Err(err), e) => writeln!(writer, "ERROR on line {} col {}: {}", e.line, e.col, err),
         }
@@ -65,7 +65,7 @@ fn main() {
             let mut tokens = tokens.iter();
             // println!("{:?}", tokens.clone().collect::<Vec<_>>());
             parse::parse_program(&mut tokens);
-            if let Some(_) = tokens.next() {
+            if tokens.next().is_some() {
                 panic!("oops didnt parse everythign");
             }
         }
@@ -81,7 +81,7 @@ fn main() {
             let mut tokens = tokens.iter();
             // println!("{:?}", tokens.clone().collect::<Vec<_>>());
             let ast = parse::parse_program(&mut tokens);
-            if let Some(_) = tokens.next() {
+            if tokens.next().is_some() {
                 panic!("oops didnt parse everythign");
             }
             ir_build::build_program(ast);

@@ -85,7 +85,7 @@ fn build_for(ast_for: parse::Stmt, parent_scope: Rc<Scope>) -> ir::Stmt {
             let assignment = build_assign_expr(assignment_expr);
             let block = build_block(body, Rc::clone(&for_scope));
 
-            return ir::Stmt::For {
+            ir::Stmt::For {
                 var_to_set: withloc_idx,
                 initial_val: ir_initial_value,
                 test: ir_condition,
@@ -93,7 +93,7 @@ fn build_for(ast_for: parse::Stmt, parent_scope: Rc<Scope>) -> ir::Stmt {
                 update_val: assignment,
                 body: block,
                 scope: for_scope,
-            };
+            }
         }
         _ => {
             panic!("should not get here")
@@ -113,7 +113,7 @@ fn build_while(ast_while: parse::Stmt, parent_scope: Rc<ir::Scope>) -> ir::Stmt 
             let ir_block = build_block(block, Rc::clone(&while_scope));
 
             // confused if we should be making a new scope explicitly or it should be done in build block
-            return ir::Stmt::While(ir_while_condition, ir_block, while_scope);
+            ir::Stmt::While(ir_while_condition, ir_block, while_scope)
         }
         _ => {
             panic!("should not get here")
@@ -256,7 +256,7 @@ fn build_location(l: parse::Location) -> Location {
 fn build_assignment(assignment: parse::Stmt) -> ir::Stmt {
     match assignment {
         parse::Stmt::Assignment(loc, assign_expr) => {
-            return ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr));
+            ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr))
         }
         _ => {
             panic!("should not get here")
@@ -268,9 +268,9 @@ fn build_assign_expr(assign_expr: parse::AssignExpr) -> ir::AssignExpr {
     use crate::parse::AssignExpr;
     match assign_expr {
         AssignExpr::RegularAssign(assign_op, expr) => {
-            return ir::AssignExpr::RegularAssign(assign_op, build_expr(expr))
+            ir::AssignExpr::RegularAssign(assign_op, build_expr(expr))
         }
-        AssignExpr::IncrAssign(inc_op) => return ir::AssignExpr::IncrAssign(inc_op),
+        AssignExpr::IncrAssign(inc_op) => ir::AssignExpr::IncrAssign(inc_op),
     }
 }
 
@@ -281,7 +281,7 @@ fn build_call(call: parse::Stmt) -> ir::Stmt {
                 parse::Arg::ExprArg(expr) => ir::Arg::ExprArg(build_expr(expr)),
                 parse::Arg::ExternArg(str) => ir::Arg::ExternArg(str),
             });
-            return ir::Stmt::Call(loc_info, new_args.collect());
+            ir::Stmt::Call(loc_info, new_args.collect())
         }
         _ => {
             panic!("should not get here")
@@ -297,27 +297,26 @@ fn build_if(if_stmt: parse::Stmt, scope_ptr: Rc<ir::Scope>) -> ir::Stmt {
 
     match if_stmt {
         parse::Stmt::If(expr, if_block, else_block) => {
-            let new_else_block: Option<(ir::Block, Rc<ir::Scope>)>;
-            match else_block {
+            let new_else_block = match else_block {
                 Some(block) => {
                     let else_block_scope = Rc::new(ir::Scope {
                         vars: Vec::new(),
                         parent: Some(Rc::clone(&scope_ptr)),
                     });
-                    new_else_block = Some((
+                    Some((
                         build_block(block, Rc::clone(&else_block_scope)),
                         Rc::clone(&else_block_scope),
-                    ));
+                    ))
                 }
-                _ => new_else_block = None,
-            }
+                _ => None,
+            };
 
-            return ir::Stmt::If(
+            ir::Stmt::If(
                 build_expr(expr),
                 build_block(if_block, Rc::clone(&if_block_scope)),
                 Rc::clone(&if_block_scope),
                 new_else_block,
-            );
+            )
         }
         _ => {
             panic!("should not get here")
