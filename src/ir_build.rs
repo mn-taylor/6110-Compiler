@@ -65,52 +65,6 @@ fn build_method(method: parse::Method) -> Method {
 //     }
 // }
 
-fn build_for(ast_for: parse::Stmt) -> ir::Stmt {
-    match ast_for {
-        parse::Stmt::For {
-            var_to_set: withloc_idx,
-            initial_val: initial_value,
-            test: condition,
-            var_to_update: location,
-            update_val: assignment_expr,
-            body,
-        } => {
-            let ir_initial_value = build_expr(initial_value);
-            let ir_condition = build_expr(condition);
-            let identifier = build_location(location);
-            let assignment = build_assign_expr(assignment_expr);
-            let block = build_block(body);
-
-            ir::Stmt::For {
-                var_to_set: withloc_idx,
-                initial_val: ir_initial_value,
-                test: ir_condition,
-                var_to_update: identifier,
-                update_val: assignment,
-                body: block,
-            }
-        }
-        _ => {
-            panic!("should not get here")
-        }
-    }
-}
-
-fn build_while(ast_while: parse::Stmt) -> ir::Stmt {
-    match ast_while {
-        parse::Stmt::While(while_condition, block) => {
-            let ir_while_condition = build_expr(while_condition);
-            let ir_block = build_block(block);
-
-            // confused if we should be making a new scope explicitly or it should be done in build block
-            ir::Stmt::While(ir_while_condition, ir_block)
-        }
-        _ => {
-            panic!("should not get here")
-        }
-    }
-}
-
 use ir::Bop;
 
 trait ToExpr {
@@ -253,37 +207,6 @@ fn build_assign_expr(assign_expr: parse::AssignExpr) -> ir::AssignExpr {
     }
 }
 
-fn build_call(call: parse::Stmt) -> ir::Stmt {
-    match call {
-        parse::Stmt::Call(loc_info, args) => {
-            let new_args = args.into_iter().map(|arg| match arg {
-                parse::Arg::ExprArg(expr) => ir::Arg::ExprArg(build_expr(expr)),
-                parse::Arg::ExternArg(str) => ir::Arg::ExternArg(str),
-            });
-            ir::Stmt::Call(loc_info, new_args.collect())
-        }
-        _ => {
-            panic!("should not get here")
-        }
-    }
-}
-
-fn build_if(if_stmt: parse::Stmt) -> ir::Stmt {
-    match if_stmt {
-        parse::Stmt::If(expr, if_block, else_block) => {
-            let new_else_block = match else_block {
-                Some(block) => Some(build_block(block)),
-                _ => None,
-            };
-
-            ir::Stmt::If(build_expr(expr), build_block(if_block), new_else_block)
-        }
-        _ => {
-            panic!("should not get here")
-        }
-    }
-}
-
 fn build_block(block: parse::Block) -> ir::Block {
     use crate::parse::Stmt;
     Block {
@@ -294,10 +217,36 @@ fn build_block(block: parse::Block) -> ir::Block {
                 Stmt::Assignment(loc, assign_expr) => {
                     ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr))
                 }
-                Stmt::Call(_, _) => build_call(stmt),
-                Stmt::If(_, _, _) => build_if(stmt),
-                Stmt::For { .. } => build_for(stmt),
-                Stmt::While(_, _) => build_while(stmt),
+                Stmt::Call(id, args) => ir::Stmt::Call(
+                    id,
+                    args.into_iter()
+                        .map(|arg| match arg {
+                            parse::Arg::ExprArg(expr) => ir::Arg::ExprArg(build_expr(expr)),
+                            parse::Arg::ExternArg(str) => ir::Arg::ExternArg(str),
+                        })
+                        .collect(),
+                ),
+                Stmt::If(cond, if_block, else_block) => ir::Stmt::If(
+                    build_expr(cond),
+                    build_block(if_block),
+                    else_block.map(build_block),
+                ),
+                Stmt::For {
+                    var_to_set,
+                    initial_val,
+                    test,
+                    var_to_update,
+                    update_val,
+                    body,
+                } => ir::Stmt::For {
+                    var_to_set,
+                    initial_val: build_expr(initial_val),
+                    test: build_expr(test),
+                    var_to_update: build_location(var_to_update),
+                    update_val: build_assign_expr(update_val),
+                    body: build_block(body),
+                },
+                Stmt::While(cond, body) => ir::Stmt::While(build_expr(cond), build_block(body)),
                 Stmt::Return(expr) => ir::Stmt::Return(expr.map(build_expr)),
                 Stmt::Break => ir::Stmt::Break,
                 Stmt::Continue => ir::Stmt::Continue,
