@@ -32,7 +32,8 @@ fn build_method(method: parse::Method) -> Method {
     Method {
         name: method.name.val,
         meth_type: method.meth_type,
-        body: build_block(method.body),
+        fields: method.body.fields.into_iter().map(build_field).collect(),
+        stmts: method.body.stmts.into_iter().map(build_stmt).collect(),
         params: method.params,
     }
 }

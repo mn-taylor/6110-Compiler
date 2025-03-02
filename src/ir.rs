@@ -110,7 +110,8 @@ pub struct Block {
 
 pub struct Method {
     pub meth_type: Option<Primitive>,
-    pub body: Block,
+    pub fields: Vec<Field>,
+    pub stmts: Vec<Stmt>,
     pub params: Vec<Param>,
     pub name: Ident,
 }
@@ -126,10 +127,14 @@ impl Scope for Block {
 
 impl Scope for Method {
     fn local_lookup(&self, id: &Ident) -> Option<Type> {
-        self.params
-            .iter()
-            .find(|other| other.name == *id)
-            .map(|t| Prim(t.param_type.clone()))
+        if let Some(t) = fields_lookup(&self.fields, id) {
+            Some(t)
+        } else {
+            self.params
+                .iter()
+                .find(|other| other.name == *id)
+                .map(|t| Prim(t.param_type.clone()))
+        }
     }
 }
 
