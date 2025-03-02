@@ -156,7 +156,8 @@ fn check_block(block: ir::Block, errors: &Vec<String>, scope: impl Fn(Ident) -> 
    }
 }
 
-fn check_expr(expr: ir::Expr, errors: &Vec<String>, scope: impl Fn(Ident) -> Option<Type>) -> {}
+fn check_expr(expr: ir::Expr, errors: &Vec<String>, scope: impl Fn(Ident) -> Option<Primitive>) {
+}
 
 // Should call check expr, if argument is none then should report an error message
 fn check_arg(arg: ir::Arg, error: &Vec<String>)->Sum<Option<Type>, String>{
