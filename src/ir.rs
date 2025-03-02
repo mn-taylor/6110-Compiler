@@ -1,11 +1,11 @@
 use crate::parse;
+use crate::parse::Param;
+use crate::parse::WithLoc;
 use crate::scan;
 use crate::scan::AssignOp;
 use crate::scan::IncrOp;
 use parse::Ident;
-use parse::Param;
 use parse::Primitive;
-use parse::WithLoc;
 use scan::{AddOp, EqOp, MulOp, RelOp};
 
 pub enum Bop {
@@ -37,8 +37,6 @@ pub enum Arg {
 pub enum Stmt {
     AssignStmt(Location, AssignExpr),
     Call(WithLoc<Ident>, Vec<Arg>),
-    // SelfAssign(Ident, Bop, Expr),
-    // will represent ++, -- as SelfAssign
     If(Expr, Block, Option<Block>),
     For {
         var_to_set: WithLoc<Ident>,
@@ -90,7 +88,7 @@ pub enum Type {
 
 pub trait Scope {
     fn local_lookup(&self, id: &Ident) -> Option<Type>;
-    fn lookup(&self, parent: impl Fn(&Ident) -> Option<Type>) -> impl Fn(&Ident) -> Option<Type> {
+    fn scope(&self, parent: impl Fn(&Ident) -> Option<Type>) -> impl Fn(&Ident) -> Option<Type> {
         move |id| match Self::local_lookup(self, id) {
             Some(t) => Some(t),
             None => parent(id),
