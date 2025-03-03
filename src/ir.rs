@@ -79,6 +79,7 @@ pub struct Program {
     pub imports: Vec<Ident>,
 }
 
+#[derive(Debug)]
 pub enum Type {
     Prim(Primitive),
     Arr(Primitive, i32),
@@ -86,7 +87,7 @@ pub enum Type {
     ExtCall,
 }
 
-pub trait Scope {
+pub trait Scoped {
     fn local_lookup(&self, id: &Ident) -> Option<Type>;
     fn scope(&self, parent: impl Fn(&Ident) -> Option<Type>) -> impl Fn(&Ident) -> Option<Type> {
         move |id| match Self::local_lookup(self, id) {
@@ -117,13 +118,13 @@ pub struct Method {
 // scopes
 use Type::*;
 
-impl Scope for Block {
+impl Scoped for Block {
     fn local_lookup(&self, id: &Ident) -> Option<Type> {
         fields_lookup(&self.fields, id)
     }
 }
 
-impl Scope for Method {
+impl Scoped for Method {
     fn local_lookup(&self, id: &Ident) -> Option<Type> {
         if let Some(t) = fields_lookup(&self.fields, id) {
             Some(t)
@@ -136,7 +137,7 @@ impl Scope for Method {
     }
 }
 
-fn fields_lookup(fields: &Vec<Field>, id: &Ident) -> Option<Type> {
+fn fields_lookup(fields: &[Field], id: &Ident) -> Option<Type> {
     fields
         .iter()
         .find(|other| match other {
@@ -149,7 +150,7 @@ fn fields_lookup(fields: &Vec<Field>, id: &Ident) -> Option<Type> {
         })
 }
 
-fn methods_lookup(methods: &Vec<Method>, id: &Ident) -> Option<Type> {
+fn methods_lookup(methods: &[Method], id: &Ident) -> Option<Type> {
     methods.iter().find(|other| other.name == *id).map(|m| {
         Func(
             m.params.iter().map(|m| m.param_type.clone()).collect(),
@@ -158,17 +159,22 @@ fn methods_lookup(methods: &Vec<Method>, id: &Ident) -> Option<Type> {
     })
 }
 
-impl Scope for Program {
-    fn local_lookup(&self, id: &Ident) -> Option<Type> {
-        if let Some(t) = fields_lookup(&self.fields, id) {
-            Some(t)
-        } else if let Some(t) = methods_lookup(&self.methods, id) {
-            Some(t)
-        } else {
-            self.imports
-                .iter()
-                .find(|other| *other == id)
-                .map(|_| ExtCall)
+impl Program {
+    pub fn local_scope_with_first_n_methods<'a>(
+        self: &'a Program,
+        num_methods: usize,
+    ) -> impl 'a + Fn(&Ident) -> Option<Type> {
+        move |id| {
+            if let Some(t) = fields_lookup(&self.fields, id) {
+                Some(t)
+            } else if let Some(t) = methods_lookup(&self.methods[0..num_methods], id) {
+                Some(t)
+            } else {
+                self.imports
+                    .iter()
+                    .find(|other| *other == id)
+                    .map(|_| ExtCall)
+            }
         }
     }
 }
