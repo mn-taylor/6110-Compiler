@@ -11,7 +11,7 @@ use std::iter::zip;
 trait Scope: Fn(&Ident) -> Option<Type> {}
 impl<T: Fn(&Ident) -> Option<Type>> Scope for T {}
 
-fn check_program(program: &Program) -> Vec<String> {
+pub fn check_program(program: &Program) -> Vec<String> {
     let mut errors: Vec<String> = Vec::new();
 
     // check for duplicates within fields and method name and imports
@@ -153,7 +153,7 @@ fn expect_val<T: PartialEq>(
 }
 
 fn assert_eq<T: PartialEq>(expected: T, got: T, errors: &mut Vec<String>, err_msg: String) {
-    expect_val(expected, move |_| err_msg)(got).map_err(|err| errors.push(err));
+    let _ = expect_val(expected, move |_| err_msg)(got).map_err(|err| errors.push(err));
 }
 
 fn check_stmt(
@@ -202,8 +202,13 @@ fn check_stmt(
                 ),
             );
             // initial_val is int
-            let init = AssignExpr::RegularAssign(AssignOp::Eq, *initial_val);
-            check_assign_expr(&init, errors, &scope, Some(Primitive::IntType));
+            check_regular_assign(
+                &AssignOp::Eq,
+                initial_val,
+                errors,
+                &scope,
+                Some(Primitive::IntType),
+            );
 
             // test is bool
             check_expr(
@@ -215,8 +220,8 @@ fn check_stmt(
                 }),
             );
             // var_to_update
-            let loop_update = Stmt::AssignStmt(*var_to_update, *update_val);
-            check_stmt(&loop_update, errors, &scope, true, return_type);
+            let left_type = check_location(var_to_update, errors, &scope);
+            check_assign_expr(update_val, errors, &scope, left_type);
 
             // body
             check_block(body, errors, &scope, true, return_type);
@@ -300,6 +305,34 @@ fn check_arg(
     todo!()
 }
 
+fn check_regular_assign(
+    op: &AssignOp,
+    rhs: &Expr,
+    errors: &mut Vec<String>,
+    scope: impl Scope,
+    lhs_type: Option<Primitive>,
+) {
+    let expected_type = move |typ| {
+        if let Some(lhs_type) = lhs_type {
+            if typ == lhs_type {
+                Ok(())
+            } else {
+                Err(format!("expected {:?}, got {:?}", lhs_type, typ))
+            }
+        }
+        // this is probably unnecessarily fancy but idk
+        else if op.is_arith() && !(typ == Primitive::IntType || typ == Primitive::LongType) {
+            Err(format!(
+                "expected int or long type to go along with op {:?}",
+                op
+            ))
+        } else {
+            Ok(())
+        }
+    };
+    check_expr(rhs, errors, scope, expected_type);
+}
+
 // left_type is Option<Type> because if left side failed to typecheck, we still want to sanity-check rhs but do not want to complain about its type
 fn check_assign_expr(
     assign_expr: &AssignExpr,
@@ -309,27 +342,7 @@ fn check_assign_expr(
 ) {
     match assign_expr {
         AssignExpr::RegularAssign(op, rhs) => {
-            let expected_type = move |typ| {
-                if let Some(lhs_type) = lhs_type {
-                    if typ == lhs_type {
-                        Ok(())
-                    } else {
-                        Err(format!("expected {:?}, got {:?}", lhs_type, typ))
-                    }
-                }
-                // this is probably unnecessarily fancy but idk
-                else if op.is_arith()
-                    && !(typ == Primitive::IntType || typ == Primitive::LongType)
-                {
-                    Err(format!(
-                        "expected int or long type to go along with op {:?}",
-                        op
-                    ))
-                } else {
-                    Ok(())
-                }
-            };
-            check_expr(rhs, errors, scope, expected_type);
+            check_regular_assign(op, rhs, errors, scope, lhs_type)
         }
         AssignExpr::IncrAssign(op) => match lhs_type {
             Some(Primitive::IntType) | Some(Primitive::LongType) | None => (),
