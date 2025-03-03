@@ -1,9 +1,8 @@
 use crate::ir;
 use crate::parse;
-use crate::scan;
 use ir::*;
+use parse::WithLoc;
 use parse::{Ident, Param, Primitive};
-use scan::Sum;
 use std::iter::zip;
 
 // idk if we want this, but could be nice maybe
@@ -37,7 +36,7 @@ fn check_method(method: &Method, errors: &mut Vec<String>, scope: impl Scope) {
     check_duplicates(descriptions.collect(), errors);
     let method_scope = method.scope(scope);
     for stmt in method.stmts.iter() {
-        check_stmt(&stmt, &errors, &method_scope, false, &method.meth_type);
+        check_stmt(&stmt, errors, &method_scope, false, &method.meth_type);
     }
 }
 
@@ -76,38 +75,81 @@ fn check_duplicates(ids: Vec<(&Ident, String)>, errors: &mut Vec<String>) {
     }
 }
 
+// returns None if location invalid.  nothing to do with void.  locations cannot be void.
+// i think using None to mean void was a bad idea.  it is confusing.  should have enum VoidOrType
+fn check_location(
+    location: &Location,
+    errors: &mut Vec<String>,
+    scope: impl Scope,
+) -> Option<Primitive> {
+    let id = match location {
+        Location::Var(id) => id,
+        Location::ArrayIndex(id, _) => id,
+    };
+    match scope(&id.val) {
+        None => {
+            errors.push(format!(
+                "could not find identifier {:?} at {:?}",
+                id.val, id.loc
+            ));
+            None
+        }
+        Some(Type::Prim(p)) => Some(p),
+        Some(x) => {
+            errors.push(format!("expected primitive, got {:?}", x));
+            None
+        }
+    }
+}
+
+// want to factor this out so as not to implement it for both exprs and stmts
+fn check_call(id: &WithLoc<Ident>, args: &Vec<Arg>, errors: &mut Vec<String>, scope: impl Scope) {
+    match scope(&id.val) {
+        Some(Type::Func(params, _)) => {
+            if args.len() != params.len() {
+                errors.push(format!(
+                    "{:?} expected {} many arguments and got {}",
+                    id.val,
+                    params.len(),
+                    args.len()
+                ));
+            }
+            for (arg, param_type) in zip(args, params) {
+                check_arg(arg, errors, |typ| {
+                    if typ == param_type {
+                        Ok(())
+                    } else {
+                        Err(format!(
+                            "expected arg of type {:?}, got {:?}",
+                            param_type, typ
+                        ))
+                    }
+                });
+            }
+        }
+        Some(Type::ExtCall) => {
+            for arg in args {
+                check_arg(arg, errors, |_| Ok(()));
+            }
+        }
+        Some(x) => errors.push(format!("{:?} should have been function, was {:?}", id, x)),
+        None => errors.push(format!("{:?} not found", id)),
+    }
+}
+
 fn check_stmt(
     stmt: &Stmt,
-    errors: &Vec<String>,
+    errors: &mut Vec<String>,
     scope: impl Scope,
     in_loop: bool,
     return_type: &Option<Primitive>,
 ) {
     match stmt {
         Stmt::AssignStmt(loc, assign_expr) => {
-            let left_type = check_location(loc, &errors);
-            let right_type = check_assign_expr(assign_expr, left_type, &errors);
+            let left_type = check_location(loc, errors, scope);
+            let right_type = check_assign_expr(assign_expr, errors, scope, left_type);
         }
-        Stmt::Call(loc_info, args) => match scope(loc_info.val) {
-            Some(ir::Type::Func(params, _)) => {
-                if args.len() != params.len() {
-                    let error_message = format!(
-                        "{} expected {} many arguments and got {}",
-                        loc_info,
-                        params.len(),
-                        args.len()
-                    );
-                }
-                let arg_param_types = zip(args.iter().map(|arg| check_arg(arg, &errors)), params);
-                for (arg_type, param_type) in arg_param_types {
-                    if arg_type != param_type {
-                        let error_message = format!("Mismatched types, function definition expected argument of type {} and got {}", param_type, arg_type);
-                        errors.push(error_message)
-                    }
-                }
-            }
-            Some(ir::Type::ExtCall) => args.map(|arg| check_arg(arg, &errors)),
-        },
+        Stmt::Call(id, args) => check_call(id, args, errors, scope),
         Stmt::If(condition, if_block, else_block) => {
             if let Some(Type::Prim(Primitive::BoolType)) = check_expr(condition, &errors, scope) {
             } else {
@@ -219,11 +261,61 @@ fn check_block(
     }
 }
 
-fn check_expr(expr: &Expr, errors: &Vec<String>, scope: impl Scope) -> Option<Primitive> {
+// note: we always know what type an expression should be, so we can pass in expected_typ rather than returning something.
+fn check_expr(
+    expr: &Expr,
+    errors: &Vec<String>,
+    scope: impl Scope,
+    expected_type: impl Fn(Primitive) -> Result<(), String>,
+) {
     todo!()
 }
 
-// Should call check expr, if argument is none then should report an error message
-fn check_arg(arg: ir::Arg, error: &Vec<String>) -> Sum<Option<Type>, String> {}
+fn check_arg(
+    arg: &Arg,
+    error: &Vec<String>,
+    expected_type: impl Fn(Primitive) -> Result<(), String>,
+) {
+    todo!()
+}
 
-fn check_assign_expr(assign_expr: ir::AssignExpr, left_type: Type, errors: &Vec<String>) {}
+// left_type is Option<Type> because if left side failed to typecheck, we still want to sanity-check rhs but do not want to complain about its type
+fn check_assign_expr(
+    assign_expr: &AssignExpr,
+    errors: &Vec<String>,
+    scope: impl Scope,
+    lhs_type: Option<Primitive>,
+) {
+    match assign_expr {
+        AssignExpr::RegularAssign(op, rhs) => {
+            let expected_type = move |typ| {
+                if let Some(lhs_type) = lhs_type {
+                    if typ == lhs_type {
+                        Ok(())
+                    } else {
+                        Err(format!("expected {:?}, got {:?}", lhs_type, typ))
+                    }
+                }
+                // this is probably unnecessarily fancy but idk
+                else if op.is_arith()
+                    && !(typ == Primitive::IntType || typ == Primitive::LongType)
+                {
+                    Err(format!(
+                        "expected int or long type to go along with op {:?}",
+                        op
+                    ))
+                } else {
+                    Ok(())
+                }
+            };
+            check_expr(rhs, errors, scope, expected_type);
+        }
+        AssignExpr::IncrAssign(op) => match lhs_type {
+            Some(Primitive::IntType) | Some(Primitive::LongType) | None => (),
+            Some(x) => errors.push(format!(
+                "did not expect increment operator {:?} to be applied to type {:?}",
+                op, x
+            )),
+        },
+    }
+}

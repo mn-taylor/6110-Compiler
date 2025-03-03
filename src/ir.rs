@@ -70,7 +70,7 @@ pub enum Expr {
     Len(WithLoc<Ident>),
     Lit(WithLoc<Literal>),
     Loc(Box<Location>),
-    Call(WithLoc<Ident>, Vec<parse::Arg>),
+    Call(WithLoc<Ident>, Vec<Arg>),
 }
 
 pub struct Program {

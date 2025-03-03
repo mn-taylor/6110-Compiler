@@ -1,11 +1,8 @@
 use crate::ir;
 use crate::parse;
 use crate::scan;
-use ir::Block;
-use ir::Expr;
 use ir::Expr::*;
-use ir::Field;
-use ir::{Method, Program};
+use ir::*;
 
 pub fn build_program(program: parse::Program) -> Program {
     Program {
@@ -143,7 +140,7 @@ impl ToExpr for AtomicExpr {
     fn to_expr(self) -> Expr {
         match self {
             AtomicExpr::Loc(l) => Loc(Box::new(build_location(*l))),
-            AtomicExpr::Call(id, args) => Call(id, args),
+            AtomicExpr::Call(id, args) => Call(id, args.into_iter().map(build_arg).collect()),
             AtomicExpr::Lit(lit) => Lit(lit.map(|l| build_literal(l, false))),
             AtomicExpr::IntCast(e) => Unary(IntCast, Box::new(build_expr(*e))),
             AtomicExpr::LongCast(e) => Unary(LongCast, Box::new(build_expr(*e))),
@@ -208,21 +205,20 @@ fn build_assign_expr(assign_expr: parse::AssignExpr) -> ir::AssignExpr {
     }
 }
 
+fn build_arg(arg: parse::Arg) -> Arg {
+    match arg {
+        parse::Arg::ExprArg(expr) => ir::Arg::ExprArg(build_expr(expr)),
+        parse::Arg::ExternArg(str) => ir::Arg::ExternArg(str),
+    }
+}
+
 fn build_stmt(stmt: parse::Stmt) -> ir::Stmt {
     use crate::parse::Stmt;
     match stmt {
         Stmt::Assignment(loc, assign_expr) => {
             ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr))
         }
-        Stmt::Call(id, args) => ir::Stmt::Call(
-            id,
-            args.into_iter()
-                .map(|arg| match arg {
-                    parse::Arg::ExprArg(expr) => ir::Arg::ExprArg(build_expr(expr)),
-                    parse::Arg::ExternArg(str) => ir::Arg::ExternArg(str),
-                })
-                .collect(),
-        ),
+        Stmt::Call(id, args) => ir::Stmt::Call(id, args.into_iter().map(build_arg).collect()),
         Stmt::If(cond, if_block, else_block) => ir::Stmt::If(
             build_expr(cond),
             build_block(if_block),

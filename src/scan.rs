@@ -82,6 +82,19 @@ pub enum AssignOp {
     ModEq,
 }
 
+impl AssignOp {
+    pub fn is_arith(&self) -> bool {
+        match self {
+            Eq => false,
+            PlusEq => true,
+            MinusEq => true,
+            MulEq => true,
+            DivEq => true,
+            ModEq => true,
+        }
+    }
+}
+
 use AssignOp::*;
 
 impl fmt::Display for AssignOp {
