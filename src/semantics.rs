@@ -1,8 +1,10 @@
 use crate::ir;
 use crate::parse;
+use crate::scan;
 use ir::*;
 use parse::WithLoc;
 use parse::{Ident, Param, Primitive};
+use scan::AssignOp;
 use std::iter::zip;
 
 // idk if we want this, but could be nice maybe
@@ -137,6 +139,28 @@ fn check_call(id: &WithLoc<Ident>, args: &Vec<Arg>, errors: &mut Vec<String>, sc
     }
 }
 
+fn expect_val<T: PartialEq>(
+    expected: T,
+    err_msg: impl Fn(T) -> String,
+) -> impl Fn(T) -> Result<(), String> {
+    move |got| {
+        if got == expected {
+            Ok(())
+        } else {
+            Err(err_msg(got))
+        }
+    }
+}
+
+fn assert_eq<T: PartialEq>(
+    expected: T,
+    got: T,
+    errors: &mut Vec<String>,
+    err_msg: impl Fn(T) -> String,
+) {
+    expect_val(expected, err_msg)(got).map_err(|err| errors.push(err));
+}
+
 fn check_stmt(
     stmt: &Stmt,
     errors: &mut Vec<String>,
@@ -151,14 +175,15 @@ fn check_stmt(
         }
         Stmt::Call(id, args) => check_call(id, args, errors, scope),
         Stmt::If(condition, if_block, else_block) => {
-            if let Some(Type::Prim(Primitive::BoolType)) = check_expr(condition, &errors, scope) {
-            } else {
-                let error_message = format!("if condition must be boolean expression");
-                errors.push(error_message);
-            }
-
-            check_block(if_block, &errors, scope);
-            else_block.map(|block| check_block(block, &errors, scope));
+            let err_msg = |wrongt| format!("expected if cond to be bool but it was {:?}", wrongt);
+            check_expr(
+                condition,
+                errors,
+                scope,
+                expect_val(Primitive::BoolType, err_msg),
+            );
+            check_block(if_block, errors, scope, in_loop, return_type);
+            else_block.map(|block| check_block(&block, errors, scope, in_loop, return_type));
         }
         Stmt::For {
             var_to_set,
@@ -169,32 +194,26 @@ fn check_stmt(
             body,
         } => {
             // var_to_set is int
-            if let Some(Type::Prim(Primitive::IntType)) = scope(&var_to_set.val) {
-            } else {
-                let error_message = format!("loop variable must be declared as int");
-                errors.push(error_message);
-            }
-
+            let var_to_set_type = scope(&var_to_set.val);
+            assert_eq(
+                Some(Type::Prim(Primitive::IntType)),
+                var_to_set_type,
+                errors,
+                |wrongt| format!("loop variable must be declared as int, not {:?}", wrongt),
+            );
             // initial_val is int
-            let initial_val_type = check_expr(initial_val, &errors, scope);
-            if initial_val_type != Some(Primitive::IntType) {
-                let error_message = format!(
-                    "loop variable must be initalized as an int, got {:?} type",
-                    initial_val_type
-                );
-                errors.push(error_message);
-            }
+            let init = AssignExpr::RegularAssign(AssignOp::Eq, *initial_val);
+            check_assign_expr(&init, errors, scope, Some(Primitive::IntType));
 
             // test is bool
-            let condition_type = check_expr(test, &errors, scope);
-            if condition_type != Some(Primitive::BoolType) {
-                let error_message = format!(
-                    "loop condition must be of type bool, got {:?}",
-                    condition_type
-                );
-                errors.push(error_message);
-            }
-
+            check_expr(
+                test,
+                &errors,
+                scope,
+                expect_val(Primitive::BoolType, |wrongt| {
+                    format!("loop condition must be of type bool, got {:?}", wrongt)
+                }),
+            );
             // var_to_update
             let loop_update = Stmt::AssignStmt(var_to_update, update_val);
             check_stmt(&loop_update, &errors, scope, true, return_type); // checks that the types are the same and variables have been defined.
@@ -248,16 +267,16 @@ fn check_stmt(
 
 //
 fn check_block(
-    block: ir::Block,
-    errors: &Vec<String>,
+    block: &Block,
+    errors: &mut Vec<String>,
     scope: impl Scope,
     in_loop: bool,
-    return_type: Option<Primitive>,
+    return_type: &Option<Primitive>,
 ) {
     let block_scope = block.scope(scope);
 
-    for stmt in block.stmts {
-        check_stmt(&stmt, &errors, &block_scope, in_loop, return_type);
+    for stmt in block.stmts.iter() {
+        check_stmt(stmt, errors, &block_scope, in_loop, return_type);
     }
 }
 

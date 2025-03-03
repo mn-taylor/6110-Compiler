@@ -79,7 +79,7 @@ pub struct Program {
     pub imports: Vec<Ident>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Type {
     Prim(Primitive),
     Arr(Primitive, i32),
