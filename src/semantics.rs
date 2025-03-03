@@ -141,8 +141,8 @@ fn check_call(id: &WithLoc<Ident>, args: &Vec<Arg>, errors: &mut Vec<String>, sc
 
 fn expect_val<T: PartialEq>(
     expected: T,
-    err_msg: impl Fn(T) -> String,
-) -> impl Fn(T) -> Result<(), String> {
+    err_msg: impl FnOnce(T) -> String,
+) -> impl FnOnce(T) -> Result<(), String> {
     move |got| {
         if got == expected {
             Ok(())
@@ -152,13 +152,8 @@ fn expect_val<T: PartialEq>(
     }
 }
 
-fn assert_eq<T: PartialEq>(
-    expected: T,
-    got: T,
-    errors: &mut Vec<String>,
-    err_msg: impl Fn(T) -> String,
-) {
-    expect_val(expected, err_msg)(got).map_err(|err| errors.push(err));
+fn assert_eq<T: PartialEq>(expected: T, got: T, errors: &mut Vec<String>, err_msg: String) {
+    expect_val(expected, move |_| err_msg)(got).map_err(|err| errors.push(err));
 }
 
 fn check_stmt(
@@ -170,8 +165,8 @@ fn check_stmt(
 ) {
     match stmt {
         Stmt::AssignStmt(loc, assign_expr) => {
-            let left_type = check_location(loc, errors, scope);
-            let right_type = check_assign_expr(assign_expr, errors, scope, left_type);
+            let left_type = check_location(loc, errors, &scope);
+            check_assign_expr(assign_expr, errors, &scope, left_type);
         }
         Stmt::Call(id, args) => check_call(id, args, errors, scope),
         Stmt::If(condition, if_block, else_block) => {
@@ -179,11 +174,13 @@ fn check_stmt(
             check_expr(
                 condition,
                 errors,
-                scope,
+                &scope,
                 expect_val(Primitive::BoolType, err_msg),
             );
-            check_block(if_block, errors, scope, in_loop, return_type);
-            else_block.map(|block| check_block(&block, errors, scope, in_loop, return_type));
+            check_block(if_block, errors, &scope, in_loop, return_type);
+            if let Some(else_block) = else_block {
+                check_block(else_block, errors, &scope, in_loop, return_type);
+            }
         }
         Stmt::For {
             var_to_set,
@@ -196,58 +193,63 @@ fn check_stmt(
             // var_to_set is int
             let var_to_set_type = scope(&var_to_set.val);
             assert_eq(
-                Some(Type::Prim(Primitive::IntType)),
-                var_to_set_type,
+                &Some(Type::Prim(Primitive::IntType)),
+                &var_to_set_type,
                 errors,
-                |wrongt| format!("loop variable must be declared as int, not {:?}", wrongt),
+                format!(
+                    "loop variable must be declared as int, not {:?}",
+                    var_to_set_type
+                ),
             );
             // initial_val is int
             let init = AssignExpr::RegularAssign(AssignOp::Eq, *initial_val);
-            check_assign_expr(&init, errors, scope, Some(Primitive::IntType));
+            check_assign_expr(&init, errors, &scope, Some(Primitive::IntType));
 
             // test is bool
             check_expr(
                 test,
                 &errors,
-                scope,
+                &scope,
                 expect_val(Primitive::BoolType, |wrongt| {
                     format!("loop condition must be of type bool, got {:?}", wrongt)
                 }),
             );
             // var_to_update
-            let loop_update = Stmt::AssignStmt(var_to_update, update_val);
-            check_stmt(&loop_update, &errors, scope, true, return_type); // checks that the types are the same and variables have been defined.
+            let loop_update = Stmt::AssignStmt(*var_to_update, *update_val);
+            check_stmt(&loop_update, errors, &scope, true, return_type);
 
-            // check block
-            check_block(body, &errors, scope, true, return);
+            // body
+            check_block(body, errors, &scope, true, return_type);
         }
         Stmt::While(condition, body) => {
-            let condition_type = check_expr(condition, &errors, scope);
-            if let Some(Primitive::BoolType) = condition_type {
-            } else {
-                let error_message = format!(
-                    "loop condition must be of type bool, got {:?}",
-                    condition_type
-                );
-                errors.push(error_message);
-            }
+            check_expr(
+                condition,
+                errors,
+                &scope,
+                expect_val(Primitive::BoolType, |wrongt| {
+                    format!("loop condition must be of type bool, got {:?}", wrongt)
+                }),
+            );
 
-            check_block(body, &errors, scope, true, return_type);
+            check_block(body, errors, scope, true, return_type);
         }
-        Stmt::Return(some_return_val) => {
-            if let Some(return_val) = some_return_val {
-                let return_val_type = check_expr(return_val, &errors, scope);
-                if return_val_type != *return_type {
-                    let error_message = format!(
-                        "Method should return type {:?}, got {:?}",
-                        return_type, return_val_type
-                    );
-                    errors.push(error_message);
-                }
-            } else {
-                if *return_type != None {
-                    let error_message = format!("Method should return {:?}, got None", return_type);
-                }
+        Stmt::Return(return_val) => {
+            if let Some(return_val) = return_val {
+                let type_ok = |typ| match return_type {
+                    Some(return_type) => {
+                        if *return_type == typ {
+                            Ok(())
+                        } else {
+                            Err(format!(
+                                "Method should return type {:?}, got {:?}",
+                                return_type, typ
+                            ))
+                        }
+                    }
+                    None => Err(format!("Method should return void, got {:?}", return_type)),
+                };
+
+                check_expr(return_val, &errors, scope, type_ok);
             }
         }
         Stmt::Break => {
@@ -285,14 +287,14 @@ fn check_expr(
     expr: &Expr,
     errors: &Vec<String>,
     scope: impl Scope,
-    expected_type: impl Fn(Primitive) -> Result<(), String>,
+    expected_type: impl FnOnce(Primitive) -> Result<(), String>,
 ) {
     todo!()
 }
 
 fn check_arg(
     arg: &Arg,
-    error: &Vec<String>,
+    errors: &mut Vec<String>,
     expected_type: impl Fn(Primitive) -> Result<(), String>,
 ) {
     todo!()
@@ -301,7 +303,7 @@ fn check_arg(
 // left_type is Option<Type> because if left side failed to typecheck, we still want to sanity-check rhs but do not want to complain about its type
 fn check_assign_expr(
     assign_expr: &AssignExpr,
-    errors: &Vec<String>,
+    errors: &mut Vec<String>,
     scope: impl Scope,
     lhs_type: Option<Primitive>,
 ) {
