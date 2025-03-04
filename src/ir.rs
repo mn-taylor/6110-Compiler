@@ -83,16 +83,6 @@ pub enum Type {
     ExtCall,
 }
 
-pub trait Scoped {
-    fn local_lookup(&self, id: &Ident) -> Option<Type>;
-    fn scope(&self, parent: impl Fn(&Ident) -> Option<Type>) -> impl Fn(&Ident) -> Option<Type> {
-        move |id| match Self::local_lookup(self, id) {
-            Some(t) => Some(t),
-            None => parent(id),
-        }
-    }
-}
-
 pub struct Block {
     pub fields: Vec<Field>,
     pub stmts: Vec<Stmt>,
@@ -109,63 +99,96 @@ pub struct Method {
 // scopes
 use Type::*;
 
+use std::collections::HashMap;
+pub struct Scope<'a> {
+    head: HashMap<&'a String, Type>,
+    tail: Option<&'a Scope<'a>>,
+}
+
+impl<'a> Scope<'a> {
+    pub fn local_lookup(&self, id: &Ident) -> Option<&Type> {
+        self.head.get(&id.name)
+    }
+
+    pub fn lookup(&self, id: &Ident) -> Option<&Type> {
+        match self.head.get(&id.name) {
+            Some(t) => Some(t),
+            None => match self.tail {
+                Some(s) => s.lookup(id),
+                None => None,
+            },
+        }
+    }
+
+    fn new(
+        local_scope: HashMap<&'a String, Type>,
+        parent_scope: Option<&'a Scope<'a>>,
+    ) -> Scope<'a> {
+        Scope {
+            head: local_scope,
+            tail: parent_scope,
+        }
+    }
+}
+
+pub trait Scoped {
+    fn scope<'a>(&'a self, parent: &'a Scope<'a>) -> Scope<'a> {
+        Scope::new(self.local_scope(), Some(parent))
+    }
+    fn local_scope<'a>(&'a self) -> HashMap<&'a String, Type>;
+}
+
 impl Scoped for Block {
-    fn local_lookup(&self, id: &Ident) -> Option<Type> {
-        fields_lookup(&self.fields, id)
+    fn local_scope<'a>(&'a self) -> HashMap<&'a String, Type> {
+        fields_scope(&self.fields).collect()
     }
 }
 
 impl Scoped for Method {
-    fn local_lookup(&self, id: &Ident) -> Option<Type> {
-        if let Some(t) = fields_lookup(&self.fields, id) {
-            Some(t)
-        } else {
-            self.params
-                .iter()
-                .find(|other| other.name == *id)
-                .map(|t| Prim(t.param_type.clone()))
-        }
+    fn local_scope<'a>(&'a self) -> HashMap<&'a String, Type> {
+        params_scope(&self.params)
+            .chain(fields_scope(&self.fields))
+            .collect()
     }
 }
 
-fn fields_lookup(fields: &[Field], id: &Ident) -> Option<Type> {
-    fields
-        .iter()
-        .find(|other| match other {
-            Field::Scalar(_, name) => name == id,
-            Field::Array(_, name, _) => name == id,
-        })
-        .map(|f| match f {
-            Field::Scalar(t, _) => Prim(t.clone()),
-            Field::Array(t, _, _) => Arr(t.clone()),
-        })
+fn fields_scope<'a>(fields: &'a [Field]) -> impl Iterator<Item = (&'a String, Type)> {
+    fields.into_iter().map(|f| match f {
+        Field::Scalar(t, id) => (&id.name, Prim(t.clone())),
+        Field::Array(t, id, _) => (&id.name, Arr(t.clone())),
+    })
 }
 
-fn methods_lookup(methods: &[Method], id: &Ident) -> Option<Type> {
-    methods.iter().find(|other| other.name == *id).map(|m| {
-        Func(
-            m.params.iter().map(|m| m.param_type.clone()).collect(),
-            m.meth_type.clone(),
+fn methods_scope(methods: &[Method]) -> impl Iterator<Item = (&String, Type)> {
+    methods.into_iter().map(|m| {
+        (
+            &m.name.name,
+            Func(
+                m.params.iter().map(|m| m.param_type.clone()).collect(),
+                m.meth_type.clone(),
+            ),
         )
     })
 }
 
+fn params_scope(params: &[Param]) -> impl Iterator<Item = (&String, Type)> {
+    params
+        .iter()
+        .map(|p| (&p.name.name, Prim(p.param_type.clone())))
+}
+
+fn imports_scope(imports: &[Ident]) -> impl Iterator<Item = (&String, Type)> {
+    imports.iter().map(|id| (&id.name, ExtCall))
+}
+
 impl Program {
-    pub fn local_scope_with_first_n_methods<'a>(
-        self: &'a Program,
-        num_methods: usize,
-    ) -> impl 'a + Fn(&Ident) -> Option<Type> {
-        move |id| {
-            if let Some(t) = fields_lookup(&self.fields, id) {
-                Some(t)
-            } else if let Some(t) = methods_lookup(&self.methods[0..num_methods], id) {
-                Some(t)
-            } else {
-                self.imports
-                    .iter()
-                    .find(|other| *other == id)
-                    .map(|_| ExtCall)
-            }
-        }
+    pub fn scope_with_first_n_methods<'a>(self: &'a Program, num_methods: usize) -> Scope<'a> {
+        Scope::new(
+            imports_scope(&self.imports)
+                .chain(fields_scope(&self.fields))
+                .chain(methods_scope(&self.methods[0..num_methods]))
+                .collect(),
+            None,
+        )
     }
 }

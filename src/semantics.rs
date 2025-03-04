@@ -7,9 +7,6 @@ use parse::{Field, Ident, Literal, Param, Primitive};
 use scan::AssignOp;
 use std::iter::zip;
 
-trait Scope: Fn(&Ident) -> Option<Type> {}
-impl<T: Fn(&Ident) -> Option<Type>> Scope for T {}
-
 pub fn check_program(program: &Program) -> Vec<String> {
     let mut errors: Vec<String> = Vec::new();
 
@@ -41,11 +38,7 @@ pub fn check_program(program: &Program) -> Vec<String> {
             has_void_main = true;
         }
 
-        check_method(
-            &method,
-            &mut errors,
-            program.local_scope_with_first_n_methods(i),
-        )
+        check_method(&method, &mut errors, &program.scope_with_first_n_methods(i))
     }
 
     if !has_void_main {
@@ -56,14 +49,14 @@ pub fn check_program(program: &Program) -> Vec<String> {
     errors
 }
 
-fn check_method(method: &Method, errors: &mut Vec<String>, scope: impl Scope) {
+fn check_method(method: &Method, errors: &mut Vec<String>, scope: &Scope) {
     let descriptions = method
         .params
         .iter()
         .map(Param::describe)
         .chain(method.fields.iter().map(Field::describe));
     check_duplicates(descriptions.collect(), errors);
-    let method_scope = method.scope(&scope);
+    let method_scope = method.scope(scope);
     for stmt in method.stmts.iter() {
         check_stmt(&stmt, errors, &method_scope, false, &method.meth_type);
     }
@@ -107,13 +100,13 @@ fn check_duplicates(ids: Vec<(&Ident, String)>, errors: &mut Vec<String>) {
 fn check_location(
     location: &Location,
     errors: &mut Vec<String>,
-    scope: impl Scope,
+    scope: &Scope,
 ) -> Option<Primitive> {
     let id = match location {
         Location::Var(id) => id,
         Location::ArrayIndex(id, _) => id,
     };
-    match scope(&id.val) {
+    match scope.lookup(&id.val) {
         None => {
             errors.push(format!(
                 "Could not find identifier {:?} at {:?}",
@@ -121,7 +114,7 @@ fn check_location(
             ));
             None
         }
-        Some(Type::Prim(p)) => Some(p),
+        Some(Type::Prim(p)) => Some(p.clone()),
         Some(x) => {
             errors.push(format!("Expected primitive, got {:?}", x));
             None
@@ -217,9 +210,9 @@ fn check_call(
     id: &WithLoc<Ident>,
     args: &Vec<Arg>,
     errors: &mut Vec<String>,
-    scope: impl Scope,
+    scope: &Scope,
 ) -> Option<Primitive> {
-    match scope(&id.val) {
+    match scope.lookup(&id.val) {
         Some(Type::Func(params, return_type)) => {
             if args.len() != params.len() {
                 errors.push(format!(
@@ -230,10 +223,10 @@ fn check_call(
                 ));
             }
             for (arg, param_type) in zip(args, params) {
-                let arg_type = check_arg(arg, errors, &scope);
+                let arg_type = check_arg(arg, errors, scope);
                 check_types(&[&param_type], &arg_type, errors);
             }
-            return return_type;
+            return return_type.clone();
         }
         Some(Type::ExtCall) => {
             for arg in args {
@@ -272,24 +265,24 @@ fn assert_eq<T: PartialEq>(expected: T, got: T, errors: &mut Vec<String>, err_ms
 fn check_stmt(
     stmt: &Stmt,
     errors: &mut Vec<String>,
-    scope: impl Scope,
+    scope: &Scope,
     in_loop: bool,
     return_type: &Option<Primitive>,
 ) {
     match stmt {
         Stmt::AssignStmt(loc, assign_expr) => {
-            let left_type = check_location(loc, errors, &scope);
-            check_assign_expr(assign_expr, errors, &scope, left_type);
+            let left_type = check_location(loc, errors, scope);
+            check_assign_expr(assign_expr, errors, scope, left_type);
         }
         Stmt::Call(id, args) => {
             check_call(id, args, errors, scope);
         }
         Stmt::If(condition, if_block, else_block) => {
-            let cond_type = check_expr(condition, errors, &scope);
+            let cond_type = check_expr(condition, errors, scope);
             check_types(&[&Primitive::BoolType], &cond_type, errors);
-            check_block(if_block, errors, &scope, in_loop, return_type);
+            check_block(if_block, errors, scope, in_loop, return_type);
             if let Some(else_block) = else_block {
-                check_block(else_block, errors, &scope, in_loop, return_type);
+                check_block(else_block, errors, scope, in_loop, return_type);
             }
         }
         Stmt::For {
@@ -301,10 +294,10 @@ fn check_stmt(
             body,
         } => {
             // var_to_set is int
-            let var_to_set_type = scope(&var_to_set.val);
+            let var_to_set_type = scope.lookup(&var_to_set.val);
             assert_eq(
-                &Some(Type::Prim(Primitive::IntType)),
-                &var_to_set_type,
+                Some(&Type::Prim(Primitive::IntType)),
+                var_to_set_type,
                 errors,
                 format!(
                     "Loop variable must be declared as int, not {:?}",
@@ -316,22 +309,22 @@ fn check_stmt(
                 &AssignOp::Eq,
                 initial_val,
                 errors,
-                &scope,
+                scope,
                 Some(Primitive::IntType),
             );
 
             // test is bool
-            let cond_type = check_expr(test, errors, &scope);
+            let cond_type = check_expr(test, errors, scope);
             check_types(&[&Primitive::BoolType], &cond_type, errors);
             // var_to_update
-            let left_type = check_location(var_to_update, errors, &scope);
-            check_assign_expr(update_val, errors, &scope, left_type);
+            let left_type = check_location(var_to_update, errors, scope);
+            check_assign_expr(update_val, errors, scope, left_type);
 
             // body
-            check_block(body, errors, &scope, true, return_type);
+            check_block(body, errors, scope, true, return_type);
         }
         Stmt::While(condition, body) => {
-            let cond_type = check_expr(condition, errors, &scope);
+            let cond_type = check_expr(condition, errors, scope);
             check_types(&[&Primitive::BoolType], &cond_type, errors);
 
             check_block(body, errors, scope, true, return_type);
@@ -365,11 +358,11 @@ fn check_stmt(
 fn check_block(
     block: &Block,
     errors: &mut Vec<String>,
-    scope: impl Scope,
+    scope: &Scope,
     in_loop: bool,
     return_type: &Option<Primitive>,
 ) {
-    let block_scope = block.scope(&scope);
+    let block_scope = block.scope(scope);
 
     for stmt in block.stmts.iter() {
         check_stmt(stmt, errors, &block_scope, in_loop, return_type);
@@ -413,14 +406,14 @@ fn convert_bop_to_primitive(bop: &Bop, right_type: Primitive) -> Primitive {
     }
 }
 
-fn check_expr(expr: &Expr, errors: &mut Vec<String>, scope: impl Scope) -> Option<Primitive> {
+fn check_expr(expr: &Expr, errors: &mut Vec<String>, scope: &Scope) -> Option<Primitive> {
     match expr {
         Expr::Bin(left_expr, bop, right_expr) => {
             // check left expression
-            let left_type = check_expr(left_expr, errors, &scope);
+            let left_type = check_expr(left_expr, errors, scope);
             let potential_right_type = guess_right_type(left_type, bop);
             if let Some(expected_right_type) = potential_right_type {
-                let right_type = check_expr(right_expr, errors, &scope);
+                let right_type = check_expr(right_expr, errors, scope);
                 if check_types(&[&expected_right_type], &right_type, errors) {
                     return Some(convert_bop_to_primitive(bop, expected_right_type));
                 }
@@ -454,8 +447,8 @@ fn check_expr(expr: &Expr, errors: &mut Vec<String>, scope: impl Scope) -> Optio
         }
         Expr::Len(with_loc) => {
             //  check that arg of len is an array
-            match scope(&with_loc.val) {
-                Some(Type::Arr(prim_type)) => return Some(prim_type),
+            match scope.lookup(&with_loc.val) {
+                Some(Type::Arr(prim_type)) => return Some(prim_type.clone()),
                 Some(_) => {
                     let error_message =
                         format!("Identifier {} not defined as an array", with_loc.val.name);
@@ -471,12 +464,12 @@ fn check_expr(expr: &Expr, errors: &mut Vec<String>, scope: impl Scope) -> Optio
             }
         }
         Expr::Lit(with_loc) => check_literal(&with_loc.val, false, errors),
-        Expr::Loc(loc) => check_location(loc, errors, &scope),
-        Expr::Call(with_loc, args) => check_call(with_loc, args, errors, &scope),
+        Expr::Loc(loc) => check_location(loc, errors, scope),
+        Expr::Call(with_loc, args) => check_call(with_loc, args, errors, scope),
     }
 }
 
-fn check_arg(arg: &Arg, errors: &mut Vec<String>, scope: impl Scope) -> Option<Primitive> {
+fn check_arg(arg: &Arg, errors: &mut Vec<String>, scope: &Scope) -> Option<Primitive> {
     match arg {
         Arg::ExprArg(expr) => check_expr(expr, errors, scope),
         Arg::ExternArg(_) => None,
@@ -487,7 +480,7 @@ fn check_regular_assign(
     op: &AssignOp,
     rhs: &Expr,
     errors: &mut Vec<String>,
-    scope: impl Scope,
+    scope: &Scope,
     lhs_type: Option<Primitive>,
 ) {
     if let Some(t) = lhs_type {
@@ -505,7 +498,7 @@ fn check_regular_assign(
 fn check_assign_expr(
     assign_expr: &AssignExpr,
     errors: &mut Vec<String>,
-    scope: impl Scope,
+    scope: &Scope,
     lhs_type: Option<Primitive>,
 ) {
     match assign_expr {
