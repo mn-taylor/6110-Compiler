@@ -3,11 +3,11 @@ use crate::parse;
 use crate::scan;
 use ir::*;
 use parse::WithLoc;
-use parse::{Ident, Param, Primitive};
+use parse::{Ident, Param, Primitive, Field, Literal};
 use scan::AssignOp;
 use std::iter::zip;
+use itertools::Itertools;
 
-// idk if we want this, but could be nice maybe
 trait Scope: Fn(&Ident) -> Option<Type> {}
 impl<T: Fn(&Ident) -> Option<Type>> Scope for T {}
 
@@ -15,8 +15,12 @@ pub fn check_program(program: &Program) -> Vec<String> {
     let mut errors: Vec<String> = Vec::new();
 
     // check for duplicates within fields and method name and imports
+    // for array fields, check that the length is a valid int.
+    let top_level_identifiers: Vec<(String, Type)> = program.imports.map(|c| (c, format!("External function {}"c c)));
+    check_duplicates(top_level_identifiers, &errors);
 
     // check main exists
+    
 
     for (i, method) in program.methods.iter().enumerate() {
         check_method(
@@ -28,6 +32,7 @@ pub fn check_program(program: &Program) -> Vec<String> {
 
     errors
 }
+
 
 fn check_method(method: &Method, errors: &mut Vec<String>, scope: impl Scope) {
     let descriptions = method
@@ -60,6 +65,8 @@ impl Describe for Field {
     }
 }
 
+
+
 use std::collections::HashMap;
 fn check_duplicates(ids: Vec<(&Ident, String)>, errors: &mut Vec<String>) {
     let mut ident_to_descr: HashMap<&String, String> = HashMap::new();
@@ -77,8 +84,6 @@ fn check_duplicates(ids: Vec<(&Ident, String)>, errors: &mut Vec<String>) {
     }
 }
 
-// returns None if location invalid.  nothing to do with void.  locations cannot be void.
-// i think using None to mean void was a bad idea.  it is confusing.  should have enum VoidOrType
 fn check_location(
     location: &Location,
     errors: &mut Vec<String>,
@@ -104,10 +109,78 @@ fn check_location(
     }
 }
 
+fn check_types(expected_type: &[&Primitive], actual_type: &Option<Primitive>, errors: &mut Vec<String>)-> bool{
+    if let Some(actual_type) = actual_type{
+        if !expected_type.iter().any(|exp_type| *exp_type == actual_type) {
+            let expected_str = expected_type.iter().map(|t| format!("{:?}", t)).collect::<Vec<_>>().join(" or ");
+            errors.push(format!("Mismatched Types: Expected {:?}, got {:?}", expected_str, actual_type));
+            return false
+        }
+    }
+    return true
+}
+
+// 
+fn check_literal(literal_expr: Literal, negated: bool, errors: &mut Vec<String>, scope: impl Scope)->Option<Primitive>{
+    let maybe_negate = |s| if negated {format!("-{}", s)} else {s};
+    let literal_type = match literal_expr {
+        Literal::DecInt(string)=> {
+            let s = maybe_n
+            match maybe_negate(string).parse::<i32>(){
+                Ok(_)=>{}
+                Err(_)=>{
+                    let error_message = format!("Integer out of bounds, got {string}");
+                    errors.push(error_message);
+                    return None
+                }
+            }
+            Primitive::IntType
+        }
+        Literal::HexInt(string)=> {
+            match maybe_negate(format!("0x{}", string)).parse::<i32>(){
+                Ok(_)=>{}
+                Err(_)=>{
+                    let error_message = format!("Integer out of bounds, got 0x{string}");
+                    errors.push(error_message);
+                    return None
+                }
+            }
+            Primitive::IntType
+        }
+        Literal::DecLong(string)=> {
+            match maybe_negate(string).parse::<i32>(){
+                Ok(_)=>{}
+                Err(_)=>{
+                    let error_message = format!("Long out of bounds, got {string}");
+                    errors.push(error_message);
+                    return None
+                }
+            }
+            Primitive::LongType
+        }
+        Literal::HexLong(string)=> {
+            match maybe_negate(format!("0x{}", string)).parse::<i64>(){
+                Ok(_)=>{}
+                Err(_)=>{
+                    let error_message = format!("Long out of bounds, got 0x{string}");
+                    errors.push(error_message);
+                    return None
+                }
+            }
+            Primitive::LongType
+        }
+        Literal::Bool(_)=>{Primitive::BoolType}
+        Literal::Char(_)=>{Primitive::IntType}
+
+    };
+
+    return Some(literal_type);
+}
+
 // want to factor this out so as not to implement it for both exprs and stmts
-fn check_call(id: &WithLoc<Ident>, args: &Vec<Arg>, errors: &mut Vec<String>, scope: impl Scope) {
+fn check_call(id: &WithLoc<Ident>, args: &Vec<Arg>, errors: &mut Vec<String>, scope: impl Scope) -> Option<Primitive> {
     match scope(&id.val) {
-        Some(Type::Func(params, _)) => {
+        Some(Type::Func(params, return_type)) => {
             if args.len() != params.len() {
                 errors.push(format!(
                     "{:?} expected {} many arguments and got {}",
@@ -117,22 +190,16 @@ fn check_call(id: &WithLoc<Ident>, args: &Vec<Arg>, errors: &mut Vec<String>, sc
                 ));
             }
             for (arg, param_type) in zip(args, params) {
-                check_arg(arg, errors, |typ| {
-                    if typ == param_type {
-                        Ok(())
-                    } else {
-                        Err(format!(
-                            "expected arg of type {:?}, got {:?}",
-                            param_type, typ
-                        ))
-                    }
-                });
+                let arg_type = check_arg(arg, errors, &scope);
+                check_types(&[&param_type], &arg_type, errors);
             }
+            return return_type;
         }
         Some(Type::ExtCall) => {
             for arg in args {
-                check_arg(arg, errors, |_| Ok(()));
+                check_arg(arg, errors, &scope);
             }
+            return Some(Primitive::IntType);
         }
         Some(x) => errors.push(format!("{:?} should have been function, was {:?}", id, x)),
         None => errors.push(format!("{:?} not found", id)),
@@ -170,13 +237,8 @@ fn check_stmt(
         }
         Stmt::Call(id, args) => check_call(id, args, errors, scope),
         Stmt::If(condition, if_block, else_block) => {
-            let err_msg = |wrongt| format!("expected if cond to be bool but it was {:?}", wrongt);
-            check_expr(
-                condition,
-                errors,
-                &scope,
-                expect_val(Primitive::BoolType, err_msg),
-            );
+            let cond_type = check_expr(condition, errors, &scope);
+            check_types(&[&Primitive::BoolType], &cond_type, errors);
             check_block(if_block, errors, &scope, in_loop, return_type);
             if let Some(else_block) = else_block {
                 check_block(else_block, errors, &scope, in_loop, return_type);
@@ -211,14 +273,8 @@ fn check_stmt(
             );
 
             // test is bool
-            check_expr(
-                test,
-                &errors,
-                &scope,
-                expect_val(Primitive::BoolType, |wrongt| {
-                    format!("loop condition must be of type bool, got {:?}", wrongt)
-                }),
-            );
+            let cond_type = check_expr(test,errors,&scope);
+            check_types(&[&Primitive::BoolType], &cond_type, errors);
             // var_to_update
             let left_type = check_location(var_to_update, errors, &scope);
             check_assign_expr(update_val, errors, &scope, left_type);
@@ -227,34 +283,20 @@ fn check_stmt(
             check_block(body, errors, &scope, true, return_type);
         }
         Stmt::While(condition, body) => {
-            check_expr(
-                condition,
-                errors,
-                &scope,
-                expect_val(Primitive::BoolType, |wrongt| {
-                    format!("loop condition must be of type bool, got {:?}", wrongt)
-                }),
-            );
+            let cond_type = check_expr(condition,errors,&scope);
+            check_types(&[&Primitive::BoolType], &cond_type, errors);
 
             check_block(body, errors, scope, true, return_type);
         }
         Stmt::Return(return_val) => {
             if let Some(return_val) = return_val {
-                let type_ok = |typ| match return_type {
-                    Some(return_type) => {
-                        if *return_type == typ {
-                            Ok(())
-                        } else {
-                            Err(format!(
-                                "Method should return type {:?}, got {:?}",
-                                return_type, typ
-                            ))
-                        }
-                    }
-                    None => Err(format!("Method should return void, got {:?}", return_type)),
-                };
-
-                check_expr(return_val, &errors, scope, type_ok);
+                if let None = return_type {
+                    errors.push(format!("function should not return a value"));
+                }
+                let return_val_type = check_expr(return_val, errors, scope);
+                if let Some(return_type) = return_type {
+                    check_types(&[return_type], &return_val_type, errors);
+                }
             }
         }
         Stmt::Break => {
@@ -286,23 +328,119 @@ fn check_block(
         check_stmt(stmt, errors, &block_scope, in_loop, return_type);
     }
 }
+fn guess_right_type(left_type_option: Option<Primitive>, bop: Bop)->Option<Primitive>{
+    if let Some(left_type) = left_type_option{
+        match left_type{
+            Primitive::IntType => {
+                if bop != Bop::Or && bop != Bop::And{
+                    return Some(Primitive::IntType);
+                }else {
+                    return None
+                }
+            }
+            Primitive::LongType=> {
+                if bop != Bop::Or && bop != Bop::And{
+                    return Some(Primitive::LongType);
+                }else {
+                    return None
+                }
+            }
+            Primitive::BoolType=> {
+                if bop == Bop::And  || bop == Bop::Or {
+                    return Some(Primitive::BoolType);
+                }else{
+                    return None
+                }
+            }
+        }
+    }else{
+        return None
+    }
+}
+
+
+fn convert_bop_to_primitive(bop: &Bop, right_type: Primitive)-> Primitive{
+    match bop {
+        Bop::MulBop(_) => {right_type}
+        Bop::AddBop(_)=> {right_type}
+        _=> {Primitive::BoolType}
+    }
+}
+
+
 
 // note: we always know what type an expression should be, so we can pass in expected_typ rather than returning something.
 fn check_expr(
     expr: &Expr,
-    errors: &Vec<String>,
+    errors: &mut Vec<String>,
     scope: impl Scope,
-    expected_type: impl FnOnce(Primitive) -> Result<(), String>,
-) {
-    todo!()
+) -> Option<Primitive> {
+    match expr {
+        Expr::Bin(left_expr, bop, right_expr) => {
+            // check left expression
+            let left_type = check_expr(expr, errors, scope);
+            let potential_right_type = guess_right_type(left_type, bop);
+            if let Some(expected_right_type) = potential_right_type{
+                let right_type = check_expr(right_expr, errors, scope);
+                if check_types(&[&expected_right_type], &right_type, errors){
+                    return Some(convert_bop_to_primitive(bop, expected_right_type));
+                }
+            }
+            None
+        },
+        Expr::Unary(UnOp::neg, Expr::Lit(lit)) => {
+            check_literal(lit, true, errors, scope)
+        }
+        Expr::Unary(op, expr) => {
+            let expr_type = &check_expr(expr, errors, scope);
+            match op {
+                UnOp::Neg | UnOp::IntCast | UnOp::LongCast => {
+                    check_types(&[&Primitive::IntType, &Primitive::LongType], expr_type, errors);
+                    return *expr_type; // if type isn't int or long, this is gonna be wrong but doesnt matter since thats an error anyway
+                },
+                UnOp::Not => {
+                    if check_types(&[&Primitive::BoolType], expr_type, errors) {
+                        return Some(Primitive::BoolType)
+                    } else {
+                        None
+                    }
+                },
+            }
+        },
+        Expr::Len(with_loc) => {
+            //  check that arg of len is an array
+            match scope(&with_loc.val) {
+                Some(Type::Arr(prim_type)) => {return Some(prim_type)}
+                Some(_)=>{
+                    let error_message = format!("Identifier {} not defined as an array", with_loc.val.name);
+                    errors.push(error_message);
+                    None
+                }
+                None=>{
+                    let error_message = format!("Identifier {} has not been defined", with_loc.val.name);
+                    errors.push(error_message);
+                     None
+                }    
+            }
+        },
+        Expr::Lit(with_loc) => check_literal(with_loc.val, errors, scope),
+        Expr::Loc(loc) => check_location(loc, errors, &scope),
+        Expr::Call(with_loc, args) => {
+            check_call(with_loc, args, errors, &scope)
+    }
 }
 
 fn check_arg(
     arg: &Arg,
     errors: &mut Vec<String>,
-    expected_type: impl Fn(Primitive) -> Result<(), String>,
-) {
-    todo!()
+    scope: impl Scope,
+) -> Option<Primitive> {
+    match arg {
+        Arg::ExprArg(expr)=> {
+            check_expr(expr, errors, scope)
+        }
+        Arg::ExternArg(_)=> None
+    }
 }
 
 fn check_regular_assign(
@@ -312,25 +450,12 @@ fn check_regular_assign(
     scope: impl Scope,
     lhs_type: Option<Primitive>,
 ) {
-    let expected_type = move |typ| {
-        if let Some(lhs_type) = lhs_type {
-            if typ == lhs_type {
-                Ok(())
-            } else {
-                Err(format!("expected {:?}, got {:?}", lhs_type, typ))
-            }
+    if let Some(t) = lhs_type {
+        if op.is_arith() && !(t == Primitive::IntType || t == Primitive::LongType) {
+            errors.push(format!("TODO"));
         }
-        // this is probably unnecessarily fancy but idk
-        else if op.is_arith() && !(typ == Primitive::IntType || typ == Primitive::LongType) {
-            Err(format!(
-                "expected int or long type to go along with op {:?}",
-                op
-            ))
-        } else {
-            Ok(())
-        }
-    };
-    check_expr(rhs, errors, scope, expected_type);
+    }
+    let rhs_type = check_expr(rhs, errors, scope);
 }
 
 // left_type is Option<Type> because if left side failed to typecheck, we still want to sanity-check rhs but do not want to complain about its type

@@ -8,20 +8,7 @@ pub fn build_program(program: parse::Program) -> Program {
     Program {
         imports: program.imports,
         methods: program.methods.into_iter().map(build_method).collect(),
-        fields: program.fields.into_iter().map(build_field).collect(),
-    }
-}
-
-fn build_field(field: parse::Field) -> Field {
-    match field {
-        parse::Field::Scalar(t, id) => Field::Scalar(t, id),
-        parse::Field::Array(t, id, len) => {
-            if let IntLit(len) = build_literal(len, false) {
-                Field::Array(t, id, len)
-            } else {
-                panic!()
-            }
-        }
+        fields: program.fields,
     }
 }
 
@@ -29,7 +16,7 @@ fn build_method(method: parse::Method) -> Method {
     Method {
         name: method.name.val,
         meth_type: method.meth_type,
-        fields: method.body.fields.into_iter().map(build_field).collect(),
+        fields: method.body.fields,
         stmts: method.body.stmts.into_iter().map(build_stmt).collect(),
         params: method.params,
     }
@@ -141,14 +128,11 @@ impl ToExpr for AtomicExpr {
         match self {
             AtomicExpr::Loc(l) => Loc(Box::new(build_location(*l))),
             AtomicExpr::Call(id, args) => Call(id, args.into_iter().map(build_arg).collect()),
-            AtomicExpr::Lit(lit) => Lit(lit.map(|l| build_literal(l, false))),
+            AtomicExpr::Lit(lit) => Lit(lit),
             AtomicExpr::IntCast(e) => Unary(IntCast, Box::new(build_expr(*e))),
             AtomicExpr::LongCast(e) => Unary(LongCast, Box::new(build_expr(*e))),
             AtomicExpr::LenEx(id) => Len(id),
-            AtomicExpr::NegEx(e) => match *e {
-                AtomicExpr::Lit(l) => Lit(l.map(|l| build_literal(l, true))),
-                _ => Unary(Neg, Box::new(Self::to_expr(*e))),
-            },
+            AtomicExpr::NegEx(e) => Unary(Neg, Box::new(Self::to_expr(*e))),
             AtomicExpr::NotEx(e) => Unary(Not, Box::new(Self::to_expr(*e))),
             AtomicExpr::Ex(e) => build_expr(*e),
         }
@@ -157,33 +141,6 @@ impl ToExpr for AtomicExpr {
 
 fn build_expr(e: parse::OrExpr) -> Expr {
     parse::OrExpr::to_expr(e)
-}
-
-use ir::Literal;
-use ir::Literal::*;
-// TODO: handle errors somehow
-fn build_literal(lit: parse::Literal, negated: bool) -> Literal {
-    let maybe_neg = |s| if negated { format!("-{}", s) } else { s };
-    match lit {
-        parse::Literal::DecInt(s) => IntLit(maybe_neg(s).parse().unwrap()),
-        parse::Literal::HexInt(s) => IntLit(i32::from_str_radix(&maybe_neg(s), 16).unwrap()),
-        parse::Literal::DecLong(s) => LongLit(maybe_neg(s).parse().unwrap()),
-        parse::Literal::HexLong(s) => LongLit(i64::from_str_radix(&maybe_neg(s), 16).unwrap()),
-        parse::Literal::Char(c) => {
-            if negated {
-                panic!()
-            } else {
-                CharLit(c)
-            }
-        }
-        parse::Literal::Bool(b) => {
-            if negated {
-                panic!()
-            } else {
-                BoolLit(b)
-            }
-        }
-    }
 }
 
 use ir::Location;
@@ -249,6 +206,6 @@ fn build_stmt(stmt: parse::Stmt) -> ir::Stmt {
 fn build_block(block: parse::Block) -> ir::Block {
     Block {
         stmts: block.stmts.into_iter().map(build_stmt).collect(),
-        fields: block.fields.into_iter().map(build_field).collect(),
+        fields: block.fields,
     }
 }

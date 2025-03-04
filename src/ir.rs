@@ -6,8 +6,11 @@ use crate::scan::AssignOp;
 use crate::scan::IncrOp;
 use parse::Ident;
 use parse::Primitive;
+use parse::Field;
+use parse::Literal;
 use scan::{AddOp, EqOp, MulOp, RelOp};
 
+#[derive(PartialEq)]
 pub enum Bop {
     MulBop(MulOp),
     AddBop(AddOp),
@@ -15,13 +18,6 @@ pub enum Bop {
     EqBop(EqOp),
     And,
     Or,
-}
-
-pub enum Literal {
-    IntLit(i32),
-    LongLit(i64),
-    CharLit(char),
-    BoolLit(bool),
 }
 
 pub enum Location {
@@ -82,7 +78,7 @@ pub struct Program {
 #[derive(Debug, PartialEq)]
 pub enum Type {
     Prim(Primitive),
-    Arr(Primitive, i32),
+    Arr(Primitive),
     Func(Vec<Primitive>, Option<Primitive>),
     ExtCall,
 }
@@ -95,11 +91,6 @@ pub trait Scoped {
             None => parent(id),
         }
     }
-}
-
-pub enum Field {
-    Scalar(Primitive, Ident),
-    Array(Primitive, Ident, i32),
 }
 
 pub struct Block {
@@ -146,7 +137,7 @@ fn fields_lookup(fields: &[Field], id: &Ident) -> Option<Type> {
         })
         .map(|f| match f {
             Field::Scalar(t, _) => Prim(t.clone()),
-            Field::Array(t, _, len) => Arr(t.clone(), *len),
+            Field::Array(t, _, _) => Arr(t.clone()),
         })
 }
 
