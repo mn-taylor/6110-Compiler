@@ -11,7 +11,7 @@ pub fn check_program(program: &Program) -> Vec<String> {
     let mut errors: Vec<String> = Vec::new();
 
     // check for duplicates within fields and method name and imports
-    // for array fields, check that the length is a valid int.
+    // TODO: for array fields, check that the length is a valid int.
     let import_ids = program
         .imports
         .iter()

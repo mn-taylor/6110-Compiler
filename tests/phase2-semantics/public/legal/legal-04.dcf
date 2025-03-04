@@ -1,0 +1,28 @@
+void main() {
+    int a;
+    long b;
+
+    int c;
+    long d;
+    int e;
+    long f;
+
+    a = 1;
+
+    b = 2L;
+    b = long(3);
+
+    // This is required to work properly as a is smaller than b
+    b = long(a);
+
+    // This has undefined semantics but should not throw an error
+    // Recommendation: Copy the bottom 32 bits and throw away MSBs
+    a = int(b);
+
+    // This must be legal as well, but how you handle the truncation is
+    // undefined behavior (will not be tested).
+    e = c + int(d);
+
+    // This must work properly as it is long = int + long;
+    f = long(c) + d;
+}

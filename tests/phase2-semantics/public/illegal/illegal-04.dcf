@@ -1,0 +1,9 @@
+void main(){
+    long a;
+    int b[1000L];
+    long c;
+
+
+    a = 100L;
+    c = b[a];
+}

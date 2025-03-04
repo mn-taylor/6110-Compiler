@@ -2,6 +2,7 @@ mod utils;
 use decaf_skeleton_rust::ir_build;
 use decaf_skeleton_rust::parse;
 use decaf_skeleton_rust::scan;
+use decaf_skeleton_rust::semantics;
 
 fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
     match output {
@@ -84,7 +85,15 @@ fn main() {
             if tokens.next().is_some() {
                 panic!("oops didnt parse everythign");
             }
-            ir_build::build_program(ast);
+            let prog = ir_build::build_program(ast);
+            let checked_prog = semantics::check_program(&prog);
+            // just marking the start and end of the error msgs bc it looks ugly in the terminal
+            println!("\n****************** semantic error messages: ******************");
+            checked_prog.iter().for_each(|s| println!("{}", s));
+            println!("************************************");
+            if !checked_prog.is_empty() {
+                panic!("your program sucks (semantically)");
+            }
         }
         utils::cli::CompilerAction::Assembly => {
             todo!("assembly");

@@ -1,0 +1,5 @@
+void main(){
+    long a;
+    // Obviously too big, and needs to be illegal
+    int b[9223372036854775806];
+}

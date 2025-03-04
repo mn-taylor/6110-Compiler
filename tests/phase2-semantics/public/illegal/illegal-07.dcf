@@ -1,0 +1,9 @@
+void main ( ) {
+  int i;
+  i = 0;
+  while (i < 5) {
+    int b;
+    i++;
+  }
+  b = 1; // fail here
+}
