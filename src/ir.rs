@@ -4,10 +4,10 @@ use crate::parse::WithLoc;
 use crate::scan;
 use crate::scan::AssignOp;
 use crate::scan::IncrOp;
-use parse::Ident;
-use parse::Primitive;
 use parse::Field;
+use parse::Ident;
 use parse::Literal;
+use parse::Primitive;
 use scan::{AddOp, EqOp, MulOp, RelOp};
 
 #[derive(PartialEq)]
