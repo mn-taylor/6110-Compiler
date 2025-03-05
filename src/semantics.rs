@@ -15,11 +15,11 @@ pub fn check_program(program: &Program) -> Vec<String> {
     let import_ids = program
         .imports
         .iter()
-        .map(|c| (c, format!("External function {}", c.name)));
+        .map(|c| (&c.val, format!("External function {}", c)));
     let method_ids = program
         .methods
         .iter()
-        .map(|method| (&method.name, format!("Method {}", method.name.name)));
+        .map(|method| (&method.name, method.to_string()));
     let field_ids = program.fields.iter().map(Field::describe);
 
     check_duplicates(
@@ -104,7 +104,7 @@ impl Describe for Param {
 impl Describe for Field {
     fn describe(&self) -> (&Ident, String) {
         match self {
-            Field::Scalar(_, id) | Field::Array(_, id, _) => (id, format!("field {}", id.name)),
+            Field::Scalar(_, id) | Field::Array(_, id, _) => (id, self.to_string()),
         }
     }
 }

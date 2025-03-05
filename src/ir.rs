@@ -9,6 +9,7 @@ use parse::Ident;
 use parse::Literal;
 use parse::Primitive;
 use scan::{AddOp, EqOp, MulOp, RelOp};
+use std::fmt;
 
 #[derive(PartialEq)]
 pub enum Bop {
@@ -73,7 +74,7 @@ pub enum Expr {
 pub struct Program {
     pub fields: Vec<Field>,
     pub methods: Vec<Method>,
-    pub imports: Vec<Ident>,
+    pub imports: Vec<WithLoc<Ident>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -95,6 +96,12 @@ pub struct Method {
     pub stmts: Vec<Stmt>,
     pub params: Vec<Param>,
     pub name: Ident,
+}
+
+impl fmt::Display for Method {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "method {}", self.name)
+    }
 }
 
 // scopes
@@ -178,8 +185,8 @@ fn params_scope(params: &[Param]) -> impl Iterator<Item = (&String, Type)> {
         .map(|p| (&p.name.name, Prim(p.param_type.clone())))
 }
 
-fn imports_scope(imports: &[Ident]) -> impl Iterator<Item = (&String, Type)> {
-    imports.iter().map(|id| (&id.name, ExtCall))
+fn imports_scope(imports: &[WithLoc<Ident>]) -> impl Iterator<Item = (&String, Type)> {
+    imports.iter().map(|id| (&id.val.name, ExtCall))
 }
 
 impl Program {

@@ -1,9 +1,16 @@
 use crate::scan::*;
+use std::fmt;
 use Sum::*;
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq, Debug)]
 pub struct Ident {
     pub name: String,
+}
+
+impl fmt::Display for Ident {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
 }
 
 impl Clone for Ident {
@@ -14,7 +21,6 @@ impl Clone for Ident {
     }
 }
 
-// not sure about best way to handle current cloning of Type
 #[derive(Clone, Debug, PartialEq)]
 pub enum Primitive {
     IntType,
@@ -22,10 +28,30 @@ pub enum Primitive {
     BoolType,
 }
 
+impl fmt::Display for Primitive {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let name = match self {
+            IntType => "int",
+            LongType => "long",
+            BoolType => "bool",
+        };
+        write!(f, "{}", name)
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Field {
     Scalar(Primitive, Ident),
-    Array(Primitive, Ident, Literal),
+    Array(Primitive, Ident, WithLoc<Literal>),
+}
+
+impl fmt::Display for Field {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Scalar(t, id) => write!(f, "{} {}", t, id),
+            Array(t, id, _) => write!(f, "{} array {}", t, id),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -61,7 +87,7 @@ pub struct Method {
 
 #[derive(Debug, PartialEq)]
 pub struct Program {
-    pub imports: Vec<Ident>,
+    pub imports: Vec<WithLoc<Ident>>,
     pub fields: Vec<Field>,
     pub methods: Vec<Method>,
 }
@@ -114,6 +140,16 @@ pub enum Arg {
 pub struct WithLoc<T> {
     pub val: T,
     pub loc: ErrLoc,
+}
+
+impl<T: fmt::Display> fmt::Display for WithLoc<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} at line {}, col {}",
+            self.val, self.loc.line, self.loc.col
+        )
+    }
 }
 
 impl<T> WithLoc<T> {
@@ -651,9 +687,19 @@ fn parse_one<'a, T: TokenErrIter<'a>, U>(
 
 use Literal::*;
 
+fn of_token_withloc<T>(
+    of_token: impl Fn(&Token) -> Option<T>,
+) -> impl Fn(&(Token, ErrLoc)) -> Option<WithLoc<T>> {
+    move |(t, e)| {
+        Some(WithLoc {
+            val: of_token(t)?,
+            loc: e.clone(),
+        })
+    }
+}
+
 // sad dthat output type is not intlit
-fn int_lit(t: &(Token, ErrLoc)) -> Option<Literal> {
-    let (t, _) = t;
+fn int_lit(t: &Token) -> Option<Literal> {
     match t {
         DecIntLit(s) => Some(DecInt(s.to_string())),
         HexIntLit(s) => Some(HexInt(s.to_string())),
@@ -694,10 +740,13 @@ impl OfToken for Ident {
 use crate::scan::Keyword::*;
 use crate::scan::Token::*;
 
-fn parse_import<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Ident> {
+fn parse_import<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<WithLoc<Ident>> {
     let parse_import = parse_concat(
         parse_one(exactly(Key(Import))),
-        parse_concat(Ident::parse, parse_one(exactly(Sym(Misc(Semicolon))))),
+        parse_concat(
+            WithLoc::<Ident>::parse,
+            parse_one(exactly(Sym(Misc(Semicolon)))),
+        ),
     );
     match parse_import(tokens) {
         Some(((), (name, ()))) => Some(name),
@@ -734,7 +783,10 @@ fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field
         Ident::parse,
         parse_concat(
             parse_one(exactly(Sym(Misc(LBrack)))),
-            parse_concat(parse_one(int_lit), parse_one(exactly(Sym(Misc(RBrack))))),
+            parse_concat(
+                parse_one(of_token_withloc(int_lit)),
+                parse_one(exactly(Sym(Misc(RBrack)))),
+            ),
         ),
     );
     // subtle opportunity for bug: parse_array_field_decl needs to be on the left here
@@ -751,8 +803,8 @@ fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field
             decls
                 .into_iter()
                 .map(|decl| match decl {
-                    Inr(Ident { name }) => Scalar(t.clone(), Ident { name }),
-                    Inl((Ident { name }, ((), (lit, ())))) => Array(t.clone(), Ident { name }, lit),
+                    Inr(id) => Scalar(t.clone(), id),
+                    Inl((id, ((), (lit, ())))) => Array(t.clone(), id, lit),
                 })
                 .collect(),
         ),
