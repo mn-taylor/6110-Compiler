@@ -346,12 +346,7 @@ fn check_stmt(
         }
         Stmt::If(condition, if_block, else_block) => {
             let cond_type = check_expr(condition, errors, scope);
-            check_types(
-                &[&Primitive::BoolType],
-                &cond_type,
-                /*TODO*/ ErrLoc { line: 0, col: 0 },
-                errors,
-            );
+            check_types(&[&Primitive::BoolType], &cond_type, condition.loc, errors);
             check_block(if_block, errors, scope, in_loop, return_type);
             if let Some(else_block) = else_block {
                 check_block(else_block, errors, scope, in_loop, return_type);
@@ -389,12 +384,7 @@ fn check_stmt(
 
             // test is bool
             let cond_type = check_expr(test, errors, scope);
-            check_types(
-                &[&Primitive::BoolType],
-                &cond_type,
-                /*TODO*/ ErrLoc { line: 0, col: 0 },
-                errors,
-            );
+            check_types(&[&Primitive::BoolType], &cond_type, test.loc, errors);
             // var_to_update
             let left_type = check_location(var_to_update, errors, scope);
             check_assign_expr(update_val, errors, scope, left_type);
@@ -404,12 +394,7 @@ fn check_stmt(
         }
         Stmt::While(condition, body) => {
             let cond_type = check_expr(condition, errors, scope);
-            check_types(
-                &[&Primitive::BoolType],
-                &cond_type,
-                /*TODO*/ ErrLoc { line: 0, col: 0 },
-                errors,
-            );
+            check_types(&[&Primitive::BoolType], &cond_type, condition.loc, errors);
 
             check_block(body, errors, scope, true, return_type);
         }
@@ -417,18 +402,13 @@ fn check_stmt(
             if let Some(return_val) = return_val {
                 if let None = return_type {
                     errors.push((
-                        /*TODO*/ ErrLoc { line: 0, col: 0 },
+                        return_val.loc,
                         format!("Function should not return a value"),
                     ));
                 }
                 let return_val_type = check_expr(return_val, errors, scope);
                 if let Some(return_type) = return_type {
-                    check_types(
-                        &[return_type],
-                        &return_val_type,
-                        /*TODO*/ ErrLoc { line: 0, col: 0 },
-                        errors,
-                    );
+                    check_types(&[return_type], &return_val_type, return_val.loc, errors);
                 }
             }
         }
@@ -515,12 +495,7 @@ fn check_expr(
             let potential_right_type = guess_right_type(left_type, &bop);
             if let Some(expected_right_type) = potential_right_type {
                 let right_type = check_expr(right_expr.as_ref(), errors, scope);
-                if check_types(
-                    &[&expected_right_type],
-                    &right_type,
-                    /*TODO*/ ErrLoc { line: 0, col: 0 },
-                    errors,
-                ) {
+                if check_types(&[&expected_right_type], &right_type, expr.loc, errors) {
                     return Some(convert_bop_to_primitive(&bop, expected_right_type));
                 }
             }
@@ -543,7 +518,7 @@ fn check_expr(
                     if check_types(
                         &[&Primitive::IntType, &Primitive::LongType],
                         &expr_type,
-                        /*TODO*/ ErrLoc { line: 0, col: 0 },
+                        expr.loc,
                         errors,
                     ) {
                         if *op == UnOp::Neg {
@@ -555,16 +530,11 @@ fn check_expr(
                             return Some(Primitive::LongType);
                         }
                     } else {
-                        return None; // if type isn't int or long, this is gonna be wrong but doesnt matter since thats an error anyway
+                        return None;
                     }
                 }
                 UnOp::Not => {
-                    if check_types(
-                        &[&Primitive::BoolType],
-                        &expr_type,
-                        /*TODO*/ ErrLoc { line: 0, col: 0 },
-                        errors,
-                    ) {
+                    if check_types(&[&Primitive::BoolType], &expr_type, expr.loc, errors) {
                         return Some(Primitive::BoolType);
                     } else {
                         None
