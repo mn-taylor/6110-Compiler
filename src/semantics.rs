@@ -139,24 +139,24 @@ fn check_duplicates(ids: Vec<(&WithLoc<Ident>, String)>, errors: &mut Vec<(ErrLo
 }
 
 fn check_location(
-    location: &Location,
+    location: &WithLoc<Location>,
     errors: &mut Vec<(ErrLoc, String)>,
     scope: &Scope,
 ) -> Option<Primitive> {
-    match location {
-        Location::Var(id) => match scope.lookup(&id.val) {
+    match &location.val {
+        Location::Var(id) => match scope.lookup(&id) {
             None => {
-                errors.push((id.loc, format!("Could not find identifier {}", id.val)));
+                errors.push((location.loc, format!("Could not find identifier {}", id)));
                 None
             }
             Some(t) => match t {
                 Type::Prim(p) => Some(p.clone()),
                 t => {
                     errors.push((
-                        id.loc,
+                        location.loc,
                         format!(
                             "expected {} to be a primitive, got nonprimitive type {}",
-                            id.val, t
+                            id, t
                         ),
                     ));
                     None
@@ -171,17 +171,17 @@ fn check_location(
                 ErrLoc { line: 0, col: 0 },
                 errors,
             );
-            match scope.lookup(&id.val) {
+            match scope.lookup(&id) {
                 None => {
-                    errors.push((id.loc, format!("Could not find identifier {}", id.val)));
+                    errors.push((location.loc, format!("Could not find identifier {}", id)));
                     None
                 }
                 Some(t) => match t {
                     Type::Arr(p) => Some(p.clone()),
                     _ => {
                         errors.push((
-                            id.loc,
-                            format!("expected {} to be an array, but it was {}", id.val, t),
+                            location.loc,
+                            format!("expected {} to be an array, but it was {}", id, t),
                         ));
                         None
                     }
@@ -503,31 +503,33 @@ fn convert_bop_to_primitive(bop: &Bop, right_type: Primitive) -> Primitive {
     }
 }
 
-fn check_expr(expr: &Expr, errors: &mut Vec<(ErrLoc, String)>, scope: &Scope) -> Option<Primitive> {
-    match expr {
+fn check_expr(
+    expr: &WithLoc<Expr>,
+    errors: &mut Vec<(ErrLoc, String)>,
+    scope: &Scope,
+) -> Option<Primitive> {
+    match &expr.val {
         Expr::Bin(left_expr, bop, right_expr) => {
             // check left expression
-
-            let left_type = check_expr(left_expr, errors, scope);
-
-            let potential_right_type = guess_right_type(left_type, bop);
+            let left_type = check_expr(left_expr.as_ref(), errors, scope);
+            let potential_right_type = guess_right_type(left_type, &bop);
             if let Some(expected_right_type) = potential_right_type {
-                let right_type = check_expr(right_expr, errors, scope);
+                let right_type = check_expr(right_expr.as_ref(), errors, scope);
                 if check_types(
                     &[&expected_right_type],
                     &right_type,
                     /*TODO*/ ErrLoc { line: 0, col: 0 },
                     errors,
                 ) {
-                    return Some(convert_bop_to_primitive(bop, expected_right_type));
+                    return Some(convert_bop_to_primitive(&bop, expected_right_type));
                 }
             }
             None
         }
         Expr::Unary(op, expr) => {
-            if matches!(op.val, UnOp::Neg) {
-                if let Expr::Lit(lit) = expr.as_ref() {
-                    return check_literal(lit, true, errors);
+            if matches!(op, UnOp::Neg) {
+                if let Expr::Lit(lit) = &expr.val {
+                    return check_literal(&lit, true, errors);
                 }
             }
             let expr_type = check_expr(expr, errors, scope);
@@ -536,7 +538,7 @@ fn check_expr(expr: &Expr, errors: &mut Vec<(ErrLoc, String)>, scope: &Scope) ->
                 return None;
             }
 
-            match op.val {
+            match op {
                 UnOp::Neg | UnOp::IntCast | UnOp::LongCast => {
                     if check_types(
                         &[&Primitive::IntType, &Primitive::LongType],
@@ -544,9 +546,9 @@ fn check_expr(expr: &Expr, errors: &mut Vec<(ErrLoc, String)>, scope: &Scope) ->
                         /*TODO*/ ErrLoc { line: 0, col: 0 },
                         errors,
                     ) {
-                        if op.val == UnOp::Neg {
+                        if *op == UnOp::Neg {
                             return expr_type;
-                        } else if op.val == UnOp::IntCast {
+                        } else if *op == UnOp::IntCast {
                             return Some(Primitive::IntType);
                         } else {
                             // long cast
@@ -570,8 +572,7 @@ fn check_expr(expr: &Expr, errors: &mut Vec<(ErrLoc, String)>, scope: &Scope) ->
                 }
             }
         }
-        // TODO: we actually have no use for loc here... this is not how this should've been done
-        Expr::Len(_, id) => {
+        Expr::Len(id) => {
             //  check that arg of len is an array
             match scope.lookup(&id.val) {
                 Some(Type::Arr(prim_type)) => return Some(prim_type.clone()),
@@ -632,7 +633,7 @@ fn check_arg(
 
 fn check_regular_assign(
     op: &AssignOp,
-    rhs: &Expr,
+    rhs: &WithLoc<Expr>,
     errors: &mut Vec<(ErrLoc, String)>,
     scope: &Scope,
     lhs_type: Option<Primitive>,

@@ -8,7 +8,6 @@ use parse::Field;
 use parse::Ident;
 use parse::Literal;
 use parse::Primitive;
-use scan::ErrLoc;
 use scan::{AddOp, EqOp, MulOp, RelOp};
 use std::fmt;
 
@@ -23,35 +22,35 @@ pub enum Bop {
 }
 
 pub enum Location {
-    Var(WithLoc<Ident>),
-    ArrayIndex(WithLoc<Ident>, Expr),
+    Var(Ident),
+    ArrayIndex(Ident, WithLoc<Expr>),
 }
 
 pub enum Arg {
-    ExprArg(Expr),
+    ExprArg(WithLoc<Expr>),
     ExternArg(String),
 }
 
 pub enum Stmt {
-    AssignStmt(Location, AssignExpr),
+    AssignStmt(WithLoc<Location>, AssignExpr),
     Call(WithLoc<Ident>, Vec<Arg>),
-    If(Expr, Block, Option<Block>),
+    If(WithLoc<Expr>, Block, Option<Block>),
     For {
         var_to_set: WithLoc<Ident>,
-        initial_val: Expr,
-        test: Expr,
-        var_to_update: Location,
+        initial_val: WithLoc<Expr>,
+        test: WithLoc<Expr>,
+        var_to_update: WithLoc<Location>,
         update_val: AssignExpr,
         body: Block,
     },
-    While(Expr, Block),
-    Return(Option<Expr>),
+    While(WithLoc<Expr>, Block),
+    Return(Option<WithLoc<Expr>>),
     Break,
     Continue,
 }
 
 pub enum AssignExpr {
-    RegularAssign(AssignOp, Expr),
+    RegularAssign(AssignOp, WithLoc<Expr>),
     IncrAssign(IncrOp),
 }
 
@@ -64,11 +63,11 @@ pub enum UnOp {
 }
 
 pub enum Expr {
-    Bin(Box<Expr>, Bop, Box<Expr>),
-    Unary(WithLoc<UnOp>, Box<Expr>),
-    Len(ErrLoc, WithLoc<Ident>),
+    Bin(Box<WithLoc<Expr>>, Bop, Box<WithLoc<Expr>>),
+    Unary(UnOp, Box<WithLoc<Expr>>),
+    Len(WithLoc<Ident>),
     Lit(WithLoc<Literal>),
-    Loc(Box<Location>),
+    Loc(Box<WithLoc<Location>>),
     Call(WithLoc<Ident>, Vec<Arg>),
 }
 

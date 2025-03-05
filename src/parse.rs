@@ -100,14 +100,14 @@ pub struct OrOp {}
 
 #[derive(Debug, PartialEq)]
 pub enum AtomicExpr {
-    Loc(Box<Location>),
+    Loc(Box<WithLoc<Location>>),
     Call(WithLoc<Ident>, Vec<Arg>),
     Lit(WithLoc<Literal>),
-    IntCast(ErrLoc, Box<OrExpr>),
-    LongCast(ErrLoc, Box<OrExpr>),
-    LenEx(ErrLoc, WithLoc<Ident>),
-    NegEx(ErrLoc, Box<AtomicExpr>),
-    NotEx(ErrLoc, Box<AtomicExpr>),
+    IntCast(Box<OrExpr>),
+    LongCast(Box<OrExpr>),
+    LenEx(WithLoc<Ident>),
+    NegEx(Box<WithLoc<AtomicExpr>>),
+    NotEx(Box<WithLoc<AtomicExpr>>),
     Ex(Box<OrExpr>),
 }
 
@@ -117,7 +117,7 @@ pub enum BinExpr<OpType, AtomType> {
     Bin(AtomType, OpType, Box<BinExpr<OpType, AtomType>>),
 }
 
-pub type MulExpr = BinExpr<MulOp, AtomicExpr>;
+pub type MulExpr = BinExpr<MulOp, WithLoc<AtomicExpr>>;
 pub type AddExpr = BinExpr<AddOp, MulExpr>;
 pub type RelExpr = BinExpr<RelOp, AddExpr>;
 pub type EqExpr = BinExpr<EqOp, RelExpr>;
@@ -126,8 +126,8 @@ pub type OrExpr = BinExpr<OrOp, AndExpr>;
 
 #[derive(Debug, PartialEq)]
 pub enum Location {
-    Var(WithLoc<Ident>),
-    ArrayIndex(WithLoc<Ident>, OrExpr),
+    Var(Ident),
+    ArrayIndex(Ident, OrExpr),
 }
 
 #[derive(Debug, PartialEq)]
@@ -169,14 +169,14 @@ pub enum AssignExpr {
 
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
-    Assignment(Location, AssignExpr),
+    Assignment(WithLoc<Location>, AssignExpr),
     Call(WithLoc<Ident>, Vec<Arg>),
     If(OrExpr, Block, Option<Block>),
     For {
         var_to_set: WithLoc<Ident>,
         initial_val: OrExpr,
         test: OrExpr,
-        var_to_update: Location,
+        var_to_update: WithLoc<Location>,
         update_val: AssignExpr,
         body: Block,
     },
@@ -236,14 +236,14 @@ fn parse_method_call<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<(WithLoc<
     ))
 }
 
-impl Parse for AtomicExpr {
-    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<AtomicExpr> {
+impl Parse for WithLoc<AtomicExpr> {
+    fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<WithLoc<AtomicExpr>> {
         // order matters here.  one that works is
         // Neg, Not, Ex, IntCast, LongCast, Len, Lit, Call, Loc
         let parse_neg = parse_concat(parse_one(exactly_with_loc(Sym(AddSym(Sub)))), Self::parse);
         let parse_not = parse_concat(parse_one(exactly_with_loc(Sym(Misc(Not)))), Self::parse);
         let parse_ex = parse_concat(
-            parse_one(exactly(Sym(Misc(LPar)))),
+            parse_one(exactly_with_loc(Sym(Misc(LPar)))),
             parse_concat(OrExpr::parse, parse_one(exactly(Sym(Misc(RPar))))),
         );
         let parse_intcast = parse_concat(parse_one(exactly_with_loc(Key(Int))), &parse_ex);
@@ -259,23 +259,50 @@ impl Parse for AtomicExpr {
 
         // parse_loc defined elsewhere
         if let Some((loc, neg_exp)) = parse_neg(tokens) {
-            Some(NegEx(loc, Box::new(neg_exp)))
+            Some(WithLoc {
+                loc,
+                val: NegEx(Box::new(neg_exp)),
+            })
         } else if let Some((loc, not_exp)) = parse_not(tokens) {
-            Some(AtomicExpr::NotEx(loc, Box::new(not_exp)))
-        } else if let Some(((), (par_exp, ()))) = parse_ex(tokens) {
-            Some(Ex(Box::new(par_exp)))
-        } else if let Some((loc, ((), (int_exp, ())))) = parse_intcast(tokens) {
-            Some(IntCast(loc, Box::new(int_exp)))
-        } else if let Some((loc, ((), (long_exp, ())))) = parse_longcast(tokens) {
-            Some(LongCast(loc, Box::new(long_exp)))
+            Some(WithLoc {
+                loc,
+                val: NotEx(Box::new(not_exp)),
+            })
+        } else if let Some((loc, (par_exp, ()))) = parse_ex(tokens) {
+            Some(WithLoc {
+                loc,
+                val: Ex(Box::new(par_exp)),
+            })
+        } else if let Some((loc, (_, (int_exp, ())))) = parse_intcast(tokens) {
+            Some(WithLoc {
+                loc,
+                val: IntCast(Box::new(int_exp)),
+            })
+        } else if let Some((loc, (_, (long_exp, ())))) = parse_longcast(tokens) {
+            Some(WithLoc {
+                loc,
+                val: LongCast(Box::new(long_exp)),
+            })
         } else if let Some((loc, ((), (len_id, ())))) = parse_len(tokens) {
-            Some(LenEx(loc, len_id))
+            Some(WithLoc {
+                loc,
+                val: LenEx(len_id),
+            })
         } else if let Some(lit) = WithLoc::<Literal>::parse(tokens) {
-            Some(Lit(lit))
+            Some(WithLoc {
+                loc: lit.loc,
+                val: Lit(lit),
+            })
         } else if let Some((name, args)) = parse_method_call(tokens) {
-            Some(Call(name, args))
-        } else if let Some(loc) = Location::parse(tokens) {
-            Some(Loc(Box::new(loc)))
+            Some(WithLoc {
+                loc: name.loc,
+                val: Call(name, args),
+            })
+        } else if let Some(location) = WithLoc::<Location>::parse(tokens) {
+            Some(WithLoc {
+                loc: location.loc,
+                val: Loc(Box::new(location)),
+            })
         } else {
             None
         }
@@ -375,7 +402,7 @@ impl OfToken for OrOp {
     }
 }
 
-impl Parse for Location {
+impl Parse for WithLoc<Location> {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         let parse_location = parse_or(
             parse_concat(
@@ -388,8 +415,14 @@ impl Parse for Location {
             WithLoc::<Ident>::parse,
         );
         Some(match parse_location(tokens)? {
-            Inl((id, ((), (idx, ())))) => Location::ArrayIndex(id, idx),
-            Inr(id) => Location::Var(id),
+            Inl((id, ((), (idx, ())))) => WithLoc {
+                loc: id.loc,
+                val: Location::ArrayIndex(id.val, idx),
+            },
+            Inr(id) => WithLoc {
+                loc: id.loc,
+                val: Location::Var(id.val),
+            },
         })
     }
 }
@@ -449,7 +482,7 @@ impl Parse for Stmt {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
         // order doesnt' matter much
         let parse_ass = parse_concat(
-            Location::parse,
+            WithLoc::<Location>::parse,
             parse_concat(AssignExpr::parse, parse_one(exactly(Sym(Misc(Semicolon))))),
         );
         let parse_meth_stmt =
@@ -490,7 +523,7 @@ impl Parse for Stmt {
                                     parse_concat(
                                         parse_one(exactly(Sym(Misc(Semicolon)))),
                                         parse_concat(
-                                            Location::parse,
+                                            WithLoc::<Location>::parse,
                                             parse_concat(
                                                 AssignExpr::parse,
                                                 parse_concat(

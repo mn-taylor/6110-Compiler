@@ -3,7 +3,6 @@ use crate::parse;
 use crate::scan;
 use ir::Expr::*;
 use ir::*;
-use parse::WithLoc;
 
 pub fn build_program(program: parse::Program) -> Program {
     Program {
@@ -54,7 +53,7 @@ fn build_method(method: parse::Method) -> Method {
 use ir::Bop;
 
 trait ToExpr {
-    fn to_expr(self) -> Expr;
+    fn to_expr(self) -> WithLoc<Expr>;
 }
 
 trait ToBop {
@@ -99,56 +98,60 @@ impl ToBop for parse::OrOp {
 
 use parse::BinExpr;
 impl<O: ToBop, A: ToExpr> ToExpr for BinExpr<O, A> {
-    fn to_expr(self) -> Expr {
+    fn to_expr(self) -> WithLoc<Expr> {
         match self {
             BinExpr::Atomic(e) => A::to_expr(e),
-            BinExpr::Bin(a1, o1, rhs1) => match *rhs1 {
-                BinExpr::Atomic(a2) => Bin(
-                    Box::new(A::to_expr(a1)),
-                    O::to_op(o1),
-                    Box::new(A::to_expr(a2)),
-                ),
-                BinExpr::Bin(a2, o2, rhs2) => Bin(
-                    Box::new(Bin(
-                        Box::new(A::to_expr(a1)),
-                        O::to_op(o1),
-                        Box::new(A::to_expr(a2)),
-                    )),
-                    O::to_op(o2),
-                    Box::new(Self::to_expr(*rhs2)),
-                ),
-            },
+            BinExpr::Bin(a1, o1, rhs1) => {
+                let a1_expr = A::to_expr(a1);
+                match *rhs1 {
+                    BinExpr::Atomic(a2) => WithLoc {
+                        loc: a1_expr.loc,
+                        val: Bin(Box::new(a1_expr), O::to_op(o1), Box::new(A::to_expr(a2))),
+                    },
+                    BinExpr::Bin(a2, o2, rhs2) => WithLoc {
+                        loc: a1_expr.loc,
+                        val: Bin(
+                            Box::new(WithLoc {
+                                loc: a1_expr.loc,
+                                val: Bin(Box::new(a1_expr), O::to_op(o1), Box::new(A::to_expr(a2))),
+                            }),
+                            O::to_op(o2),
+                            Box::new(Self::to_expr(*rhs2)),
+                        ),
+                    },
+                }
+            }
         }
     }
 }
 
 use ir::UnOp::*;
 use parse::AtomicExpr;
-impl ToExpr for AtomicExpr {
-    fn to_expr(self) -> Expr {
-        match self {
-            AtomicExpr::Loc(l) => Loc(Box::new(build_location(*l))),
-            AtomicExpr::Call(id, args) => Call(id, args.into_iter().map(build_arg).collect()),
-            AtomicExpr::Lit(lit) => Lit(lit),
-            AtomicExpr::IntCast(loc, e) => {
-                Unary(WithLoc { loc, val: IntCast }, Box::new(build_expr(*e)))
-            }
-            AtomicExpr::LongCast(loc, e) => {
-                Unary(WithLoc { loc, val: LongCast }, Box::new(build_expr(*e)))
-            }
-            AtomicExpr::LenEx(loc, id) => Len(loc, id),
-            AtomicExpr::NegEx(loc, e) => {
-                Unary(WithLoc { loc, val: Neg }, Box::new(Self::to_expr(*e)))
-            }
-            AtomicExpr::NotEx(loc, e) => {
-                Unary(WithLoc { loc, val: Not }, Box::new(Self::to_expr(*e)))
-            }
-            AtomicExpr::Ex(e) => build_expr(*e),
+use parse::WithLoc;
+fn atomic_expr_to_expr(e: AtomicExpr) -> Expr {
+    match e {
+        AtomicExpr::Loc(l) => Loc(Box::new(WithLoc::map(*l, build_location))),
+        AtomicExpr::Call(id, args) => Call(id, args.into_iter().map(build_arg).collect()),
+        AtomicExpr::Lit(lit) => Lit(lit),
+        AtomicExpr::IntCast(e) => Unary(IntCast, Box::new(build_expr(*e))),
+        AtomicExpr::LongCast(e) => Unary(LongCast, Box::new(build_expr(*e))),
+        AtomicExpr::LenEx(id) => Len(id),
+        AtomicExpr::NegEx(e) => Unary(Neg, Box::new(WithLoc::<AtomicExpr>::to_expr(*e))),
+        AtomicExpr::NotEx(e) => Unary(Not, Box::new(WithLoc::<AtomicExpr>::to_expr(*e))),
+        AtomicExpr::Ex(e) => build_expr(*e).val, // here we choose that ((x)) has location of the leftmost paren
+    }
+}
+
+impl ToExpr for WithLoc<AtomicExpr> {
+    fn to_expr(self) -> WithLoc<Expr> {
+        WithLoc {
+            loc: self.loc,
+            val: atomic_expr_to_expr(self.val),
         }
     }
 }
 
-fn build_expr(e: parse::OrExpr) -> Expr {
+fn build_expr(e: parse::OrExpr) -> WithLoc<Expr> {
     parse::OrExpr::to_expr(e)
 }
 
@@ -182,7 +185,7 @@ fn build_stmt(stmt: parse::Stmt) -> ir::Stmt {
     use crate::parse::Stmt;
     match stmt {
         Stmt::Assignment(loc, assign_expr) => {
-            ir::Stmt::AssignStmt(build_location(loc), build_assign_expr(assign_expr))
+            ir::Stmt::AssignStmt(loc.map(build_location), build_assign_expr(assign_expr))
         }
         Stmt::Call(id, args) => ir::Stmt::Call(id, args.into_iter().map(build_arg).collect()),
         Stmt::If(cond, if_block, else_block) => ir::Stmt::If(
@@ -201,7 +204,7 @@ fn build_stmt(stmt: parse::Stmt) -> ir::Stmt {
             var_to_set,
             initial_val: build_expr(initial_val),
             test: build_expr(test),
-            var_to_update: build_location(var_to_update),
+            var_to_update: var_to_update.map(build_location),
             update_val: build_assign_expr(update_val),
             body: build_block(body),
         },
