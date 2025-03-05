@@ -299,7 +299,7 @@ fn check_call(
                 ));
             }
             for (arg, param_type) in zip(args, params) {
-                let arg_type = check_arg(arg, errors, scope);
+                let arg_type = check_arg(arg, errors, scope, false);
                 check_types(
                     &[&param_type],
                     &arg_type,
@@ -311,7 +311,7 @@ fn check_call(
         }
         Some(Type::ExtCall) => {
             for arg in args {
-                check_arg(arg, errors, &scope);
+                check_arg(arg, errors, &scope, true);
             }
             return Some(Primitive::IntType);
         }
@@ -507,7 +507,9 @@ fn check_expr(expr: &Expr, errors: &mut Vec<(ErrLoc, String)>, scope: &Scope) ->
     match expr {
         Expr::Bin(left_expr, bop, right_expr) => {
             // check left expression
+
             let left_type = check_expr(left_expr, errors, scope);
+
             let potential_right_type = guess_right_type(left_type, bop);
             if let Some(expected_right_type) = potential_right_type {
                 let right_type = check_expr(right_expr, errors, scope);
@@ -588,14 +590,43 @@ fn check_expr(expr: &Expr, errors: &mut Vec<(ErrLoc, String)>, scope: &Scope) ->
         }
         Expr::Lit(with_loc) => check_literal(with_loc, false, errors),
         Expr::Loc(loc) => check_location(loc, errors, scope),
-        Expr::Call(with_loc, args) => check_call(with_loc, args, errors, scope),
+        Expr::Call(with_loc, args) => {
+            let prev_errors_len = errors.len();
+
+            let call_type = check_call(with_loc, args, errors, scope);
+            match call_type {
+                None => {
+                    if errors.len() == prev_errors_len {
+                        // if there are no errors in the call and it returns none, the call returns void. No expression should evaluate to void.
+                        let error_message = format!("void expression found"); // TODO
+                        errors.push((ErrLoc { line: 0, col: 0 }, error_message));
+                    }
+                    return None;
+                }
+                _ => {
+                    return call_type;
+                }
+            }
+        }
     }
 }
 
-fn check_arg(arg: &Arg, errors: &mut Vec<(ErrLoc, String)>, scope: &Scope) -> Option<Primitive> {
+fn check_arg(
+    arg: &Arg,
+    errors: &mut Vec<(ErrLoc, String)>,
+    scope: &Scope,
+    is_external: bool,
+) -> Option<Primitive> {
     match arg {
         Arg::ExprArg(expr) => check_expr(expr, errors, scope),
-        Arg::ExternArg(_) => None,
+        Arg::ExternArg(_) => {
+            if !is_external {
+                let error_message =
+                    "String arguments only allowed in external functions".to_string();
+                errors.push((ErrLoc { line: 0, col: 0 }, error_message));
+            }
+            return None;
+        }
     }
 }
 
@@ -612,9 +643,17 @@ fn check_regular_assign(
                 /*TODO: loc of AssignOp*/ ErrLoc { line: 0, col: 0 },
                 format!("Assignment operator {} incompatible with type {}", op, t),
             ));
+        } else {
+            check_types(
+                &[&t],
+                &check_expr(rhs, errors, scope),
+                ErrLoc { line: 0, col: 0 }, // change default
+                errors,
+            );
         }
     }
-    check_expr(rhs, errors, scope);
+
+    // check_expr(rhs, errors, scope);
 }
 
 // left_type is Option<Type> because if left side failed to typecheck, we still want to sanity-check rhs but do not want to complain about its type

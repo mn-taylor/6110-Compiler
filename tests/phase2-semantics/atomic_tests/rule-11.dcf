@@ -2,10 +2,10 @@ void main() {
     int c;
     int a[6];
 
-    c = a[20] // should be ok
-    c = a[20L] // long can't be an ArrayIndex
-    c = a[true]
+    c = a[20]; // should be ok
+    c = a[20L]; // long can't be an ArrayIndex
+    c = a[true]; // bool cant be an array ArrayIndex
 
-    c = a[5L + 6L]  // expression must be an int
-    a[1] = c[5] // c is not an array variable
+    c = a[5L + 6L];  // expression must be an int
+    a[1] = c[5]; // c is not an array variable
 }
