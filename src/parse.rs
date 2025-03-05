@@ -103,11 +103,11 @@ pub enum AtomicExpr {
     Loc(Box<Location>),
     Call(WithLoc<Ident>, Vec<Arg>),
     Lit(WithLoc<Literal>),
-    IntCast(Box<OrExpr>),
-    LongCast(Box<OrExpr>),
-    LenEx(WithLoc<Ident>),
-    NegEx(Box<AtomicExpr>),
-    NotEx(Box<AtomicExpr>),
+    IntCast(ErrLoc, Box<OrExpr>),
+    LongCast(ErrLoc, Box<OrExpr>),
+    LenEx(ErrLoc, WithLoc<Ident>),
+    NegEx(ErrLoc, Box<AtomicExpr>),
+    NotEx(ErrLoc, Box<AtomicExpr>),
     Ex(Box<OrExpr>),
 }
 
@@ -240,16 +240,16 @@ impl Parse for AtomicExpr {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<AtomicExpr> {
         // order matters here.  one that works is
         // Neg, Not, Ex, IntCast, LongCast, Len, Lit, Call, Loc
-        let parse_neg = parse_concat(parse_one(exactly(Sym(AddSym(Sub)))), Self::parse);
-        let parse_not = parse_concat(parse_one(exactly(Sym(Misc(Not)))), Self::parse);
+        let parse_neg = parse_concat(parse_one(exactly_with_loc(Sym(AddSym(Sub)))), Self::parse);
+        let parse_not = parse_concat(parse_one(exactly_with_loc(Sym(Misc(Not)))), Self::parse);
         let parse_ex = parse_concat(
             parse_one(exactly(Sym(Misc(LPar)))),
             parse_concat(OrExpr::parse, parse_one(exactly(Sym(Misc(RPar))))),
         );
-        let parse_intcast = parse_concat(parse_one(exactly(Key(Int))), &parse_ex);
-        let parse_longcast = parse_concat(parse_one(exactly(Key(Long))), &parse_ex);
+        let parse_intcast = parse_concat(parse_one(exactly_with_loc(Key(Int))), &parse_ex);
+        let parse_longcast = parse_concat(parse_one(exactly_with_loc(Key(Long))), &parse_ex);
         let parse_len = parse_concat(
-            parse_one(exactly(Key(Len))),
+            parse_one(exactly_with_loc(Key(Len))),
             parse_concat(
                 parse_one(exactly(Sym(Misc(LPar)))),
                 parse_concat(WithLoc::<Ident>::parse, parse_one(exactly(Sym(Misc(RPar))))),
@@ -258,18 +258,18 @@ impl Parse for AtomicExpr {
         // parse_lit defined elsewhere
 
         // parse_loc defined elsewhere
-        if let Some(((), neg_exp)) = parse_neg(tokens) {
-            Some(NegEx(Box::new(neg_exp)))
-        } else if let Some(((), not_exp)) = parse_not(tokens) {
-            Some(AtomicExpr::NotEx(Box::new(not_exp)))
+        if let Some((loc, neg_exp)) = parse_neg(tokens) {
+            Some(NegEx(loc, Box::new(neg_exp)))
+        } else if let Some((loc, not_exp)) = parse_not(tokens) {
+            Some(AtomicExpr::NotEx(loc, Box::new(not_exp)))
         } else if let Some(((), (par_exp, ()))) = parse_ex(tokens) {
             Some(Ex(Box::new(par_exp)))
-        } else if let Some(((), ((), (int_exp, ())))) = parse_intcast(tokens) {
-            Some(IntCast(Box::new(int_exp)))
-        } else if let Some(((), ((), (long_exp, ())))) = parse_longcast(tokens) {
-            Some(LongCast(Box::new(long_exp)))
-        } else if let Some(((), ((), (len_id, ())))) = parse_len(tokens) {
-            Some(LenEx(len_id))
+        } else if let Some((loc, ((), (int_exp, ())))) = parse_intcast(tokens) {
+            Some(IntCast(loc, Box::new(int_exp)))
+        } else if let Some((loc, ((), (long_exp, ())))) = parse_longcast(tokens) {
+            Some(LongCast(loc, Box::new(long_exp)))
+        } else if let Some((loc, ((), (len_id, ())))) = parse_len(tokens) {
+            Some(LenEx(loc, len_id))
         } else if let Some(lit) = WithLoc::<Literal>::parse(tokens) {
             Some(Lit(lit))
         } else if let Some((name, args)) = parse_method_call(tokens) {
@@ -712,6 +712,17 @@ fn str_lit(t: &(Token, ErrLoc)) -> Option<String> {
     match t {
         StrLit(s) => Some(s.to_string()),
         _ => None,
+    }
+}
+
+fn exactly_with_loc(t: Token) -> impl Fn(&(Token, ErrLoc)) -> Option<ErrLoc> {
+    move |(token, e)| {
+        // println!("trying to parse {:?}, finding {:?}", t, token);
+        if *token == t {
+            Some(*e)
+        } else {
+            None
+        }
     }
 }
 

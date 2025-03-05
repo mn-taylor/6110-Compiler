@@ -3,6 +3,7 @@ use crate::parse;
 use crate::scan;
 use ir::Expr::*;
 use ir::*;
+use parse::WithLoc;
 
 pub fn build_program(program: parse::Program) -> Program {
     Program {
@@ -129,11 +130,19 @@ impl ToExpr for AtomicExpr {
             AtomicExpr::Loc(l) => Loc(Box::new(build_location(*l))),
             AtomicExpr::Call(id, args) => Call(id, args.into_iter().map(build_arg).collect()),
             AtomicExpr::Lit(lit) => Lit(lit),
-            AtomicExpr::IntCast(e) => Unary(IntCast, Box::new(build_expr(*e))),
-            AtomicExpr::LongCast(e) => Unary(LongCast, Box::new(build_expr(*e))),
-            AtomicExpr::LenEx(id) => Len(id),
-            AtomicExpr::NegEx(e) => Unary(Neg, Box::new(Self::to_expr(*e))),
-            AtomicExpr::NotEx(e) => Unary(Not, Box::new(Self::to_expr(*e))),
+            AtomicExpr::IntCast(loc, e) => {
+                Unary(WithLoc { loc, val: IntCast }, Box::new(build_expr(*e)))
+            }
+            AtomicExpr::LongCast(loc, e) => {
+                Unary(WithLoc { loc, val: LongCast }, Box::new(build_expr(*e)))
+            }
+            AtomicExpr::LenEx(loc, id) => Len(loc, id),
+            AtomicExpr::NegEx(loc, e) => {
+                Unary(WithLoc { loc, val: Neg }, Box::new(Self::to_expr(*e)))
+            }
+            AtomicExpr::NotEx(loc, e) => {
+                Unary(WithLoc { loc, val: Not }, Box::new(Self::to_expr(*e)))
+            }
             AtomicExpr::Ex(e) => build_expr(*e),
         }
     }

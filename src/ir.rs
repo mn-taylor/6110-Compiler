@@ -8,6 +8,7 @@ use parse::Field;
 use parse::Ident;
 use parse::Literal;
 use parse::Primitive;
+use scan::ErrLoc;
 use scan::{AddOp, EqOp, MulOp, RelOp};
 use std::fmt;
 
@@ -64,8 +65,8 @@ pub enum UnOp {
 
 pub enum Expr {
     Bin(Box<Expr>, Bop, Box<Expr>),
-    Unary(UnOp, Box<Expr>),
-    Len(WithLoc<Ident>),
+    Unary(WithLoc<UnOp>, Box<Expr>),
+    Len(ErrLoc, WithLoc<Ident>),
     Lit(WithLoc<Literal>),
     Loc(Box<Location>),
     Call(WithLoc<Ident>, Vec<Arg>),
