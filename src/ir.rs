@@ -28,7 +28,16 @@ pub enum Location {
 
 pub enum Arg {
     ExprArg(WithLoc<Expr>),
-    ExternArg(String),
+    ExternArg(WithLoc<String>),
+}
+
+impl Arg {
+    pub fn loc(&self) -> scan::ErrLoc {
+        match self {
+            Arg::ExprArg(a) => a.loc,
+            Arg::ExternArg(a) => a.loc,
+        }
+    }
 }
 
 pub enum Stmt {

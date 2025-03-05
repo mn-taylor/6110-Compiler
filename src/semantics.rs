@@ -300,12 +300,7 @@ fn check_call(
             }
             for (arg, param_type) in zip(args, params) {
                 let arg_type = check_arg(arg, errors, scope, false);
-                check_types(
-                    &[&param_type],
-                    &arg_type,
-                    /*TODO*/ ErrLoc { line: 0, col: 0 },
-                    errors,
-                );
+                check_types(&[&param_type], &arg_type, arg.loc(), errors);
             }
             return return_type.clone();
         }
@@ -569,8 +564,7 @@ fn check_expr(
                 None => {
                     if errors.len() == prev_errors_len {
                         // if there are no errors in the call and it returns none, the call returns void. No expression should evaluate to void.
-                        let error_message = format!("void expression found"); // TODO
-                        errors.push((ErrLoc { line: 0, col: 0 }, error_message));
+                        errors.push((expr.loc, "expression should not be none".to_string()));
                     }
                     return None;
                 }

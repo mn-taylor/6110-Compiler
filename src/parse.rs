@@ -133,7 +133,7 @@ pub enum Location {
 #[derive(Debug, PartialEq)]
 pub enum Arg {
     ExprArg(OrExpr),
-    ExternArg(String),
+    ExternArg(WithLoc<String>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -470,7 +470,10 @@ impl Parse for AssignExpr {
 
 impl Parse for Arg {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
-        let arg = parse_or(OrExpr::parse, parse_one(str_lit));
+        let arg = parse_or(
+            OrExpr::parse,
+            parse_one(of_token_withloc_of_oftoken(str_lit)),
+        );
         Some(match arg(tokens)? {
             Inl(a) => Arg::ExprArg(a),
             Inr(s) => Arg::ExternArg(s),
@@ -720,7 +723,7 @@ fn parse_one<'a, T: TokenErrIter<'a>, U>(
 
 use Literal::*;
 
-fn of_token_withloc<T>(
+fn of_token_withloc_of_oftoken<T>(
     of_token: impl Fn(&Token) -> Option<T>,
 ) -> impl Fn(&(Token, ErrLoc)) -> Option<WithLoc<T>> {
     move |(t, e)| {
@@ -740,8 +743,7 @@ fn int_lit(t: &Token) -> Option<Literal> {
     }
 }
 
-fn str_lit(t: &(Token, ErrLoc)) -> Option<String> {
-    let (t, _) = t;
+fn str_lit(t: &Token) -> Option<String> {
     match t {
         StrLit(s) => Some(s.to_string()),
         _ => None,
@@ -828,7 +830,7 @@ fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field
         parse_concat(
             parse_one(exactly(Sym(Misc(LBrack)))),
             parse_concat(
-                parse_one(of_token_withloc(int_lit)),
+                parse_one(of_token_withloc_of_oftoken(int_lit)),
                 parse_one(exactly(Sym(Misc(RBrack)))),
             ),
         ),
