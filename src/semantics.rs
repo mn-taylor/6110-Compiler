@@ -380,7 +380,10 @@ fn check_stmt(
             }
             // initial_val is int
             check_regular_assign(
-                &AssignOp::Eq,
+                &WithLoc {
+                    loc: ErrLoc { line: 0, col: 0 },
+                    val: AssignOp::Eq,
+                },
                 initial_val,
                 errors,
                 scope,
@@ -635,16 +638,16 @@ fn check_arg(
 }
 
 fn check_regular_assign(
-    op: &AssignOp,
+    op: &WithLoc<AssignOp>,
     rhs: &WithLoc<Expr>,
     errors: &mut Vec<(ErrLoc, String)>,
     scope: &Scope,
     lhs_type: Option<Primitive>,
 ) {
     if let Some(t) = lhs_type {
-        if op.is_arith() && !(t == Primitive::IntType || t == Primitive::LongType) {
+        if op.val.is_arith() && !(t == Primitive::IntType || t == Primitive::LongType) {
             errors.push((
-                /*TODO: loc of AssignOp*/ ErrLoc { line: 0, col: 0 },
+                op.loc,
                 format!("Assignment operator {} incompatible with type {}", op, t),
             ));
         } else {

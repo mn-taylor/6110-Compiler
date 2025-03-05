@@ -60,8 +60,8 @@ pub enum Stmt {
 }
 
 pub enum AssignExpr {
-    RegularAssign(AssignOp, WithLoc<Expr>),
-    IncrAssign(IncrOp),
+    RegularAssign(WithLoc<AssignOp>, WithLoc<Expr>),
+    IncrAssign(WithLoc<IncrOp>),
 }
 
 #[derive(PartialEq)]

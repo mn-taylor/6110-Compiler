@@ -163,8 +163,8 @@ impl<T> WithLoc<T> {
 
 #[derive(Debug, PartialEq)]
 pub enum AssignExpr {
-    RegularAssign(AssignOp, OrExpr),
-    IncrAssign(IncrOp),
+    RegularAssign(WithLoc<AssignOp>, OrExpr),
+    IncrAssign(WithLoc<IncrOp>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -460,7 +460,10 @@ impl<U: OfToken> Parse for WithLoc<U> {
 use AssignExpr::*;
 impl Parse for AssignExpr {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
-        let ass_expr = parse_or(parse_concat(AssignOp::parse, OrExpr::parse), IncrOp::parse);
+        let ass_expr = parse_or(
+            parse_concat(WithLoc::<AssignOp>::parse, OrExpr::parse),
+            WithLoc::<IncrOp>::parse,
+        );
         Some(match ass_expr(tokens)? {
             Inl((op, expr)) => RegularAssign(op, expr),
             Inr(op) => IncrAssign(op),
