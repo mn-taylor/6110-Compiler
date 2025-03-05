@@ -1,7 +1,6 @@
 use crate::ir;
 use crate::parse;
 use crate::scan;
-use clap::error;
 use ir::*;
 use parse::WithLoc;
 use parse::{Field, Ident, Literal, Param, Primitive};
@@ -166,12 +165,7 @@ fn check_location(
         },
         Location::ArrayIndex(id, idx) => {
             let idx_type = check_expr(idx, errors, scope);
-            check_types(
-                &[&Primitive::IntType],
-                &idx_type,
-                ErrLoc { line: 0, col: 0 },
-                errors,
-            );
+            check_types(&[&Primitive::IntType], &idx_type, location.loc, errors);
             match scope.lookup(&id) {
                 None => {
                     errors.push((location.loc, format!("Could not find identifier {}", id)));
@@ -278,7 +272,7 @@ fn check_literal(
             if negated {
                 // can't negate a boolean expression
                 let error_message = "Unary minus does not operate on booleans"; // change line later to include location
-                errors.push((ErrLoc { line: 0, col: 0 }, error_message.to_string()));
+                errors.push((literal.loc, error_message.to_string()));
                 return None;
             } else {
                 Some(Primitive::BoolType)
@@ -379,15 +373,11 @@ fn check_stmt(
                 )),
             }
             // initial_val is int
-            check_regular_assign(
-                &WithLoc {
-                    loc: ErrLoc { line: 0, col: 0 },
-                    val: AssignOp::Eq,
-                },
-                initial_val,
+            check_types(
+                &[&Primitive::IntType],
+                &check_expr(initial_val, errors, scope),
+                initial_val.loc,
                 errors,
-                scope,
-                Some(Primitive::IntType),
             );
 
             // test is bool
@@ -459,6 +449,7 @@ fn check_block(
     }
 }
 fn guess_right_type<'a>(
+    left_loc: ErrLoc,
     left_type_option: Option<Primitive>,
     bop: &'a Bop,
     errors: &'a mut Vec<(ErrLoc, String)>,
@@ -476,7 +467,7 @@ fn guess_right_type<'a>(
                     return Some(&[&Primitive::IntType]);
                 } else {
                     let error_message = format!("Int type not compatible with logical operations");
-                    errors.push((ErrLoc { line: 0, col: 0 }, error_message));
+                    errors.push((left_loc, error_message));
                     return None;
                 }
             }
@@ -491,7 +482,7 @@ fn guess_right_type<'a>(
                     return Some(&[&Primitive::LongType]);
                 } else {
                     let error_message = format!("Long type not compatible with logical operations");
-                    errors.push((ErrLoc { line: 0, col: 0 }, error_message)); // TODO make line more descriptive
+                    errors.push((left_loc, error_message)); // TODO make line more descriptive
                     return None;
                 }
             }
@@ -500,7 +491,7 @@ fn guess_right_type<'a>(
                 _ => {
                     let error_message =
                         format!("Bool type not compatible with arithmetic/relational operation");
-                    errors.push((ErrLoc { line: 0, col: 0 }, error_message)); // TODO make line more descriptive
+                    errors.push((left_loc, error_message)); // TODO make line more descriptive
                     return None;
                 }
             },
@@ -527,7 +518,7 @@ fn check_expr(
         Expr::Bin(left_expr, bop, right_expr) => {
             // check left expression
             let left_type = check_expr(left_expr.as_ref(), errors, scope);
-            let potential_right_type = guess_right_type(left_type, bop, errors);
+            let potential_right_type = guess_right_type(left_expr.loc, left_type, bop, errors);
             if let Some(expected_right_type) = potential_right_type {
                 let right_type = check_expr(right_expr.as_ref(), errors, scope);
                 if check_types(expected_right_type, &right_type, expr.loc, errors) {
@@ -626,11 +617,11 @@ fn check_arg(
 ) -> Option<Primitive> {
     match arg {
         Arg::ExprArg(expr) => check_expr(expr, errors, scope),
-        Arg::ExternArg(_) => {
+        Arg::ExternArg(id) => {
             if !is_external {
                 let error_message =
                     "String arguments only allowed in external functions".to_string();
-                errors.push((ErrLoc { line: 0, col: 0 }, error_message));
+                errors.push((id.loc, error_message));
             }
             return None;
         }
@@ -651,16 +642,9 @@ fn check_regular_assign(
                 format!("Assignment operator {} incompatible with type {}", op, t),
             ));
         } else {
-            check_types(
-                &[&t],
-                &check_expr(rhs, errors, scope),
-                ErrLoc { line: 0, col: 0 }, // change default
-                errors,
-            );
+            check_types(&[&t], &check_expr(rhs, errors, scope), rhs.loc, errors);
         }
     }
-
-    // check_expr(rhs, errors, scope);
 }
 
 // left_type is Option<Type> because if left side failed to typecheck, we still want to sanity-check rhs but do not want to complain about its type
@@ -677,7 +661,7 @@ fn check_assign_expr(
         AssignExpr::IncrAssign(op) => match lhs_type {
             Some(Primitive::IntType) | Some(Primitive::LongType) | None => (),
             Some(x) => errors.push((
-                /*TODO: loc for incrop*/ ErrLoc { line: 0, col: 0 },
+                op.loc,
                 format!(
                     "Did not expect increment operator {} to be applied to type {}",
                     op, x
