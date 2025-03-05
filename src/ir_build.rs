@@ -174,7 +174,7 @@ fn build_assign_expr(assign_expr: parse::AssignExpr) -> ir::AssignExpr {
     }
 }
 
-fn build_arg(arg: parse::Arg) -> Arg {
+fn build_arg<'a>(arg: parse::Arg) -> Arg {
     match arg {
         parse::Arg::ExprArg(expr) => ir::Arg::ExprArg(build_expr(expr)),
         parse::Arg::ExternArg(str) => ir::Arg::ExternArg(str),
@@ -209,9 +209,9 @@ fn build_stmt(stmt: parse::Stmt) -> ir::Stmt {
             body: build_block(body),
         },
         Stmt::While(cond, body) => ir::Stmt::While(build_expr(cond), build_block(body)),
-        Stmt::Return(expr) => ir::Stmt::Return(expr.map(build_expr)),
-        Stmt::Break => ir::Stmt::Break,
-        Stmt::Continue => ir::Stmt::Continue,
+        Stmt::Return(loc, expr) => ir::Stmt::Return(loc, expr.map(build_expr)),
+        Stmt::Break(loc) => ir::Stmt::Break(loc),
+        Stmt::Continue(loc) => ir::Stmt::Continue(loc),
     }
 }
 

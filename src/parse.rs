@@ -181,9 +181,9 @@ pub enum Stmt {
         body: Block,
     },
     While(OrExpr, Block),
-    Return(Option<OrExpr>),
-    Break,
-    Continue,
+    Return(ErrLoc, Option<OrExpr>),
+    Break(ErrLoc),
+    Continue(ErrLoc),
 }
 
 pub trait TokenErrIter<'a>: Clone + Iterator<Item = &'a (Token, ErrLoc)> {}
@@ -554,18 +554,18 @@ impl Parse for Stmt {
             ),
         );
         let parse_return = parse_concat(
-            parse_one(exactly(Key(Return))),
+            parse_one(exactly_with_loc(Key(Return))),
             parse_concat(
                 parse_or(OrExpr::parse, parse_nothing),
                 parse_one(exactly(Sym(Misc(Semicolon)))),
             ),
         );
         let parse_break = parse_concat(
-            parse_one(exactly(Key(Break))),
+            parse_one(exactly_with_loc(Key(Break))),
             parse_one(exactly(Sym(Misc(Semicolon)))),
         );
         let parse_continue = parse_concat(
-            parse_one(exactly(Key(Continue))),
+            parse_one(exactly_with_loc(Key(Continue))),
             parse_one(exactly(Sym(Misc(Semicolon)))),
         );
         if let Some((loc, (ass_ex, ()))) = parse_ass(tokens) {
@@ -605,15 +605,15 @@ impl Parse for Stmt {
             })
         } else if let Some(((), ((), (test, ((), block))))) = parse_while(tokens) {
             Some(Stmt::While(test, block))
-        } else if let Some(((), (maybe_expr, ()))) = parse_return(tokens) {
+        } else if let Some((loc, (maybe_expr, ()))) = parse_return(tokens) {
             Some(match maybe_expr {
-                Inl(expr) => Stmt::Return(Some(expr)),
-                Inr(()) => Stmt::Return(None),
+                Inl(expr) => Stmt::Return(loc, Some(expr)),
+                Inr(()) => Stmt::Return(loc, None),
             })
-        } else if let Some(((), ())) = parse_break(tokens) {
-            Some(Stmt::Break)
-        } else if let Some(((), ())) = parse_continue(tokens) {
-            Some(Stmt::Continue)
+        } else if let Some((loc, ())) = parse_break(tokens) {
+            Some(Stmt::Break(loc))
+        } else if let Some((loc, ())) = parse_continue(tokens) {
+            Some(Stmt::Continue(loc))
         } else {
             None
         }

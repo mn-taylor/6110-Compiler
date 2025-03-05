@@ -8,6 +8,7 @@ use parse::Field;
 use parse::Ident;
 use parse::Literal;
 use parse::Primitive;
+use scan::ErrLoc;
 use scan::{AddOp, EqOp, MulOp, RelOp};
 use std::fmt;
 
@@ -53,9 +54,9 @@ pub enum Stmt {
         body: Block,
     },
     While(WithLoc<Expr>, Block),
-    Return(Option<WithLoc<Expr>>),
-    Break,
-    Continue,
+    Return(ErrLoc, Option<WithLoc<Expr>>),
+    Break(ErrLoc),
+    Continue(ErrLoc),
 }
 
 pub enum AssignExpr {

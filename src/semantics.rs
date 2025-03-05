@@ -393,8 +393,8 @@ fn check_stmt(
 
             check_block(body, errors, scope, true, return_type);
         }
-        Stmt::Return(return_val) => {
-            if let Some(return_val) = return_val {
+        Stmt::Return(loc, return_val) => match return_val {
+            Some(return_val) => {
                 if let None = return_type {
                     errors.push((
                         return_val.loc,
@@ -406,17 +406,22 @@ fn check_stmt(
                     check_types(&[return_type], &return_val_type, return_val.loc, errors);
                 }
             }
-        }
-        Stmt::Break => {
+            None => {
+                if !matches!(return_type, None) {
+                    errors.push((*loc, format!("Function should return a value")))
+                }
+            }
+        },
+        Stmt::Break(loc) => {
             if !in_loop {
                 let error_message = "Break statement only allowed inside of loops".to_string();
-                errors.push((/*TODO*/ ErrLoc { line: 0, col: 0 }, error_message));
+                errors.push((*loc, error_message));
             }
         }
-        Stmt::Continue => {
+        Stmt::Continue(loc) => {
             if !in_loop {
                 let error_message = "Continue statement only allowed inside of loops".to_string();
-                errors.push((/*TODO*/ ErrLoc { line: 0, col: 0 }, error_message));
+                errors.push((*loc, error_message));
             }
         }
     }
