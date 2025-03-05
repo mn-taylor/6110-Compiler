@@ -41,8 +41,8 @@ impl fmt::Display for Primitive {
 
 #[derive(Debug, PartialEq)]
 pub enum Field {
-    Scalar(Primitive, Ident),
-    Array(Primitive, Ident, WithLoc<Literal>),
+    Scalar(Primitive, WithLoc<Ident>),
+    Array(Primitive, WithLoc<Ident>, WithLoc<Literal>),
 }
 
 impl fmt::Display for Field {
@@ -57,7 +57,7 @@ impl fmt::Display for Field {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Param {
     pub param_type: Primitive,
-    pub name: Ident,
+    pub name: WithLoc<Ident>,
 }
 
 // allowing negation here would be redundant, since negation appears in expr
@@ -136,7 +136,7 @@ pub enum Arg {
     ExternArg(String),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WithLoc<T> {
     pub val: T,
     pub loc: ErrLoc,
@@ -780,7 +780,7 @@ use Field::*;
 
 fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field>> {
     let parse_array_field_decl = parse_concat(
-        Ident::parse,
+        WithLoc::<Ident>::parse,
         parse_concat(
             parse_one(exactly(Sym(Misc(LBrack)))),
             parse_concat(
@@ -790,7 +790,7 @@ fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field
         ),
     );
     // subtle opportunity for bug: parse_array_field_decl needs to be on the left here
-    let parse_scalar_or_arr = parse_or(parse_array_field_decl, Ident::parse);
+    let parse_scalar_or_arr = parse_or(parse_array_field_decl, WithLoc::<Ident>::parse);
     let parse_field = parse_concat(
         Primitive::parse,
         parse_concat(
@@ -814,7 +814,7 @@ fn parse_field_decl<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Option<Vec<Field
 
 impl Parse for Param {
     fn parse_no_debug<'a>(tokens: &mut impl TokenErrIter<'a>) -> Option<Self> {
-        let param = parse_concat(Primitive::parse, Ident::parse);
+        let param = parse_concat(Primitive::parse, WithLoc::<Ident>::parse);
         let (param_type, name) = param(tokens)?;
         Some(Param { param_type, name })
     }

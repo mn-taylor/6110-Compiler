@@ -491,10 +491,16 @@ fn scan_sym(input: &mut (impl Clone + Iterator<Item = (ErrLoc, char)>)) -> Resul
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct ErrLoc {
     pub line: u32,
     pub col: u32,
+}
+
+impl fmt::Display for ErrLoc {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "line {}, col {}", self.line, self.col)
+    }
 }
 
 pub fn scan(input: String) -> Vec<(Result<Token, String>, ErrLoc)> {

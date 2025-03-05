@@ -14,7 +14,7 @@ pub fn build_program(program: parse::Program) -> Program {
 
 fn build_method(method: parse::Method) -> Method {
     Method {
-        name: method.name.val,
+        name: method.name,
         meth_type: method.meth_type,
         fields: method.body.fields,
         stmts: method.body.stmts.into_iter().map(build_stmt).collect(),

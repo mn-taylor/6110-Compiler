@@ -85,6 +85,17 @@ pub enum Type {
     ExtCall,
 }
 
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Prim(t) => write!(f, "{}", t),
+            Arr(t) => write!(f, "{} array", t),
+            Func(_, _) => write!(f, "method"),
+            ExtCall => write!(f, "external function"),
+        }
+    }
+}
+
 pub struct Block {
     pub fields: Vec<Field>,
     pub stmts: Vec<Stmt>,
@@ -95,7 +106,7 @@ pub struct Method {
     pub fields: Vec<Field>,
     pub stmts: Vec<Stmt>,
     pub params: Vec<Param>,
-    pub name: Ident,
+    pub name: WithLoc<Ident>,
 }
 
 impl fmt::Display for Method {
@@ -162,15 +173,15 @@ impl Scoped for Method {
 
 fn fields_scope<'a>(fields: &'a [Field]) -> impl Iterator<Item = (&'a String, Type)> {
     fields.into_iter().map(|f| match f {
-        Field::Scalar(t, id) => (&id.name, Prim(t.clone())),
-        Field::Array(t, id, _) => (&id.name, Arr(t.clone())),
+        Field::Scalar(t, id) => (&id.val.name, Prim(t.clone())),
+        Field::Array(t, id, _) => (&id.val.name, Arr(t.clone())),
     })
 }
 
 fn methods_scope(methods: &[Method]) -> impl Iterator<Item = (&String, Type)> {
     methods.into_iter().map(|m| {
         (
-            &m.name.name,
+            &m.name.val.name,
             Func(
                 m.params.iter().map(|m| m.param_type.clone()).collect(),
                 m.meth_type.clone(),
@@ -182,7 +193,7 @@ fn methods_scope(methods: &[Method]) -> impl Iterator<Item = (&String, Type)> {
 fn params_scope(params: &[Param]) -> impl Iterator<Item = (&String, Type)> {
     params
         .iter()
-        .map(|p| (&p.name.name, Prim(p.param_type.clone())))
+        .map(|p| (&p.name.val.name, Prim(p.param_type.clone())))
 }
 
 fn imports_scope(imports: &[WithLoc<Ident>]) -> impl Iterator<Item = (&String, Type)> {

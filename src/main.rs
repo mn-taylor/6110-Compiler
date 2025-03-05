@@ -89,7 +89,9 @@ fn main() {
             let checked_prog = semantics::check_program(&prog);
             // just marking the start and end of the error msgs bc it looks ugly in the terminal
             println!("\n****************** semantic error messages: ******************");
-            checked_prog.iter().for_each(|s| println!("{}", s));
+            checked_prog
+                .iter()
+                .for_each(|(loc, s)| println!("{}: {}", loc, s));
             println!("************************************");
             if !checked_prog.is_empty() {
                 panic!("your program sucks (semantically)");
