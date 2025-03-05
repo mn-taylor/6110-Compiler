@@ -1,0 +1,9 @@
+int foo() {
+    return true;
+}
+
+void bar() { 
+    return false;
+}
+
+void main () {}

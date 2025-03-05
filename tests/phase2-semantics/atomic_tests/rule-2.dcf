@@ -1,0 +1,10 @@
+void main ( ) {
+    a = 5; // should throw an error
+
+    if (a > 6) { // should throw an error
+        int b;
+        b += 5; // should be fine
+    }
+
+    b %= 4; // should be another error
+}

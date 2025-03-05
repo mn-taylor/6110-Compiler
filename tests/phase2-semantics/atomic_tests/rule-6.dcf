@@ -1,0 +1,9 @@
+import printf;
+
+void foo(int a) {}
+
+void main () {
+    printf("testing 123"); // should be ok
+
+    foo("testing 123"); // should fail since strings are not allowed as function arguments
+}

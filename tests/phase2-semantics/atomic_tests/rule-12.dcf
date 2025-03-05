@@ -1,0 +1,8 @@
+void main() {
+    int a;
+    int b[6];
+    int c;
+
+    c = len(b);
+    c = len(a); // should fail because a is not an array variable
+}

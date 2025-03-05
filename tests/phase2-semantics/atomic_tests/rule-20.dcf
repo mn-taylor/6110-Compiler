@@ -1,0 +1,21 @@
+void main () {
+    int a;
+    long b;
+
+    // should be ok
+    a = int(b);
+    a = int(a);
+    b = long(a);
+    b = long(b);
+
+    // should throw an error
+    a = long(a);
+    a = long(b);
+
+    b = int(a);
+    b = int(b);
+
+    a = int(true); 
+    b = long(5< 6);
+
+}

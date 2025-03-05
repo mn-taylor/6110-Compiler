@@ -1,0 +1,7 @@
+// test for illegal redefining of methods
+
+void foo(int b) { 
+    int b;
+}
+
+void main() {}

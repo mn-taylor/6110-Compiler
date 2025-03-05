@@ -27,3 +27,4 @@ for category in "legal" "illegal"; do
         fi
     done
 done
+

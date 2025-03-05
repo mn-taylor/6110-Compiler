@@ -1,0 +1,9 @@
+void main () {
+    int a[5];
+
+    // should be ok
+    a[0] = 5;
+
+    // should throw an error
+    a = 5;
+}

@@ -1,0 +1,10 @@
+int b;
+
+void foo(int a) {
+    foo(c); // c does not exist
+}
+
+void main () {
+    b = 6;
+    bar(b); // bar does not exist
+} 

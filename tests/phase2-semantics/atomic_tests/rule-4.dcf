@@ -1,0 +1,21 @@
+
+int foo ( int a ) {
+    return a;
+}
+
+void main ( ) {
+    int a, b;
+    long c;
+    
+
+    // incorrect number of arguments
+    a = foo(5, 6);
+    b = foo();
+
+    // incorrect type of arguments
+    a = foo(5L);
+    b = foo(true);
+
+    // incorrect return type
+    c = foo(5);
+}

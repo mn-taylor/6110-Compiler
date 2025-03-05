@@ -1,0 +1,10 @@
+// test for nested scope look up
+int a;
+
+void foo () {
+    if (true) {
+        a = 5;
+    }
+}
+
+void main(){}

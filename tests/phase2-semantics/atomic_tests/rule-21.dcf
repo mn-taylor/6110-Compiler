@@ -1,0 +1,11 @@
+void main () {
+    int a;
+
+    // should be ok
+    a = -2147483648;
+    a = 2147483647;
+
+    // should throw an error
+    a = -2147483649; // one out of bounds
+    a = 2147483648;
+}

@@ -35,7 +35,10 @@ pub fn check_program(program: &Program) -> Vec<(ErrLoc, String)> {
 
     let mut has_void_main = false;
     for (i, method) in program.methods.iter().enumerate() {
-        if method.name.val.name == "main".to_string() && method.meth_type == None {
+        if method.name.val.name == "main".to_string()
+            && method.meth_type == None
+            && method.params.len() == 0
+        {
             has_void_main = true;
         }
 
@@ -421,6 +424,9 @@ fn check_block(
     in_loop: bool,
     return_type: &Option<Primitive>,
 ) {
+    let descriptions = block.fields.iter().map(Field::describe).collect();
+    check_duplicates(descriptions, errors);
+
     check_fields(&block.fields, errors);
 
     let block_scope = block.scope(scope);

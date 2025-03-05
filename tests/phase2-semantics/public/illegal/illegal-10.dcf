@@ -1,0 +1,4 @@
+// name for method parameter can't be reused
+void foo(int a, long a){}
+
+void main () {}

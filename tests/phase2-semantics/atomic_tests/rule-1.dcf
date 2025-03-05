@@ -1,0 +1,18 @@
+int a;
+int a;
+
+void main () {
+    long b;
+    int b[5];
+    
+    if (true) {
+        bool c;
+        int c;
+
+        if (true) { // should not throw an error
+            int a;
+            long b;
+            bool c;
+        }
+    }
+}

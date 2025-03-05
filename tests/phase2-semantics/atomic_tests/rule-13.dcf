@@ -1,0 +1,9 @@
+void main(){
+    int i;
+    // conditions should be of type bool
+    if (5 + 6) {} 
+
+    while (5L - 0x6L) {}
+
+    for (i = 0; i+6; i+= 1){}
+}

@@ -1,0 +1,19 @@
+void main () {
+    int i;
+
+    // should be ok
+    while (true) {
+        break;
+        continue;
+    }
+
+    for (i=0; true; i++) {
+        break;
+        continue;
+    }
+
+    // should throw an error
+    break;
+    continue;
+
+}

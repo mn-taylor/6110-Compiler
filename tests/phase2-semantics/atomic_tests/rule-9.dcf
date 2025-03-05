@@ -1,0 +1,9 @@
+int a;
+
+void foo() {
+    int b;
+    b = a; // should be fine
+    b = c; // c does not exist
+}
+
+void main() {}

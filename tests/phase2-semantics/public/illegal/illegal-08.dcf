@@ -1,0 +1,6 @@
+// 
+int a;
+
+void main() {
+    b = a; // b has not been defined
+}
