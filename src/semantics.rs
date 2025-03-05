@@ -1,6 +1,7 @@
 use crate::ir;
 use crate::parse;
 use crate::scan;
+use clap::error;
 use ir::*;
 use parse::WithLoc;
 use parse::{Field, Ident, Literal, Param, Primitive};
@@ -244,9 +245,9 @@ fn check_literal(
             }
         }
         Literal::HexInt(s) => {
-            let s = maybe_negate(&format!("0x{}", s));
-            if s.parse::<i32>().is_err() {
-                let error_message = format!("Integer out of bounds, got 0x{s}");
+            let s = maybe_negate(&format!("{}", s));
+            if i32::from_str_radix(s.as_str(), 16).is_err() {
+                let error_message = format!("Integer out of bounds, got {s}");
                 errors.push((literal.loc, error_message));
                 None
             } else {
@@ -255,7 +256,7 @@ fn check_literal(
         }
         Literal::DecLong(s) => {
             let s = maybe_negate(s);
-            if s.parse::<i64>().is_err() {
+            if i64::from_str_radix(s.as_str(), 10).is_err() {
                 let error_message = format!("Long out of bounds, got {s}");
                 errors.push((literal.loc, error_message));
                 None
@@ -264,16 +265,25 @@ fn check_literal(
             }
         }
         Literal::HexLong(s) => {
-            let s = maybe_negate(&format!("0x{}", s));
-            if s.parse::<i64>().is_err() {
-                let error_message = format!("Long out of bounds, got 0x{s}");
+            let s = maybe_negate(&format!("{}", s));
+            if i64::from_str_radix(s.as_str(), 16).is_err() {
+                let error_message = format!("Long out of bounds, got {s}");
                 errors.push((literal.loc, error_message));
                 None
             } else {
                 Some(Primitive::LongType)
             }
         }
-        Literal::Bool(_) => Some(Primitive::BoolType),
+        Literal::Bool(_) => {
+            if negated {
+                // can't negate a boolean expression
+                let error_message = "Unary minus does not operate on booleans"; // change line later to include location
+                errors.push((ErrLoc { line: 0, col: 0 }, error_message.to_string()));
+                return None;
+            } else {
+                Some(Primitive::BoolType)
+            }
+        }
         Literal::Char(_) => Some(Primitive::IntType),
     }
 }
@@ -445,30 +455,52 @@ fn check_block(
         check_stmt(stmt, errors, &block_scope, in_loop, return_type);
     }
 }
-fn guess_right_type(left_type_option: Option<Primitive>, bop: &Bop) -> Option<Primitive> {
+fn guess_right_type<'a>(
+    left_type_option: Option<Primitive>,
+    bop: &'a Bop,
+    errors: &'a mut Vec<(ErrLoc, String)>,
+) -> Option<&'static [&'static Primitive]> {
     if let Some(left_type) = left_type_option {
         match left_type {
             Primitive::IntType => {
                 if *bop != Bop::Or && *bop != Bop::And {
-                    return Some(Primitive::IntType);
+                    match bop {
+                        Bop::RelBop(_) => {
+                            return Some(&[&Primitive::IntType, &Primitive::LongType])
+                        }
+                        _ => {}
+                    }
+                    return Some(&[&Primitive::IntType]);
                 } else {
+                    let error_message = format!("Int type not compatible with logical operations");
+                    errors.push((ErrLoc { line: 0, col: 0 }, error_message));
                     return None;
                 }
             }
             Primitive::LongType => {
                 if *bop != Bop::Or && *bop != Bop::And {
-                    return Some(Primitive::LongType);
+                    match bop {
+                        Bop::RelBop(_) => {
+                            return Some(&[&Primitive::IntType, &Primitive::LongType])
+                        }
+                        _ => {}
+                    }
+                    return Some(&[&Primitive::LongType]);
                 } else {
+                    let error_message = format!("Long type not compatible with logical operations");
+                    errors.push((ErrLoc { line: 0, col: 0 }, error_message)); // TODO make line more descriptive
                     return None;
                 }
             }
-            Primitive::BoolType => {
-                if *bop == Bop::And || *bop == Bop::Or {
-                    return Some(Primitive::BoolType);
-                } else {
+            Primitive::BoolType => match bop {
+                Bop::And | Bop::Or | Bop::EqBop(_) => return Some(&[&Primitive::BoolType]),
+                _ => {
+                    let error_message =
+                        format!("Bool type not compatible with arithmetic/relational operation");
+                    errors.push((ErrLoc { line: 0, col: 0 }, error_message)); // TODO make line more descriptive
                     return None;
                 }
-            }
+            },
         }
     } else {
         return None;
@@ -492,11 +524,13 @@ fn check_expr(
         Expr::Bin(left_expr, bop, right_expr) => {
             // check left expression
             let left_type = check_expr(left_expr.as_ref(), errors, scope);
-            let potential_right_type = guess_right_type(left_type, &bop);
+            let potential_right_type = guess_right_type(left_type, bop, errors);
             if let Some(expected_right_type) = potential_right_type {
                 let right_type = check_expr(right_expr.as_ref(), errors, scope);
-                if check_types(&[&expected_right_type], &right_type, expr.loc, errors) {
-                    return Some(convert_bop_to_primitive(&bop, expected_right_type));
+                if check_types(expected_right_type, &right_type, expr.loc, errors) {
+                    if let Some(actual_right_type) = right_type {
+                        return Some(convert_bop_to_primitive(&bop, actual_right_type));
+                    }
                 }
             }
             None

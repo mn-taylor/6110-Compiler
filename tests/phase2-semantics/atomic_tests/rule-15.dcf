@@ -5,9 +5,11 @@ void main () {
     printf(true==true);
     printf(5L!=6L);
     printf(100==0x20);
+    printf(0x5<10);
 
     // error
-    printf(true==0);
+    printf(true+true);
+    printf(true<5);
     printf(0x5!=10L);
-
+    
 }

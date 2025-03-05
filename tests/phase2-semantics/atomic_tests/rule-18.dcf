@@ -1,0 +1,22 @@
+void main () {
+    int a;
+    int b[64];
+    long c;
+    long d[25];
+    bool e;
+
+    // should be ok
+    a += 5 + 10 * a;
+    b[0] %= 20;
+    b[24]--;
+    c++;
+    
+    // should be wrong
+    e++;
+    e*=20;
+    e/=e;
+    a -= e;
+    c %= e; 
+    a += 20 + e;
+    e += 30;
+}

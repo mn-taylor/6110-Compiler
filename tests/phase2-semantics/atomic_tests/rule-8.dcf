@@ -6,4 +6,8 @@ void bar() {
     return false;
 }
 
+int zee(){
+    return;
+}
+
 void main () {}

@@ -2,12 +2,11 @@ import printf;
 
 void main( ) {
     printf(-1); // ok
-    printf(-0x5L); //  ok
+    printf(-5L); //  ok
     printf(-true); // should fail
 
     printf(5 + 6L); // should fail
     printf(9L % !true); // should fail
     
-
     printf(5 < 6L); // should be ok
 }
