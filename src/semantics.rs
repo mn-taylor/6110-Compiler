@@ -38,7 +38,7 @@ pub fn check_program(program: &Program) -> Vec<String> {
             has_void_main = true;
         }
 
-        check_method(&method, &mut errors, &program.scope_with_first_n_methods(i))
+        check_method(&method, &mut errors, &program.scope_with_first_n_methods(i+1))
     }
 
     if !has_void_main {
@@ -49,13 +49,42 @@ pub fn check_program(program: &Program) -> Vec<String> {
     errors
 }
 
+fn check_fields(fields: &[parse::Field], errors: &mut Vec<String>){
+    for field in fields { 
+        match field {
+            parse::Field::Scalar(_prim_type, _name)=>{}
+            parse::Field::Array(_prim_type, _name, literal)=>{
+                let literal_type = check_literal(literal, false, errors);
+
+                match literal_type {
+                    Some(Primitive::LongType)=> {
+                        let error_message = "Array sizes must be ints, found long".to_string();
+                        errors.push(error_message);
+                    }
+                    Some(Primitive::BoolType)=> {
+                        let error_message = "Array sizes must be int type, found bool".to_string();
+                        errors.push(error_message);
+                    }
+                    Some(Primitive::IntType)=> {}// Good case
+                    None => {} // Means that field size was an invalid int or long but the error for this has already be made in check literal.
+                }
+            }
+        }
+    }
+}
+
 fn check_method(method: &Method, errors: &mut Vec<String>, scope: &Scope) {
+    // checks that array declaration have valid sizes
+    check_fields(&method.fields, errors);
+
     let descriptions = method
         .params
         .iter()
         .map(Param::describe)
         .chain(method.fields.iter().map(Field::describe));
     check_duplicates(descriptions.collect(), errors);
+    
+
     let method_scope = method.scope(scope);
     for stmt in method.stmts.iter() {
         check_stmt(&stmt, errors, &method_scope, false, &method.meth_type);
@@ -115,6 +144,7 @@ fn check_location(
             None
         }
         Some(Type::Prim(p)) => Some(p.clone()),
+        Some(Type::Arr(p))=> Some(p.clone()),
         Some(x) => {
             errors.push(format!("Expected primitive, got {:?}", x));
             None
@@ -362,6 +392,8 @@ fn check_block(
     in_loop: bool,
     return_type: &Option<Primitive>,
 ) {
+    check_fields(&block.fields, errors);
+
     let block_scope = block.scope(scope);
 
     for stmt in block.stmts.iter() {
@@ -427,14 +459,28 @@ fn check_expr(expr: &Expr, errors: &mut Vec<String>, scope: &Scope) -> Option<Pr
                 }
             }
             let expr_type = check_expr(expr, errors, scope);
+            if expr_type.is_none() { // should return none if there is an error in the inner expression
+                return None 
+            }
+
             match op {
                 UnOp::Neg | UnOp::IntCast | UnOp::LongCast => {
-                    check_types(
+                    if check_types(
                         &[&Primitive::IntType, &Primitive::LongType],
                         &expr_type,
                         errors,
-                    );
-                    return expr_type; // if type isn't int or long, this is gonna be wrong but doesnt matter since thats an error anyway
+                    ) {
+                        if *op==UnOp::Neg { 
+                            return expr_type
+                        }else if *op==UnOp::IntCast {
+                            return Some(Primitive::IntType)
+                        } else { // long cast
+                            return Some(Primitive::LongType)
+                        }
+                    } else {
+                        return None // if type isn't int or long, this is gonna be wrong but doesnt matter since thats an error anyway
+                    }
+                     
                 }
                 UnOp::Not => {
                     if check_types(&[&Primitive::BoolType], &expr_type, errors) {

@@ -53,6 +53,7 @@ pub enum AssignExpr {
     IncrAssign(IncrOp),
 }
 
+#[derive(PartialEq)]
 pub enum UnOp {
     Neg,
     Not,

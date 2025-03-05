@@ -4,6 +4,7 @@ BASE_DIR="./tests"
 SCRIPT="./run.sh"
 TEST_TYPE="inter"
 
+./build.sh
 for category in "legal" "illegal"; do
     INPUT_DIR="$BASE_DIR/phase2-semantics/public/$category"
 
