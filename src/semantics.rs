@@ -15,7 +15,7 @@ pub fn check_program(program: &Program) -> Vec<(ErrLoc, String)> {
     let import_ids = program
         .imports
         .iter()
-        .map(|c| (c, format!("External function {}", c)));
+        .map(|c| (c, format!("External function {}", c.val)));
     let method_ids = program
         .methods
         .iter()
@@ -102,7 +102,7 @@ trait Describe {
 
 impl Describe for Param {
     fn describe(&self) -> (&WithLoc<Ident>, String) {
-        (&self.name, format!("parameter {}", self.name))
+        (&self.name, format!("parameter {}", self.name.val))
     }
 }
 
@@ -631,7 +631,10 @@ fn check_assign_expr(
                 if op.val.is_arith() && !(t == Primitive::IntType || t == Primitive::LongType) {
                     errors.push((
                         op.loc,
-                        format!("Assignment operator {} incompatible with type {}", op, t),
+                        format!(
+                            "Assignment operator {} incompatible with type {}",
+                            op.val, t
+                        ),
                     ));
                 } else {
                     check_types(&[&t], &rhs_type, rhs.loc, errors);
@@ -644,7 +647,7 @@ fn check_assign_expr(
                 op.loc,
                 format!(
                     "Did not expect increment operator {} to be applied to type {}",
-                    op, x
+                    op.val, x
                 ),
             )),
         },

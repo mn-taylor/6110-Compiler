@@ -48,8 +48,8 @@ pub enum Field {
 impl fmt::Display for Field {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Scalar(t, id) => write!(f, "{} {}", t, id),
-            Array(t, id, _) => write!(f, "{} array {}", t, id),
+            Scalar(t, id) => write!(f, "{} {}", t, id.val),
+            Array(t, id, _) => write!(f, "{} array {}", t, id.val),
         }
     }
 }

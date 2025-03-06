@@ -121,7 +121,7 @@ pub struct Method {
 
 impl fmt::Display for Method {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "method {}", self.name)
+        write!(f, "method {}", self.name.val)
     }
 }
 
