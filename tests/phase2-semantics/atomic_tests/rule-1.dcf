@@ -1,5 +1,16 @@
+import blob;
+import printf;
+import car;
+import blob;
 int a;
 int a;
+int blob;
+
+void blob () {}
+
+void f () {}
+
+int f() {}
 
 void main () {
     long b;

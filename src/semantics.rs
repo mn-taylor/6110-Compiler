@@ -4,7 +4,6 @@ use crate::scan;
 use ir::*;
 use parse::WithLoc;
 use parse::{Field, Ident, Literal, Param, Primitive};
-use scan::AssignOp;
 use scan::ErrLoc;
 use std::iter::zip;
 
@@ -449,6 +448,7 @@ fn check_block(
         check_stmt(stmt, errors, &block_scope, in_loop, return_type);
     }
 }
+
 fn guess_right_type<'a>(
     left_loc: ErrLoc,
     left_type_option: Option<Primitive>,
@@ -459,13 +459,7 @@ fn guess_right_type<'a>(
         match left_type {
             Primitive::IntType => {
                 if *bop != Bop::Or && *bop != Bop::And {
-                    match bop {
-                        Bop::RelBop(_) => {
-                            return Some(&[&Primitive::IntType, &Primitive::LongType])
-                        }
-                        _ => {}
-                    }
-                    return Some(&[&Primitive::IntType]);
+                    Some(&[&Primitive::IntType])
                 } else {
                     let error_message = format!("Int type not compatible with logical operations");
                     errors.push((left_loc, error_message));
@@ -474,13 +468,7 @@ fn guess_right_type<'a>(
             }
             Primitive::LongType => {
                 if *bop != Bop::Or && *bop != Bop::And {
-                    match bop {
-                        Bop::RelBop(_) => {
-                            return Some(&[&Primitive::IntType, &Primitive::LongType])
-                        }
-                        _ => {}
-                    }
-                    return Some(&[&Primitive::LongType]);
+                    Some(&[&Primitive::LongType])
                 } else {
                     let error_message = format!("Long type not compatible with logical operations");
                     errors.push((left_loc, error_message)); // TODO make line more descriptive
@@ -629,25 +617,6 @@ fn check_arg(
     }
 }
 
-fn check_regular_assign(
-    op: &WithLoc<AssignOp>,
-    rhs: &WithLoc<Expr>,
-    errors: &mut Vec<(ErrLoc, String)>,
-    scope: &Scope,
-    lhs_type: Option<Primitive>,
-) {
-    if let Some(t) = lhs_type {
-        if op.val.is_arith() && !(t == Primitive::IntType || t == Primitive::LongType) {
-            errors.push((
-                op.loc,
-                format!("Assignment operator {} incompatible with type {}", op, t),
-            ));
-        } else {
-            check_types(&[&t], &check_expr(rhs, errors, scope), rhs.loc, errors);
-        }
-    }
-}
-
 // left_type is Option<Type> because if left side failed to typecheck, we still want to sanity-check rhs but do not want to complain about its type
 fn check_assign_expr(
     assign_expr: &AssignExpr,
@@ -657,7 +626,17 @@ fn check_assign_expr(
 ) {
     match assign_expr {
         AssignExpr::RegularAssign(op, rhs) => {
-            check_regular_assign(op, rhs, errors, scope, lhs_type)
+            let rhs_type = check_expr(rhs, errors, scope);
+            if let Some(t) = lhs_type {
+                if op.val.is_arith() && !(t == Primitive::IntType || t == Primitive::LongType) {
+                    errors.push((
+                        op.loc,
+                        format!("Assignment operator {} incompatible with type {}", op, t),
+                    ));
+                } else {
+                    check_types(&[&t], &rhs_type, rhs.loc, errors);
+                }
+            }
         }
         AssignExpr::IncrAssign(op) => match lhs_type {
             Some(Primitive::IntType) | Some(Primitive::LongType) | None => (),

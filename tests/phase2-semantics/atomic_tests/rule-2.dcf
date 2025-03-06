@@ -1,9 +1,61 @@
-void main ( ) {
-    a = 5; // should throw an error
+import blah;
 
+void f() {
+     bool x;
+     x += blah;
+     x = blah() < 4232L;
+     f();
+     main();
+}
+
+int g() {
+    return;
+}
+
+bool h() {
+     return 423L;
+}
+
+void main ( ) {
+    bool x;
+    int b;
+    int a;
+    x = blah();
+    a = 5; // should throw an error
+    f();
     if (a > 6) { // should throw an error
-        int b;
-        b += 5; // should be fine
+	int c;
+        c += 5; // should be fine
+	d /= 5L;
+    } else {
+      	int d;
+	d /= 5L;
+        c = 5;
+	return 8;
+	break;
+	continue;
+    }
+
+    if (true) {
+       blah("basldufsadf", 342, 3L + 4L);
+       return;
+       while (blah() < 4232L) {
+       	     int d;
+       	     for (a = 5; a <= 2; a++) {
+	     	 d ++;
+	     	 b = 5;
+		 f();
+		 main();
+		 g();
+		 return;
+		 if (false) {
+			break;
+			continue;
+		 }
+	     }
+       }
+       b = 7;
+       continue;
     }
 
     b %= 4; // should be another error
