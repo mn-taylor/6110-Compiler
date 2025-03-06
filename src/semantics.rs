@@ -31,7 +31,7 @@ pub fn check_program(program: &Program) -> Vec<(ErrLoc, String)> {
         &mut errors,
     );
 
-    // check main exists
+    check_fields(&program.fields, &mut errors);
 
     let mut has_void_main = false;
     for (i, method) in program.methods.iter().enumerate() {
@@ -49,6 +49,7 @@ pub fn check_program(program: &Program) -> Vec<(ErrLoc, String)> {
         )
     }
 
+    // check main exists
     if !has_void_main {
         let error_message = "Main method not defined";
         errors.push((ErrLoc { line: 0, col: 0 }, error_message.to_string()));
