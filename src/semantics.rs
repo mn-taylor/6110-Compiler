@@ -62,17 +62,48 @@ fn check_fields(fields: &[parse::Field], errors: &mut Vec<(ErrLoc, String)>) {
         match field {
             parse::Field::Scalar(_prim_type, _name) => {}
             parse::Field::Array(_prim_type, _name, literal) => {
-                let literal_type = check_literal(literal, false, errors);
-
-                match literal_type {
-                    Some(Primitive::IntType) => {} // Good case
-                    Some(wrongt) => {
-                        errors.push((
-                            literal.loc,
-                            format!("Array length must be int, found {}", wrongt),
-                        ));
+                match &literal.val {
+                    Literal::DecInt(s) => {
+                        let arr_size = s.parse::<i32>();
+                        match arr_size {
+                            Ok(int) => {
+                                if int < 1 {
+                                    let error_message = format!("Arrays must be declared to have size at least one, found {}", int);
+                                    errors.push((literal.loc, error_message));
+                                }
+                            }
+                            Err(_) => {
+                                let error_message = format!("Integer out of bounds, got {s}");
+                                errors.push((literal.loc, error_message));
+                            }
+                        }
                     }
-                    None => {} // Means that field size was an invalid int or long but the error for this has already be made in check literal.
+                    Literal::HexInt(s) => {
+                        let arr_size = i32::from_str_radix(s.as_str(), 16);
+                        match arr_size {
+                            Ok(int) => {
+                                if int < 1 {
+                                    let error_message = format!("Arrays must be declared to have size at least one, found {}", int);
+                                    errors.push((literal.loc, error_message));
+                                }
+                            }
+                            Err(_) => {
+                                let error_message = format!("Integer out of bounds, got {s}");
+                                errors.push((literal.loc, error_message));
+                            }
+                        }
+                    }
+                    _ => {
+                        let literal_type = check_literal(literal, false, errors);
+                        match literal_type {
+                            Some(Primitive::IntType) => {}
+                            Some(wrongt) => errors.push((
+                                literal.loc,
+                                format!("Array length must be int type, found {}", wrongt),
+                            )),
+                            _ => {}
+                        }
+                    }
                 }
             }
         }
