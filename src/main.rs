@@ -149,8 +149,6 @@ fn main() {
                     token.format_for_output(),
                     loc
                 );
-                println!("***********************************************************");
-                panic!("oops didnt parse everything");
             }
             println!("***********************************************************");
 
