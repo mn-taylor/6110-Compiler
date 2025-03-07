@@ -32,14 +32,14 @@ fn write_tokens(
 
 use std::cell::RefCell;
 
-struct FancyIter<T, U: Iterator<Item = T>> {
+struct FancyIter<'a, T, U: Iterator<Item = T>> {
     iter: U,
     next_idx: u32,
-    glob_next_idx: RefCell<u32>,
-    glob_last_val: RefCell<Option<T>>,
+    glob_next_idx: &'a RefCell<u32>,
+    glob_last_val: &'a RefCell<Option<T>>,
 }
 
-impl<T: Clone, U: Iterator<Item = T>> Iterator for FancyIter<T, U> {
+impl<'a, T: Clone, U: Iterator<Item = T>> Iterator for FancyIter<'a, T, U> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         let mut glob_next_idx = self.glob_next_idx.borrow_mut();
@@ -51,6 +51,32 @@ impl<T: Clone, U: Iterator<Item = T>> Iterator for FancyIter<T, U> {
         }
         self.next_idx += 1;
         next_val
+    }
+}
+
+impl<'a, T: Clone, U: Iterator<Item = T>> FancyIter<'a, T, U> {
+    fn new(it: U, glob_next_idx: &'a RefCell<u32>, glob_last_val: &'a RefCell<Option<T>>) -> Self {
+        FancyIter {
+            iter: it,
+            next_idx: 0,
+            glob_next_idx,
+            glob_last_val,
+        }
+    }
+
+    fn last_val(&self) -> Option<T> {
+        self.glob_last_val.borrow().clone()
+    }
+}
+
+impl<'a, T: Clone, U: Clone + Iterator<Item = T>> Clone for FancyIter<'a, T, U> {
+    fn clone(&self) -> Self {
+        FancyIter {
+            iter: self.iter.clone(),
+            next_idx: self.next_idx,
+            glob_next_idx: self.glob_next_idx,
+            glob_last_val: self.glob_last_val,
+        }
     }
 }
 
@@ -109,13 +135,24 @@ fn main() {
                     }
                 }
             }
-            println!("************************************");
-            let mut tokens = tokens.iter();
+            println!("**********************************************************");
+            let initial_idx = RefCell::new(0);
+            let initial_last_val = RefCell::new(None);
+            let mut tokens = FancyIter::new(tokens.iter(), &initial_idx, &initial_last_val);
 
             let ast = parse::parse_program(&mut tokens);
+            println!("\n***************** parsing error messages: *****************");
             if tokens.next().is_some() {
-                panic!("oops didnt parse everythign");
+                let (token, loc) = tokens.last_val().expect("if tokens.next is some then certainly the parser should've looked at at least one value from the iterator...");
+                println!(
+                    "parser failed near token `{}` at {}",
+                    token.format_for_output(),
+                    loc
+                );
+                println!("***********************************************************");
+                panic!("oops didnt parse everything");
             }
+            println!("***********************************************************");
 
             let prog = ir_build::build_program(ast);
             let checked_prog = semantics::check_program(&prog);
@@ -124,7 +161,7 @@ fn main() {
             checked_prog
                 .iter()
                 .for_each(|(loc, s)| println!("{}: {}", loc, s));
-            println!("************************************");
+            println!("**************************************************************");
             if !checked_prog.is_empty() {
                 panic!("your program has semantic errors");
             }
