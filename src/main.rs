@@ -30,6 +30,30 @@ fn write_tokens(
     }
 }
 
+use std::cell::RefCell;
+
+struct FancyIter<T, U: Iterator<Item = T>> {
+    iter: U,
+    next_idx: u32,
+    glob_next_idx: RefCell<u32>,
+    glob_last_val: RefCell<Option<T>>,
+}
+
+impl<T: Clone, U: Iterator<Item = T>> Iterator for FancyIter<T, U> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut glob_next_idx = self.glob_next_idx.borrow_mut();
+        let mut glob_last_val = self.glob_last_val.borrow_mut();
+        let next_val = self.iter.next();
+        if *glob_next_idx == self.next_idx {
+            *glob_next_idx = self.next_idx + 1;
+            *glob_last_val = next_val.clone();
+        }
+        self.next_idx += 1;
+        next_val
+    }
+}
+
 fn main() {
     let args = utils::cli::parse();
     let input = std::fs::read_to_string(&args.input).expect("Filename is incorrect.");
