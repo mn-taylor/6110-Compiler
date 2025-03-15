@@ -221,3 +221,29 @@ impl Program {
         )
     }
 }
+
+use std::collections::HashMap;
+pub struct LowScope<'a> {
+    head: HashMap<&'a String, (Type, u32)>,
+    tail: Option<&'a Scope<'a>>,
+}
+//
+impl<'a> LowScope<'a> {
+    pub fn local_lookup(&self, id: &Ident) -> Option<&(Type, u32)> {
+        todo!()
+    }
+
+    pub fn lookup(&self, id: &Ident) -> Option<&(Type, u32)> {
+        todo!()
+    }
+
+    // fn new(
+    //     local_scope: HashMap<&'a String, Type>,
+    //     parent_scope: Option<&'a Scope<'a>>,
+    // ) -> Scope<'a> {
+    //     Scope {
+    //         head: local_scope,
+    //         tail: parent_scope,
+    //     }
+    // }
+}

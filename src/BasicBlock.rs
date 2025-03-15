@@ -1,36 +1,54 @@
 struct BasicBlock {
-    parents: Vec<BasicBlock>,
-    children: Vec<BasicBlock>,
+    // parents: Vec<BasicBlock>,
     body: Vec<Instructions>,
+    jump_loc: Jump,
 }
 
-enum Instructuins {
+enum Jump {
+    uncond(&BasicBlock),
+    cond {
+        source: Var,
+        true_block: &BasicBlock,
+        false_block: &BasicBlock,
+    },
+    nowhere,
+}
+
+enum Instructions {
     threeOp {
-        source1: Source,
-        source2: Source,
-        dest: Source,
+        source1: Var,
+        source2: Var,
+        dest: Var,
         op: BinOp,
     },
     twoOp {
-        source1: Source,
-        dest: Source,
+        source1: Var,
+        dest: Var,
         op: UnOp,
     },
-    oneOp {
-        dest: Source,
+    constant {
+        dest: Var,
         constant: i64,
     },
-    uncoditionJump {
-        label: BasicBlock,
-    },
-    conditionalJump {
-        source: Source,
-        jumptype: JumpType,
-        ifblock: BasicBlock,
-        elseblock: BasicBlock,
-    },
+    ret(Option<Var>),
+    call(String, Vec<Arg>),
 }
 
-struct Source {
-    name: string,
+enum Arg {
+    VarArg(Var),
+    StrArg(String),
+}
+
+enum Var {
+    Scalar {
+        id: u32,
+        name: String,
+        typ: Primitive,
+    },
+    ArrIdx {
+        id: u32,
+        name: String,
+        idx: i32,
+        typ: Primitive,
+    },
 }
