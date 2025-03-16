@@ -129,17 +129,17 @@ impl fmt::Display for Method {
 use Type::*;
 
 use std::collections::HashMap;
-pub struct Scope<'a> {
-    head: HashMap<&'a String, Type>,
-    tail: Option<&'a Scope<'a>>,
+pub struct Scope<'a, T> {
+    head: HashMap<&'a String, T>,
+    tail: Option<&'a Scope<'a, T>>,
 }
 
-impl<'a> Scope<'a> {
-    pub fn local_lookup(&self, id: &Ident) -> Option<&Type> {
+impl<'a, T> Scope<'a, T> {
+    pub fn local_lookup(&self, id: &Ident) -> Option<&T> {
         self.head.get(&id.name)
     }
 
-    pub fn lookup(&self, id: &Ident) -> Option<&Type> {
+    pub fn lookup(&self, id: &Ident) -> Option<&T> {
         match self.head.get(&id.name) {
             Some(t) => Some(t),
             None => match self.tail {
@@ -149,10 +149,10 @@ impl<'a> Scope<'a> {
         }
     }
 
-    fn new(
-        local_scope: HashMap<&'a String, Type>,
-        parent_scope: Option<&'a Scope<'a>>,
-    ) -> Scope<'a> {
+    pub fn new(
+        local_scope: HashMap<&'a String, T>,
+        parent_scope: Option<&'a Scope<'a, T>>,
+    ) -> Scope<'a, T> {
         Scope {
             head: local_scope,
             tail: parent_scope,
@@ -161,7 +161,7 @@ impl<'a> Scope<'a> {
 }
 
 pub trait Scoped {
-    fn scope<'a>(&'a self, parent: &'a Scope<'a>) -> Scope<'a> {
+    fn scope<'a>(&'a self, parent: &'a Scope<'a, Type>) -> Scope<'a, Type> {
         Scope::new(self.local_scope(), Some(parent))
     }
     fn local_scope<'a>(&'a self) -> HashMap<&'a String, Type>;
@@ -211,7 +211,10 @@ fn imports_scope(imports: &[WithLoc<Ident>]) -> impl Iterator<Item = (&String, T
 }
 
 impl Program {
-    pub fn scope_with_first_n_methods<'a>(self: &'a Program, num_methods: usize) -> Scope<'a> {
+    pub fn scope_with_first_n_methods<'a>(
+        self: &'a Program,
+        num_methods: usize,
+    ) -> Scope<'a, Type> {
         Scope::new(
             imports_scope(&self.imports)
                 .chain(fields_scope(&self.fields))
@@ -220,30 +223,4 @@ impl Program {
             None,
         )
     }
-}
-
-use std::collections::HashMap;
-pub struct LowScope<'a> {
-    head: HashMap<&'a String, (Type, u32)>,
-    tail: Option<&'a Scope<'a>>,
-}
-//
-impl<'a> LowScope<'a> {
-    pub fn local_lookup(&self, id: &Ident) -> Option<&(Type, u32)> {
-        todo!()
-    }
-
-    pub fn lookup(&self, id: &Ident) -> Option<&(Type, u32)> {
-        todo!()
-    }
-
-    // fn new(
-    //     local_scope: HashMap<&'a String, Type>,
-    //     parent_scope: Option<&'a Scope<'a>>,
-    // ) -> Scope<'a> {
-    //     Scope {
-    //         head: local_scope,
-    //         tail: parent_scope,
-    //     }
-    // }
 }

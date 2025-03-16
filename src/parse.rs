@@ -61,7 +61,7 @@ pub struct Param {
 }
 
 // allowing negation here would be redundant, since negation appears in expr
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     DecInt(String),
     HexInt(String),
