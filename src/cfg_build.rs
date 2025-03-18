@@ -1,5 +1,7 @@
 use crate::{
-    cfg, ir, parse,
+    cfg,
+    ir::{self, Program},
+    parse,
     scan::{self, IncrOp},
 };
 use cfg::{Arg, BasicBlock, Instruction, Jump, Type, Var};
@@ -23,7 +25,8 @@ struct State<'a> {
     continue_loc: Option<&'a BasicBlock<'a>>,
     last_name: u32,
     all_blocks: Vec<BasicBlock<'a>>,
-    all_arrays: Vec<String>,
+    all_fields: Vec<Field>,
+    // all_arrays: Vec<String>,
 }
 
 fn gen_name(st: &mut State) -> u32 {
@@ -38,6 +41,44 @@ fn gen_temp(typ: Primitive, st: &mut State) -> Var {
         typ,
         name: "temp".to_string(),
     }
+}
+
+fn lin_program<'a>(program: Program) -> State<'a> {
+    let mut st: State = State {
+        break_loc: None,
+        continue_loc: None,
+        last_name: 0,
+        all_blocks: vec![],
+        all_fields: vec![],
+    };
+
+    // Get the local scope from the program
+    let scope: Scope<'a> = program.local_scope(&mut st);
+
+    // Process methods
+    for method in program.methods {
+        let _ = lin_method(method, &mut st, &scope);
+    }
+
+    st
+}
+
+fn lin_method<'a>(
+    method: Method,
+    st: &'a mut State<'a>,
+    scope: &Scope,
+) -> (&'a BasicBlock<'a>, &'a BasicBlock<'a>) {
+    let fst = new_noop(st);
+    let mut last = fst;
+    let method_scope = method.scope(scope, st);
+
+    for s in method.stmts {
+        let (start, end) = lin_stmt(s, st, &method_scope);
+        last.jump_loc = Jump::Uncond(start);
+        last = end;
+    }
+
+    return (fst, last);
 }
 
 fn lin_branch<'a>(
@@ -108,7 +149,7 @@ fn lin_expr<'a>(
                     let (t2, t2start, t2end) = lin_expr(e2.val, st, scope);
                     t1end.jump_loc = Jump::Uncond(&t2start);
                     let t3 = gen_temp(infer_type(t1.get_typ(), op), st);
-                    let end = BasicBlock {
+                    let mut end = BasicBlock {
                         body: vec![Instruction::ThreeOp {
                             source1: t1,
                             source2: t2,
@@ -174,7 +215,7 @@ fn lin_expr<'a>(
 
             let start = new_noop(st);
             let mut prev_block = start;
-            let temp_args: Vec<Arg> = vec![];
+            let mut temp_args: Vec<Arg> = vec![];
             for arg in args {
                 match arg {
                     ir::Arg::ExprArg(WithLoc { val: e1, loc: _ }) => {
@@ -195,14 +236,17 @@ fn lin_expr<'a>(
                 }
             }
 
-            let return_val: cfg::Var = gen_temp(st.scope(id.val), st);
-            let call_instr = cfg::Instruction::Call(func_name, temp_args, Some(return_val));
-            let end = cfg::BasicBlock {
+            let ret_val = match scope.lookup(&id.val) {
+                Some((Type::Prim(t), _)) => gen_temp(t.clone(), st),
+                _ => panic!("Should not get here. function calls within expression must have non-void return type"),
+            };
+            let call_instr = cfg::Instruction::Call(func_name, temp_args, Some(ret_val));
+            let mut end = cfg::BasicBlock {
                 body: vec![call_instr],
                 jump_loc: Jump::Nowhere,
             };
             st.all_blocks.push(end);
-            return (return_val, start, &mut end);
+            return (ret_val, start, &mut end);
         }
     }
 }
@@ -215,6 +259,7 @@ fn lin_block<'a>(
     let fst = new_noop(st);
     let mut last = fst;
     let block_scope = b.scope(scope, st);
+
     for s in b.stmts {
         let (start, end) = lin_stmt(s, st, &block_scope);
         last.jump_loc = Jump::Uncond(start);
@@ -276,7 +321,7 @@ fn lin_stmt<'a>(
 
             let start = new_noop(st);
             let mut prev_block = start;
-            let temp_args: Vec<Arg> = vec![];
+            let mut temp_args: Vec<Arg> = vec![];
             for arg in args {
                 match arg {
                     ir::Arg::ExprArg(WithLoc { val: e1, loc: _ }) => {
@@ -297,8 +342,13 @@ fn lin_stmt<'a>(
                 }
             }
 
-            let return_val: cfg::Var = gen_temp(st.scope(id.val), st);
-            let call_instr = cfg::Instruction::Call(func_name, temp_args, Some(return_val));
+            // lookup method and get type
+            let ret_val = match scope.lookup(&id.val) {
+                Some((Type::Prim(t), _)) => Some(gen_temp(t.clone(), st)),
+                _ => None,
+            };
+
+            let call_instr = cfg::Instruction::Call(func_name, temp_args, ret_val);
             let end = cfg::BasicBlock {
                 body: vec![call_instr],
                 jump_loc: Jump::Nowhere,
@@ -454,7 +504,7 @@ fn lin_assign_expr<'a>(
     st: &'a mut State,
     scope: &Scope,
 ) -> (&'a BasicBlock<'a>, &'a BasicBlock<'a>) {
-    let start: BasicBlock;
+    let start: &BasicBlock;
     let mut end: BasicBlock;
     match assign_expr {
         AssignExpr::RegularAssign(op, rhs) => {
@@ -481,7 +531,7 @@ fn lin_assign_expr<'a>(
         }
         AssignExpr::IncrAssign(op) => {
             let t1 = gen_temp(Primitive::IntType, st);
-            start = &BasicBlock {
+            let start = BasicBlock {
                 body: vec![Instruction::Constant {
                     dest: t1,
                     constant: 1,
@@ -578,8 +628,75 @@ pub trait Scoped {
     fn local_scope<'a>(&'a self, st: &'a mut State<'a>) -> HashMap<&'a String, (Type, u32)>;
 }
 
+fn imports_scope(
+    imports: &Vec<WithLoc<parse::Ident>>,
+) -> impl Iterator<Item = (&String, (Type, u32))> {
+    let default: u32 = 0;
+    imports
+        .iter()
+        .map(move |import| (&import.val.name, (Type::ExtCall, default)))
+}
+
+fn outer_methods_scope(methods: &Vec<Method>) -> impl Iterator<Item = (&String, (Type, u32))> {
+    methods.iter().map(|method| {
+        let default: u32 = 0;
+        (
+            &method.name.val.name,
+            (
+                Type::Func(
+                    method
+                        .params
+                        .iter()
+                        .map(|param| param.param_type.clone())
+                        .collect::<Vec<_>>(),
+                    method.meth_type.clone(),
+                ),
+                default,
+            ),
+        )
+    })
+}
+
+fn program_scope<'a>(
+    program: &'a Program,
+    st: &'a mut State<'a>,
+) -> impl Iterator<Item = (&'a String, (Type, u32))> {
+    imports_scope(&program.imports)
+        .chain(outer_methods_scope(&program.methods))
+        .chain(fields_scope(&program.fields, st))
+}
+
+fn method_scope<'a>(
+    method: &'a Method,
+    st: &'a mut State<'a>,
+) -> impl Iterator<Item = (&'a String, (Type, u32))> {
+    let mut params: Vec<(&String, Type)> = method
+        .params
+        .iter()
+        .map(|param| (&param.name.val.name, Type::Prim(param.param_type.clone())))
+        .collect::<Vec<_>>();
+
+    let fields = &mut method
+        .fields
+        .iter()
+        .map(|field| match field {
+            Field::Scalar(t, id) => (&id.val.name, Type::Prim(t.clone())),
+            Field::Array(t, id, len) => (
+                &id.val.name,
+                Type::Arr(t.clone(), lin_literal(len.val.clone()).1 as i32),
+            ),
+        })
+        .collect::<Vec<_>>();
+
+    params.append(fields);
+    params.into_iter().map(|combination| {
+        let (id, t) = combination;
+        (id, (t, gen_name(st)))
+    })
+}
+
 fn fields_scope<'a>(
-    fields: &'a [Field],
+    fields: &'a Vec<Field>,
     st: &'a mut State<'a>,
 ) -> impl Iterator<Item = (&'a String, (Type, u32))> {
     fields.into_iter().map(|f| match f {
@@ -594,17 +711,20 @@ fn fields_scope<'a>(
     })
 }
 
+impl Program {
+    fn local_scope<'a>(&'a self, st: &'a mut State<'a>) -> Scope<'a> {
+        Scope::new(program_scope(self, st).collect(), None)
+    }
+}
+
+impl Scoped for Method {
+    fn local_scope<'a>(&'a self, st: &'a mut State<'a>) -> HashMap<&'a String, (Type, u32)> {
+        method_scope(&self, st).collect()
+    }
+}
+
 impl Scoped for Block {
     fn local_scope<'a>(&'a self, st: &'a mut State<'a>) -> HashMap<&'a String, (Type, u32)> {
         fields_scope(&self.fields, st).collect()
     }
 }
-
-// TODO.  We haven't thought about methods yet.
-/*impl Scoped for Method {
-    fn local_scope<'a>(&'a self) -> HashMap<&'a String, Type> {
-        params_scope(&self.params)
-            .chain(fields_scope(&self.fields))
-            .collect()
-    }
-}*/
