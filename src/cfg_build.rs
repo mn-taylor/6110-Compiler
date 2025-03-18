@@ -9,12 +9,12 @@ use ir::{AssignExpr, Block, Bop, Expr, Location, Method, UnOp};
 use parse::{Field, Literal, Primitive, WithLoc};
 use scan::{AddOp, AssignOp, ErrLoc, MulOp};
 
-fn new_noop<'a>(st: &mut State<'a>) -> &'a BasicBlock<'static> {
+fn new_noop<'a>(st: &mut State<'a>) -> BasicBlock<'static> {
     let ret = BasicBlock {
         body: vec![],
         jump_loc: Jump::Nowhere,
     };
-    st.all_blocks.push(ret);
+    st.all_blocks.push(&ret);
     &ret
 }
 

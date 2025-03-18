@@ -3,6 +3,7 @@ use crate::parse;
 use ir::{Bop, UnOp};
 use parse::Primitive;
 
+#[derive(Debug, Clone)]
 pub struct BasicBlock<'a> {
     // parents: Vec<BasicBlock>,
     pub body: Vec<Instruction>,
@@ -63,7 +64,7 @@ pub enum Var {
     ArrIdx {
         id: u32,
         name: String,
-        idx: Var,
+        idx: u32, // should change here
         typ: Primitive,
     },
 }
