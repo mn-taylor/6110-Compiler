@@ -63,7 +63,7 @@ fn lin_program(program: &Program) -> State {
     };
 
     // Get the local scope from the program
-    let scope = program.local_scope(&mut st);
+    let scope = program.scope(None, &mut st);
 
     // Process methods
     for method in &program.methods {
@@ -598,10 +598,10 @@ fn lin_location(loc: Location, st: &mut State, scope: &Scope) -> (Var, BlockLabe
 use std::collections::HashMap;
 
 pub trait Scoped {
-    fn scope<'a>(&'a self, parent: &'a Scope, st: &'a mut State) -> Scope<'a> {
-        Scope::new(self.local_scope(st), Some(parent))
+    fn scope<'a>(&'a self, parent: Option<&'a Scope>, st: &mut State) -> Scope<'a> {
+        Scope::new(self.local_scope(st), parent)
     }
-    fn local_scope<'a>(&'a self, st: &'a mut State) -> HashMap<&'a String, (Type, u32)>;
+    fn local_scope<'a>(&'a self, st: &mut State) -> HashMap<&'a String, (Type, u32)>;
 }
 
 fn imports_scope(
@@ -633,19 +633,10 @@ fn outer_methods_scope(methods: &Vec<Method>) -> impl Iterator<Item = (&String, 
     })
 }
 
-fn program_scope<'a>(
-    program: &'a Program,
-    st: &'a mut State,
-) -> impl Iterator<Item = (&'a String, (Type, u32))> {
-    imports_scope(&program.imports)
-        .chain(outer_methods_scope(&program.methods))
-        .chain(fields_scope(&program.fields, st))
-}
-
-fn method_scope<'a>(
+fn method_scope<'a, 'b>(
     method: &'a Method,
-    st: &'a mut State,
-) -> impl Iterator<Item = (&'a String, (Type, u32))> {
+    st: &'b mut State,
+) -> impl Iterator<Item = (&'a String, (Type, u32))> + use<'a, 'b> {
     let mut params: Vec<(&String, Type)> = method
         .params
         .iter()
@@ -671,10 +662,10 @@ fn method_scope<'a>(
     })
 }
 
-fn fields_scope<'a>(
+fn fields_scope<'a, 'b>(
     fields: &'a Vec<Field>,
-    st: &'a mut State,
-) -> impl Iterator<Item = (&'a String, (Type, u32))> {
+    st: &'b mut State,
+) -> impl Iterator<Item = (&'a String, (Type, u32))> + use<'a, 'b> {
     fields.into_iter().map(|f| match f {
         Field::Scalar(t, id) => (&id.val.name, (Type::Prim(t.clone()), gen_name(st))),
         Field::Array(t, id, len) => (
@@ -687,20 +678,23 @@ fn fields_scope<'a>(
     })
 }
 
-impl Program {
-    fn local_scope<'a>(&'a self, st: &'a mut State) -> Scope<'a> {
-        Scope::new(program_scope(self, st).collect(), None)
+impl Scoped for Program {
+    fn local_scope<'a>(&'a self, st: &mut State) -> HashMap<&'a String, (Type, u32)> {
+        imports_scope(&self.imports)
+            .chain(outer_methods_scope(&self.methods))
+            .chain(fields_scope(&self.fields, st))
+            .collect()
     }
 }
 
 impl Scoped for Method {
-    fn local_scope<'a>(&'a self, st: &'a mut State) -> HashMap<&'a String, (Type, u32)> {
+    fn local_scope<'a>(&'a self, st: &mut State) -> HashMap<&'a String, (Type, u32)> {
         method_scope(&self, st).collect()
     }
 }
 
 impl Scoped for Block {
-    fn local_scope<'a>(&'a self, st: &'a mut State) -> HashMap<&'a String, (Type, u32)> {
+    fn local_scope<'a>(&'a self, st: &mut State) -> HashMap<&'a String, (Type, u32)> {
         fields_scope(&self.fields, st).collect()
     }
 }
