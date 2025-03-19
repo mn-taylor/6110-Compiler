@@ -4,32 +4,42 @@ use crate::{
     parse,
     scan::{self, IncrOp},
 };
-use cfg::{Arg, BasicBlock, Instruction, Jump, Type, Var};
+use cfg::{Arg, BasicBlock, BlockLabel, Instruction, Jump, Type, Var, VarLabel};
 use ir::{AssignExpr, Block, Bop, Expr, Location, Method, UnOp};
 use parse::{Field, Literal, Primitive, WithLoc};
 use scan::{AddOp, AssignOp, ErrLoc, MulOp};
 
-fn new_noop<'a>(st: &mut State<'a>) -> BasicBlock<'static> {
-    let ret = BasicBlock {
-        body: vec![],
-        jump_loc: Jump::Nowhere,
-    };
-    st.all_blocks.push(&ret);
-    &ret
-}
-
 type Scope<'a> = ir::Scope<'a, (Type, u32)>;
 
-struct State<'a> {
-    break_loc: Option<&'a BasicBlock<'a>>,
-    continue_loc: Option<&'a BasicBlock<'a>>,
-    last_name: u32,
-    all_blocks: Vec<BasicBlock<'a>>,
+struct State {
+    break_loc: Option<BlockLabel>,
+    continue_loc: Option<BlockLabel>,
+    last_name: VarLabel,
+    all_blocks: HashMap<BlockLabel, BasicBlock>,
     all_fields: Vec<Field>,
-    // all_arrays: Vec<String>,
 }
 
-fn gen_name(st: &mut State) -> u32 {
+impl State {
+    fn add_block(&mut self, b: BasicBlock) -> BlockLabel {
+        let id = self.all_blocks.len();
+        let not_already_in = self.all_blocks.insert(id, b).is_none();
+        assert!(not_already_in, "should be generating a unique label (you should not be calling this function after removing some blocks)");
+        id
+    }
+
+    fn get_block(&self, lbl: BlockLabel) -> &mut BasicBlock {
+        self.all_blocks.get_mut(&lbl).unwrap()
+    }
+}
+
+fn new_noop(st: &mut State) -> BlockLabel {
+    st.add_block(BasicBlock {
+        body: vec![],
+        jump_loc: Jump::Nowhere,
+    })
+}
+
+fn gen_name(st: &mut State) -> VarLabel {
     st.last_name += 1;
     st.last_name
 }
@@ -43,17 +53,17 @@ fn gen_temp(typ: Primitive, st: &mut State) -> Var {
     }
 }
 
-fn lin_program<'a>(program: Program) -> State<'a> {
+fn lin_program(program: Program) -> State {
     let mut st: State = State {
         break_loc: None,
         continue_loc: None,
         last_name: 0,
-        all_blocks: vec![],
+        all_blocks: HashMap::new(),
         all_fields: vec![],
     };
 
     // Get the local scope from the program
-    let scope: Scope<'a> = program.local_scope(&mut st);
+    let scope = program.local_scope(&mut st);
 
     // Process methods
     for method in program.methods {
@@ -63,31 +73,27 @@ fn lin_program<'a>(program: Program) -> State<'a> {
     st
 }
 
-fn lin_method<'a>(
-    method: Method,
-    st: &'a mut State<'a>,
-    scope: &Scope,
-) -> (&'a BasicBlock<'a>, &'a BasicBlock<'a>) {
+fn lin_method(method: Method, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel) {
     let fst = new_noop(st);
     let mut last = fst;
     let method_scope = method.scope(scope, st);
 
     for s in method.stmts {
         let (start, end) = lin_stmt(s, st, &method_scope);
-        last.jump_loc = Jump::Uncond(start);
+        st.get_block(last).jump_loc = Jump::Uncond(start);
         last = end;
     }
 
     return (fst, last);
 }
 
-fn lin_branch<'a>(
-    true_branch: &'a BasicBlock,
-    false_branch: &'a BasicBlock,
+fn lin_branch(
+    true_branch: BlockLabel,
+    false_branch: BlockLabel,
     cond: Expr,
-    st: &'a mut State<'a>,
+    st: &mut State,
     scope: &Scope,
-) -> &'a BasicBlock<'a> /*start*/
+) -> BlockLabel /*start*/
 {
     match cond {
         Expr::Bin(e1, Bop::And, e2) => {
@@ -113,11 +119,7 @@ fn lin_branch<'a>(
 }
 
 // will call lin_branch to deal with bool exprs
-fn lin_expr<'a>(
-    e: Expr,
-    st: &'a mut State<'a>,
-    scope: &Scope,
-) -> (Var, &'a BasicBlock<'a>, &'a BasicBlock<'a>) {
+fn lin_expr(e: Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockLabel) {
     let start = new_noop(st);
     match e {
         Expr::Bin(e1, op, e2) => {
@@ -251,11 +253,7 @@ fn lin_expr<'a>(
     }
 }
 
-fn lin_block<'a>(
-    b: Block,
-    st: &'a mut State,
-    scope: &Scope,
-) -> (&'a BasicBlock<'a>, &'a BasicBlock<'a>) {
+fn lin_block(b: Block, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel) {
     let fst = new_noop(st);
     let mut last = fst;
     let block_scope = b.scope(scope, st);
@@ -286,20 +284,16 @@ fn infer_type(typ: Primitive, op: Bop) -> Primitive {
 }
 
 fn link<'a>(
-    start1: &'a BasicBlock,
-    end1: &'a BasicBlock,
-    start2: &'a BasicBlock,
-    end2: &'a BasicBlock,
-) -> (&'a BasicBlock<'a>, &'a BasicBlock<'a>) {
+    start1: BlockLabel,
+    end1: BlockLabel,
+    start2: BlockLabel,
+    end2: BlockLabel,
+) -> (BlockLabel, BlockLabel) {
     end1.jump_loc = Jump::Uncond(start2);
     (start1, end2)
 }
 
-fn lin_stmt<'a>(
-    s: ir::Stmt,
-    st: &'a mut State,
-    scope: &Scope,
-) -> (&'a BasicBlock<'a>, &'a BasicBlock<'a>) {
+fn lin_stmt(s: ir::Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel) {
     match s {
         ir::Stmt::AssignStmt(loc, assign_expr) => {
             let (target, target_start, target_end): (Var, &BasicBlock<'_>, &BasicBlock<'_>) =
@@ -498,12 +492,12 @@ fn convert_incr_op(o: IncrOp) -> Bop {
     }
 }
 
-fn lin_assign_expr<'a>(
+fn lin_assign_expr(
     target: Var,
     assign_expr: AssignExpr,
-    st: &'a mut State,
+    st: &mut State,
     scope: &Scope,
-) -> (&'a BasicBlock<'a>, &'a BasicBlock<'a>) {
+) -> (BlockLabel, BlockLabel) {
     let start: &BasicBlock;
     let mut end: BasicBlock;
     match assign_expr {
@@ -577,11 +571,7 @@ fn lin_literal(lit: Literal) -> (Primitive, i64) {
     }
 }
 
-fn lin_location<'a>(
-    loc: Location,
-    st: &mut State<'a>,
-    scope: &Scope,
-) -> (Var, &'a BasicBlock<'a>, &'a BasicBlock<'a>) {
+fn lin_location(loc: Location, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockLabel) {
     match loc {
         Location::Var(name) => match scope.lookup(&name) {
             Some((Type::Prim(typ), id)) => {
@@ -622,10 +612,10 @@ fn lin_location<'a>(
 use std::collections::HashMap;
 
 pub trait Scoped {
-    fn scope<'a>(&'a self, parent: &'a Scope<'a>, st: &'a mut State<'a>) -> Scope<'a> {
+    fn scope<'a>(&'a self, parent: &'a Scope, st: &'a mut State) -> Scope<'a> {
         Scope::new(self.local_scope(st), Some(parent))
     }
-    fn local_scope<'a>(&'a self, st: &'a mut State<'a>) -> HashMap<&'a String, (Type, u32)>;
+    fn local_scope<'a>(&'a self, st: &'a mut State) -> HashMap<&'a String, (Type, u32)>;
 }
 
 fn imports_scope(
@@ -659,7 +649,7 @@ fn outer_methods_scope(methods: &Vec<Method>) -> impl Iterator<Item = (&String, 
 
 fn program_scope<'a>(
     program: &'a Program,
-    st: &'a mut State<'a>,
+    st: &'a mut State,
 ) -> impl Iterator<Item = (&'a String, (Type, u32))> {
     imports_scope(&program.imports)
         .chain(outer_methods_scope(&program.methods))
@@ -668,7 +658,7 @@ fn program_scope<'a>(
 
 fn method_scope<'a>(
     method: &'a Method,
-    st: &'a mut State<'a>,
+    st: &'a mut State,
 ) -> impl Iterator<Item = (&'a String, (Type, u32))> {
     let mut params: Vec<(&String, Type)> = method
         .params
@@ -697,7 +687,7 @@ fn method_scope<'a>(
 
 fn fields_scope<'a>(
     fields: &'a Vec<Field>,
-    st: &'a mut State<'a>,
+    st: &'a mut State,
 ) -> impl Iterator<Item = (&'a String, (Type, u32))> {
     fields.into_iter().map(|f| match f {
         Field::Scalar(t, id) => (&id.val.name, (Type::Prim(t.clone()), gen_name(st))),
@@ -712,19 +702,19 @@ fn fields_scope<'a>(
 }
 
 impl Program {
-    fn local_scope<'a>(&'a self, st: &'a mut State<'a>) -> Scope<'a> {
+    fn local_scope<'a>(&'a self, st: &'a mut State) -> Scope<'a> {
         Scope::new(program_scope(self, st).collect(), None)
     }
 }
 
 impl Scoped for Method {
-    fn local_scope<'a>(&'a self, st: &'a mut State<'a>) -> HashMap<&'a String, (Type, u32)> {
+    fn local_scope<'a>(&'a self, st: &'a mut State) -> HashMap<&'a String, (Type, u32)> {
         method_scope(&self, st).collect()
     }
 }
 
 impl Scoped for Block {
-    fn local_scope<'a>(&'a self, st: &'a mut State<'a>) -> HashMap<&'a String, (Type, u32)> {
+    fn local_scope<'a>(&'a self, st: &'a mut State) -> HashMap<&'a String, (Type, u32)> {
         fields_scope(&self.fields, st).collect()
     }
 }

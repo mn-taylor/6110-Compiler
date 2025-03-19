@@ -7,6 +7,8 @@ use parse::{Field, Ident, Literal, Param, Primitive};
 use scan::ErrLoc;
 use std::iter::zip;
 
+type Scope<'a> = ir::Scope<'a, Type>;
+
 pub fn check_program(program: &Program) -> Vec<(ErrLoc, String)> {
     let mut errors: Vec<(ErrLoc, String)> = Vec::new();
 

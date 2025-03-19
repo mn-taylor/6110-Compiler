@@ -3,19 +3,22 @@ use crate::parse;
 use ir::{Bop, UnOp};
 use parse::Primitive;
 
-#[derive(Debug, Clone)]
-pub struct BasicBlock<'a> {
+pub type BlockLabel = usize;
+pub type VarLabel = u32;
+
+// #[derive(Debug, Clone)]
+pub struct BasicBlock {
     // parents: Vec<BasicBlock>,
     pub body: Vec<Instruction>,
-    pub jump_loc: Jump<'a>,
+    pub jump_loc: Jump,
 }
 
-pub enum Jump<'a> {
-    Uncond(&'a BasicBlock<'a>),
+pub enum Jump {
+    Uncond(BlockLabel),
     Cond {
         source: Var,
-        true_block: &'a BasicBlock<'a>,
-        false_block: &'a BasicBlock<'a>,
+        true_block: BlockLabel,
+        false_block: BlockLabel,
     },
     Nowhere,
 }
