@@ -5,9 +5,9 @@ use crate::{
     scan::{self, IncrOp},
 };
 use cfg::{Arg, BasicBlock, BlockLabel, Instruction, Jump, Type, Var, VarLabel};
-use ir::{AssignExpr, Block, Bop, Expr, Location, Method, UnOp};
+use ir::{AssignExpr, Block, Bop, Expr, Location, Method, Stmt, UnOp};
 use parse::{Field, Literal, Primitive, WithLoc};
-use scan::{AddOp, AssignOp, ErrLoc, MulOp};
+use scan::{AddOp, AssignOp, MulOp};
 
 type Scope<'a> = ir::Scope<'a, (Type, u32)>;
 
@@ -75,9 +75,9 @@ fn lin_program(program: &Program) -> State {
 fn lin_method(method: &Method, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel) {
     let fst = new_noop(st);
     let mut last = fst;
-    let method_scope = method.scope(scope, st);
+    let method_scope = method.scope(Some(scope), st);
 
-    for s in method.stmts {
+    for s in method.stmts.iter() {
         let (start, end) = lin_stmt(s, st, &method_scope);
         st.get_block(last).jump_loc = Jump::Uncond(start);
         last = end;
@@ -89,20 +89,20 @@ fn lin_method(method: &Method, st: &mut State, scope: &Scope) -> (BlockLabel, Bl
 fn lin_branch(
     true_branch: BlockLabel,
     false_branch: BlockLabel,
-    cond: Expr,
+    cond: &Expr,
     st: &mut State,
     scope: &Scope,
 ) -> BlockLabel /*start*/
 {
     match cond {
         Expr::Bin(e1, Bop::And, e2) => {
-            let e2start = lin_branch(true_branch, false_branch, e2.val, st, scope);
-            let e1start = lin_branch(e2start, false_branch, e1.val, st, scope);
+            let e2start = lin_branch(true_branch, false_branch, &e2.val, st, scope);
+            let e1start = lin_branch(e2start, false_branch, &e1.val, st, scope);
             return e1start;
         }
         Expr::Bin(e1, Bop::Or, e2) => {
-            let e2start = lin_branch(true_branch, false_branch, e2.val, st, scope);
-            let e1start = lin_branch(true_branch, e2start, e1.val, st, scope);
+            let e2start = lin_branch(true_branch, false_branch, &e2.val, st, scope);
+            let e1start = lin_branch(true_branch, e2start, &e1.val, st, scope);
             return e1start;
         }
         _ => {
@@ -118,8 +118,7 @@ fn lin_branch(
 }
 
 // will call lin_branch to deal with bool exprs
-fn lin_expr(e: Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockLabel) {
-    let start = new_noop(st);
+fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockLabel) {
     match e {
         Expr::Bin(e1, op, e2) => {
             match op {
@@ -144,8 +143,8 @@ fn lin_expr(e: Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockLa
                     return (temp, start, end);
                 }
                 _ => {
-                    let (t1, t1start, t1end) = lin_expr(e1.val, st, scope);
-                    let (t2, t2start, t2end) = lin_expr(e2.val, st, scope);
+                    let (t1, t1start, t1end) = lin_expr(&e1.val, st, scope);
+                    let (t2, t2start, t2end) = lin_expr(&e2.val, st, scope);
                     st.get_block(t1end).jump_loc = Jump::Uncond(t2start);
                     let t3 = gen_temp(infer_type(t1.get_typ(), op), st);
                     let end = st.add_block(BasicBlock {
@@ -153,7 +152,7 @@ fn lin_expr(e: Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockLa
                             source1: t1,
                             source2: t2,
                             dest: t3,
-                            op: op,
+                            op: *op,
                         }],
                         jump_loc: Jump::Nowhere,
                     });
@@ -163,13 +162,13 @@ fn lin_expr(e: Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockLa
             }
         }
         Expr::Unary(op, e) => {
-            let (t1, t1start, t1end) = lin_expr(e.val, st, scope);
+            let (t1, t1start, t1end) = lin_expr(&e.val, st, scope);
             let t2 = gen_temp(infer_unary_type(t1.get_typ(), op), st);
             let end = st.add_block(BasicBlock {
                 body: vec![Instruction::TwoOp {
                     source1: t1,
                     dest: t2,
-                    op,
+                    op: *op,
                 }],
                 jump_loc: Jump::Nowhere,
             });
@@ -225,7 +224,7 @@ fn lin_expr(e: Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockLa
                         val: string,
                         loc: _,
                     }) => {
-                        let cfg_arg = Arg::StrArg(string);
+                        let cfg_arg = Arg::StrArg(string.to_string());
                         temp_args.push(cfg_arg);
                     }
                 }
@@ -245,12 +244,12 @@ fn lin_expr(e: Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockLa
     }
 }
 
-fn lin_block(b: Block, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel) {
+fn lin_block(b: &Block, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel) {
     let fst = new_noop(st);
     let mut last = fst;
-    let block_scope = b.scope(scope, st);
+    let block_scope = b.scope(Some(scope), st);
 
-    for s in b.stmts {
+    for s in b.stmts.iter() {
         let (start, end) = lin_stmt(s, st, &block_scope);
         st.get_block(last).jump_loc = Jump::Uncond(start);
         last = end;
@@ -259,7 +258,7 @@ fn lin_block(b: Block, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel
     return (fst, last);
 }
 
-fn infer_unary_type(typ: Primitive, op: UnOp) -> Primitive {
+fn infer_unary_type(typ: Primitive, op: &UnOp) -> Primitive {
     match op {
         UnOp::Neg => typ,
         UnOp::Not => Primitive::BoolType,
@@ -268,7 +267,7 @@ fn infer_unary_type(typ: Primitive, op: UnOp) -> Primitive {
     }
 }
 
-fn infer_type(typ: Primitive, op: Bop) -> Primitive {
+fn infer_type(typ: Primitive, op: &Bop) -> Primitive {
     match op {
         Bop::MulBop(_) | Bop::AddBop(_) => typ,
         _ => Primitive::BoolType,
@@ -286,7 +285,7 @@ fn link<'a>(
     (start1, end2)
 }
 
-fn lin_stmt(s: ir::Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel) {
+fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel) {
     match s {
         ir::Stmt::AssignStmt(loc, assign_expr) => {
             let (target, target_start, target_end) = lin_location(loc.val, st, scope);
@@ -321,7 +320,7 @@ fn lin_stmt(s: ir::Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLab
                         val: string,
                         loc: _,
                     }) => {
-                        let cfg_arg = Arg::StrArg(string);
+                        let cfg_arg = Arg::StrArg(string.to_string());
                         temp_args.push(cfg_arg);
                     }
                 }
@@ -398,18 +397,8 @@ fn lin_stmt(s: ir::Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLab
         } => {
             let (loop_var, loop_start, loop_end) =
                 lin_location(Location::Var(var_to_set.val), st, scope);
-            let (loop_init_start, loop_init_end) = lin_assign_expr(
-                loop_var,
-                AssignExpr::RegularAssign(
-                    WithLoc {
-                        val: AssignOp::Eq,
-                        loc: ErrLoc { line: 0, col: 0 },
-                    },
-                    initial_val,
-                ),
-                st,
-                scope,
-            );
+            let (loop_init_start, loop_init_end) =
+                lin_reg_assign(loop_var, &AssignOp::Eq, &initial_val.val, st, scope);
             st.get_block(loop_end).jump_loc = Jump::Uncond(loop_init_start);
 
             let end = new_noop(st);
@@ -438,7 +427,7 @@ fn lin_stmt(s: ir::Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLab
 
             st.get_block(body_end).jump_loc = Jump::Uncond(loop_update);
 
-            let condition_start = lin_branch(body_start, end, test.val, st, scope);
+            let condition_start = lin_branch(body_start, end, &test.val, st, scope);
             st.get_block(continue_target).jump_loc = Jump::Uncond(loop_update);
             st.get_block(loop_init_end).jump_loc = Jump::Uncond(condition_start);
             st.get_block(loop_update).jump_loc = Jump::Uncond(condition_start);
@@ -447,7 +436,7 @@ fn lin_stmt(s: ir::Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLab
         }
         ir::Stmt::Return(_, ret_val) => match ret_val {
             Some(expr) => {
-                let (t, tstart, tend) = lin_expr(expr.val, st, scope);
+                let (t, tstart, tend) = lin_expr(&expr.val, st, scope);
                 let ret_instr = Instruction::Ret(Some(t));
                 st.get_block(tend).body.push(ret_instr);
                 (tstart, tend)
@@ -464,7 +453,7 @@ fn lin_stmt(s: ir::Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLab
     }
 }
 
-fn convert_assign_op(o: AssignOp) -> Option<Bop> {
+fn convert_assign_op(o: &AssignOp) -> Option<Bop> {
     match o {
         AssignOp::Eq => None,
         AssignOp::PlusEq => Some(Bop::AddBop(AddOp::Add)),
@@ -482,35 +471,44 @@ fn convert_incr_op(o: IncrOp) -> Bop {
     }
 }
 
+fn lin_reg_assign(
+    target: Var,
+    op: &AssignOp,
+    rhs: &Expr,
+    st: &mut State,
+    scope: &Scope,
+) -> (BlockLabel, BlockLabel) {
+    // t1end being unused is surely a bug
+    let (t1, t1start, t1end) = lin_expr(rhs, st, scope);
+
+    let op_ = convert_assign_op(op);
+    let instr = match op_ {
+        None => Instruction::MoveOp {
+            source: t1,
+            dest: target,
+        },
+        Some(binop) => Instruction::ThreeOp {
+            source1: target,
+            source2: t1,
+            dest: target,
+            op: binop,
+        },
+    };
+    let end = st.add_block(BasicBlock {
+        body: vec![instr],
+        jump_loc: Jump::Nowhere,
+    });
+    (t1start, end)
+}
+
 fn lin_assign_expr(
     target: Var,
-    assign_expr: AssignExpr,
+    assign_expr: &AssignExpr,
     st: &mut State,
     scope: &Scope,
 ) -> (BlockLabel, BlockLabel) {
     match assign_expr {
-        AssignExpr::RegularAssign(op, rhs) => {
-            let (t1, t1start, t1end) = lin_expr(rhs.val, st, scope);
-
-            let op_ = convert_assign_op(op.val);
-            let instr = match op_ {
-                None => Instruction::MoveOp {
-                    source: t1,
-                    dest: target,
-                },
-                Some(binop) => Instruction::ThreeOp {
-                    source1: target,
-                    source2: t1,
-                    dest: target,
-                    op: binop,
-                },
-            };
-            let end = st.add_block(BasicBlock {
-                body: vec![instr],
-                jump_loc: Jump::Nowhere,
-            });
-            (t1start, end)
-        }
+        AssignExpr::RegularAssign(op, rhs) => lin_reg_assign(target, &op.val, &rhs.val, st, scope),
         AssignExpr::IncrAssign(op) => {
             let t1 = gen_temp(Primitive::IntType, st);
             let end = st.add_block(BasicBlock {
@@ -577,7 +575,7 @@ fn lin_location(loc: Location, st: &mut State, scope: &Scope) -> (Var, BlockLabe
         },
         Location::ArrayIndex(name, idx) => match scope.lookup(&name) {
             Some((Type::Arr(typ, _), id)) => {
-                let (idx_val, tstart, tend) = lin_expr(idx.val, st, scope);
+                let (idx_val, tstart, tend) = lin_expr(&idx.val, st, scope);
                 return (
                     Var::ArrIdx {
                         id: *id,
