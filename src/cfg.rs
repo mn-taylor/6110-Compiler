@@ -58,6 +58,7 @@ pub enum Arg {
     StrArg(String),
 }
 
+#[derive(Debug, Clone)]
 pub enum Var {
     Scalar {
         id: u32,
@@ -86,6 +87,21 @@ impl Var {
                 idx: _,
                 typ: t,
             } => t.clone(),
+        }
+    }
+    pub fn get_id(&self) -> u32 {
+        match self {
+            Self::Scalar {
+                id,
+                name: _,
+                typ: _,
+            } => *id,
+            Self::ArrIdx {
+                id,
+                name: _,
+                idx: _,
+                typ: _,
+            } => *id,
         }
     }
 }
