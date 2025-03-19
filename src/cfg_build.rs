@@ -127,14 +127,14 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
                     let temp = gen_temp(Primitive::BoolType, st);
                     let true_branch = st.add_block(BasicBlock {
                         body: vec![Instruction::Constant {
-                            dest: temp,
+                            dest: temp.clone(),
                             constant: 1,
                         }],
                         jump_loc: Jump::Uncond(end),
                     }); //block that sets temp = true and jumps to end;
                     let false_branch = st.add_block(BasicBlock {
                         body: vec![Instruction::Constant {
-                            dest: temp,
+                            dest: temp.clone(),
                             constant: 1,
                         }],
                         jump_loc: Jump::Uncond(end),
@@ -151,7 +151,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
                         body: vec![Instruction::ThreeOp {
                             source1: t1,
                             source2: t2,
-                            dest: t3,
+                            dest: t3.clone(),
                             op: *op,
                         }],
                         jump_loc: Jump::Nowhere,
@@ -162,11 +162,11 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
             }
         }
         Expr::Unary(op, e) => {
-            let (t1, t1start, t1end) = lin_expr(&e.val, st, scope);
+            let (t1, t1start, _t1end) = lin_expr(&e.val, st, scope);
             let t2 = gen_temp(infer_unary_type(t1.get_typ(), op), st);
             let end = st.add_block(BasicBlock {
                 body: vec![Instruction::TwoOp {
-                    source1: t1,
+                    source1: t1.clone(),
                     dest: t2,
                     op: *op,
                 }],
@@ -179,7 +179,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
                 let t = gen_temp(Primitive::IntType, st);
                 let blk = st.add_block(BasicBlock {
                     body: vec![Instruction::Constant {
-                        dest: t,
+                        dest: t.clone(),
                         constant: *len as i64,
                     }],
                     jump_loc: Jump::Nowhere,
@@ -190,11 +190,11 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
             None => panic!("array identifier not found"),
         },
         Expr::Lit(lit) => {
-            let (typ, val) = lin_literal(lit.val);
+            let (typ, val) = lin_literal(lit.val.clone());
             let t = gen_temp(typ, st);
             let end = st.add_block(BasicBlock {
                 body: vec![Instruction::Constant {
-                    dest: t,
+                    dest: t.clone(),
                     constant: val,
                 }],
                 jump_loc: Jump::Nowhere,
@@ -205,7 +205,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
             return lin_location(loc.val, st, scope);
         }
         ir::Expr::Call(id, args) => {
-            let func_name = id.val.name;
+            let func_name = id.val.name.clone();
 
             let start = new_noop(st);
             let mut prev_block = start;
@@ -234,7 +234,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
                 Some((Type::Prim(t), _)) => gen_temp(t.clone(), st),
                 _ => panic!("Should not get here. function calls within expression must have non-void return type"),
             };
-            let call_instr = cfg::Instruction::Call(func_name, temp_args, Some(ret_val));
+            let call_instr = cfg::Instruction::Call(func_name, temp_args, Some(ret_val.clone()));
             let end = st.add_block(BasicBlock {
                 body: vec![call_instr],
                 jump_loc: Jump::Nowhere,
@@ -301,7 +301,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             _ => panic!("Should not get here"),
         },
         ir::Stmt::Call(id, args) => {
-            let func_name = id.val.name;
+            let func_name = id.val.name.clone();
 
             let start = new_noop(st);
             let mut prev_block = start;
@@ -396,7 +396,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             body,
         } => {
             let (loop_var, loop_start, loop_end) =
-                lin_location(Location::Var(var_to_set.val), st, scope);
+                lin_location(Location::Var(var_to_set.val.clone()), st, scope);
             let (loop_init_start, loop_init_end) =
                 lin_reg_assign(loop_var, &AssignOp::Eq, &initial_val.val, st, scope);
             st.get_block(loop_end).jump_loc = Jump::Uncond(loop_init_start);
@@ -421,7 +421,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             // change to handle increments and decrements better
             let (update_var, loop_update, update_loc_end) =
                 lin_location(var_to_update.val, st, scope);
-            let (update_start, update_end) = lin_assign_expr(update_var, update_val, st, scope);
+            let (update_start, _update_end) = lin_assign_expr(update_var, update_val, st, scope);
 
             st.get_block(update_loc_end).jump_loc = Jump::Uncond(update_start);
 
@@ -479,16 +479,16 @@ fn lin_reg_assign(
     scope: &Scope,
 ) -> (BlockLabel, BlockLabel) {
     // t1end being unused is surely a bug
-    let (t1, t1start, t1end) = lin_expr(rhs, st, scope);
+    let (t1, t1start, _t1end) = lin_expr(rhs, st, scope);
 
     let op_ = convert_assign_op(op);
     let instr = match op_ {
         None => Instruction::MoveOp {
-            source: t1,
-            dest: target,
+            source: t1.clone(),
+            dest: target.clone(),
         },
         Some(binop) => Instruction::ThreeOp {
-            source1: target,
+            source1: target.clone(),
             source2: t1,
             dest: target,
             op: binop,
@@ -513,10 +513,10 @@ fn lin_assign_expr(
             let t1 = gen_temp(Primitive::IntType, st);
             let end = st.add_block(BasicBlock {
                 body: vec![Instruction::ThreeOp {
-                    source1: target,
+                    source1: target.clone(),
                     source2: t1.clone(),
                     dest: target,
-                    op: convert_incr_op(op.val),
+                    op: convert_incr_op(op.val.clone()),
                 }],
                 jump_loc: Jump::Nowhere,
             });
