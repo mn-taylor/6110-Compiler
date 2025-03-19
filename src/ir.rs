@@ -12,7 +12,7 @@ use scan::ErrLoc;
 use scan::{AddOp, EqOp, MulOp, RelOp};
 use std::fmt;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum Bop {
     MulBop(MulOp),
     AddBop(AddOp),
@@ -22,11 +22,13 @@ pub enum Bop {
     Or,
 }
 
+#[derive(Clone)]
 pub enum Location {
     Var(Ident),
     ArrayIndex(Ident, WithLoc<Expr>),
 }
 
+#[derive(Clone)]
 pub enum Arg {
     ExprArg(WithLoc<Expr>),
     ExternArg(WithLoc<String>),
@@ -64,7 +66,7 @@ pub enum AssignExpr {
     IncrAssign(WithLoc<IncrOp>),
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum UnOp {
     Neg,
     Not,
@@ -72,6 +74,7 @@ pub enum UnOp {
     LongCast,
 }
 
+#[derive(Clone)]
 pub enum Expr {
     Bin(Box<WithLoc<Expr>>, Bop, Box<WithLoc<Expr>>),
     Unary(UnOp, Box<WithLoc<Expr>>),

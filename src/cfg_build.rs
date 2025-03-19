@@ -152,7 +152,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
                             source1: t1,
                             source2: t2,
                             dest: t3.clone(),
-                            op: *op,
+                            op: op.clone(),
                         }],
                         jump_loc: Jump::Nowhere,
                     });
@@ -168,7 +168,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
                 body: vec![Instruction::TwoOp {
                     source1: t1.clone(),
                     dest: t2,
-                    op: *op,
+                    op: op.clone(),
                 }],
                 jump_loc: Jump::Nowhere,
             });
@@ -202,7 +202,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
             return (t, end, end);
         }
         ir::Expr::Loc(loc) => {
-            return lin_location(loc.val, st, scope);
+            return lin_location(loc.val.clone(), st, scope);
         }
         ir::Expr::Call(id, args) => {
             let func_name = id.val.name.clone();
@@ -288,7 +288,7 @@ fn link<'a>(
 fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel) {
     match s {
         ir::Stmt::AssignStmt(loc, assign_expr) => {
-            let (target, target_start, target_end) = lin_location(loc.val, st, scope);
+            let (target, target_start, target_end) = lin_location(loc.val.clone(), st, scope);
             let (tstart, tend) = lin_assign_expr(target, assign_expr, st, scope);
             link(target_start, target_end, tstart, tend, st)
         }
@@ -420,7 +420,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
 
             // change to handle increments and decrements better
             let (update_var, loop_update, update_loc_end) =
-                lin_location(var_to_update.val, st, scope);
+                lin_location(var_to_update.val.clone(), st, scope);
             let (update_start, _update_end) = lin_assign_expr(update_var, update_val, st, scope);
 
             st.get_block(update_loc_end).jump_loc = Jump::Uncond(update_start);
@@ -564,7 +564,7 @@ fn lin_location(loc: Location, st: &mut State, scope: &Scope) -> (Var, BlockLabe
                     Var::Scalar {
                         id: *id,
                         name: name.name,
-                        typ: *typ,
+                        typ: typ.clone(),
                     },
                     blk,
                     blk,
