@@ -4,7 +4,8 @@ use crate::{
     parse,
     scan::{self, IncrOp},
 };
-use cfg::{Arg, BasicBlock, BlockLabel, Instruction, Jump, Type, Var, VarLabel};
+use cfg::{Arg, BasicBlock, BlockLabel, CfgType, Instruction, Jump, Type, Var, VarLabel};
+use clap::ArgGroup;
 use ir::{AssignExpr, Block, Bop, Expr, Location, Method, Stmt, UnOp};
 use parse::{Field, Literal, Primitive, WithLoc};
 use scan::{AddOp, AssignOp, MulOp};
@@ -16,12 +17,19 @@ struct State {
     continue_loc: Option<BlockLabel>,
     last_name: VarLabel,
     all_blocks: HashMap<BlockLabel, BasicBlock>,
-    all_fields: Vec<Field>,
+    all_fields: HashMap<
+        VarLabel,
+        (
+            CfgType,
+            String, /*high-level name for debugging purposes*/
+        ),
+    >,
 }
 
 impl State {
-    fn add_block(&mut self, b: BasicBlock) -> BlockLabel {
+    fn add_block(&mut self, mut b: BasicBlock) -> BlockLabel {
         let id = self.all_blocks.len();
+        b.block_id = id;
         let not_already_in = self.all_blocks.insert(id, b).is_none();
         assert!(not_already_in, "should be generating a unique label (you should not be calling this function after removing some blocks)");
         id
@@ -30,60 +38,86 @@ impl State {
     fn get_block(&mut self, lbl: BlockLabel) -> &mut BasicBlock {
         self.all_blocks.get_mut(&lbl).unwrap()
     }
+
+    // should only be given scalar-type var as input
+    fn type_of(&self, v: VarLabel) -> Primitive {
+        match &self.all_fields.get(&v).unwrap().0 {
+            CfgType::Scalar(t) => t.clone(),
+            CfgType::Array(_, _) => panic!(),
+        }
+    }
+}
+
+fn type_to_prim(t: Type) -> Primitive {
+    match t {
+        Type::Prim(p) => p,
+        Type::Arr(p, _) => p,
+        Type::Func(_, Some(p)) => p,
+        Type::ExtCall => Primitive::IntType,
+        _ => panic!("Should be called on definite types"),
+    }
 }
 
 fn new_noop(st: &mut State) -> BlockLabel {
     st.add_block(BasicBlock {
+        block_id: 0,
         body: vec![],
         jump_loc: Jump::Nowhere,
     })
 }
 
-fn gen_name(st: &mut State) -> VarLabel {
+fn gen_var(t: CfgType, high_name: String, st: &mut State) -> VarLabel {
     st.last_name += 1;
-    st.last_name
+    let name = st.last_name;
+    st.all_fields.insert(name, (t, high_name));
+    name
 }
 
-fn gen_temp(typ: Primitive, st: &mut State) -> Var {
-    st.last_name += 1;
-    Var::Scalar {
-        id: gen_name(st),
-        typ,
-        name: "temp".to_string(),
+fn gen_temp(t: Primitive, st: &mut State) -> VarLabel {
+    gen_var(CfgType::Scalar(t), "temp".to_string(), st)
+}
+
+pub fn lin_program(program: &Program) {
+    // Get the local scope from the program
+    //let scope = program.scope(None, &mut st);
+
+    // Process methods
+    for method in &program.methods {
+        println!("START OF METHOD");
+        let (blocks, fields) = lin_method(method, program);
+        for block in blocks.values() {
+            println!("{}", block);
+        }
+        println!("END OF METHOD")
     }
 }
 
-fn lin_program(program: &Program) -> State {
+pub fn lin_method(
+    method: &Method,
+    program: &Program,
+) -> (
+    HashMap<BlockLabel, BasicBlock>,
+    HashMap<VarLabel, (CfgType, String)>,
+) {
     let mut st: State = State {
         break_loc: None,
         continue_loc: None,
         last_name: 0,
         all_blocks: HashMap::new(),
-        all_fields: vec![],
+        all_fields: HashMap::new(),
     };
-
-    // Get the local scope from the program
-    let scope = program.scope(None, &mut st);
-
-    // Process methods
-    for method in &program.methods {
-        lin_method(method, &mut st, &scope);
-    }
-    st
-}
-
-fn lin_method(method: &Method, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel) {
-    let fst = new_noop(st);
+    let fst = new_noop(&mut st);
     let mut last = fst;
-    let method_scope = method.scope(Some(scope), st);
+    let scope = program.scope(None, &mut st);
+    let method_scope = method.scope(Some(&scope), &mut st);
 
     for s in method.stmts.iter() {
-        let (start, end) = lin_stmt(s, st, &method_scope);
+        let (start, end) = lin_stmt(s, &mut st, &method_scope);
         st.get_block(last).jump_loc = Jump::Uncond(start);
         last = end;
     }
 
-    return (fst, last);
+    return (st.all_blocks, st.all_fields);
 }
 
 fn lin_branch(
@@ -118,7 +152,7 @@ fn lin_branch(
 }
 
 // will call lin_branch to deal with bool exprs
-fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockLabel) {
+fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, BlockLabel) {
     match e {
         Expr::Bin(e1, op, e2) => {
             match op {
@@ -126,6 +160,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
                     let end = new_noop(st);
                     let temp = gen_temp(Primitive::BoolType, st);
                     let true_branch = st.add_block(BasicBlock {
+                        block_id: 0,
                         body: vec![Instruction::Constant {
                             dest: temp.clone(),
                             constant: 1,
@@ -133,6 +168,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
                         jump_loc: Jump::Uncond(end),
                     }); //block that sets temp = true and jumps to end;
                     let false_branch = st.add_block(BasicBlock {
+                        block_id: 0,
                         body: vec![Instruction::Constant {
                             dest: temp.clone(),
                             constant: 1,
@@ -146,12 +182,14 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
                     let (t1, t1start, t1end) = lin_expr(&e1.val, st, scope);
                     let (t2, t2start, t2end) = lin_expr(&e2.val, st, scope);
                     st.get_block(t1end).jump_loc = Jump::Uncond(t2start);
-                    let t3 = gen_temp(infer_type(t1.get_typ(), op), st);
+
+                    let t3 = gen_temp(infer_type(st.type_of(t1), op), st);
                     let end = st.add_block(BasicBlock {
+                        block_id: 0,
                         body: vec![Instruction::ThreeOp {
                             source1: t1,
                             source2: t2,
-                            dest: t3.clone(),
+                            dest: t3,
                             op: op.clone(),
                         }],
                         jump_loc: Jump::Nowhere,
@@ -163,10 +201,11 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
         }
         Expr::Unary(op, e) => {
             let (t1, t1start, _t1end) = lin_expr(&e.val, st, scope);
-            let t2 = gen_temp(infer_unary_type(t1.get_typ(), op), st);
+            let t2 = gen_temp(infer_unary_type(st.type_of(t1), op), st);
             let end = st.add_block(BasicBlock {
+                block_id: 0,
                 body: vec![Instruction::TwoOp {
-                    source1: t1.clone(),
+                    source1: t1,
                     dest: t2,
                     op: op.clone(),
                 }],
@@ -178,6 +217,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
             Some((Type::Arr(_, len), _)) => {
                 let t = gen_temp(Primitive::IntType, st);
                 let blk = st.add_block(BasicBlock {
+                    block_id: 0,
                     body: vec![Instruction::Constant {
                         dest: t.clone(),
                         constant: *len as i64,
@@ -193,8 +233,9 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
             let (typ, val) = lin_literal(lit.val.clone());
             let t = gen_temp(typ, st);
             let end = st.add_block(BasicBlock {
+                block_id: 0,
                 body: vec![Instruction::Constant {
-                    dest: t.clone(),
+                    dest: t,
                     constant: val,
                 }],
                 jump_loc: Jump::Nowhere,
@@ -202,7 +243,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
             return (t, end, end);
         }
         ir::Expr::Loc(loc) => {
-            return lin_location(loc.val.clone(), st, scope);
+            return lin_location(&loc.val, st, scope);
         }
         ir::Expr::Call(id, args) => {
             let func_name = id.val.name.clone();
@@ -234,8 +275,9 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockL
                 Some((Type::Prim(t), _)) => gen_temp(t.clone(), st),
                 _ => panic!("Should not get here. function calls within expression must have non-void return type"),
             };
-            let call_instr = cfg::Instruction::Call(func_name, temp_args, Some(ret_val.clone()));
+            let call_instr = cfg::Instruction::Call(func_name, temp_args, Some(ret_val));
             let end = st.add_block(BasicBlock {
+                block_id: 0,
                 body: vec![call_instr],
                 jump_loc: Jump::Nowhere,
             });
@@ -288,9 +330,7 @@ fn link<'a>(
 fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel) {
     match s {
         ir::Stmt::AssignStmt(loc, assign_expr) => {
-            let (target, target_start, target_end) = lin_location(loc.val.clone(), st, scope);
-            let (tstart, tend) = lin_assign_expr(target, assign_expr, st, scope);
-            link(target_start, target_end, tstart, tend, st)
+            lin_assign_to_loc(&loc.val, assign_expr, st, scope)
         }
         ir::Stmt::Break(_) => match st.break_loc {
             Some(break_block) => (break_block, break_block),
@@ -334,9 +374,11 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
 
             let call_instr = cfg::Instruction::Call(func_name, temp_args, ret_val);
             let end = st.add_block(BasicBlock {
+                block_id: 0,
                 body: vec![call_instr],
                 jump_loc: Jump::Nowhere,
             });
+            st.get_block(prev_block).jump_loc = Jump::Uncond(end);
 
             return (start, end);
         }
@@ -396,7 +438,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             body,
         } => {
             let (loop_var, loop_start, loop_end) =
-                lin_location(Location::Var(var_to_set.val.clone()), st, scope);
+                lin_location(&Location::Var(var_to_set.val.clone()), st, scope);
             let (loop_init_start, loop_init_end) =
                 lin_reg_assign(loop_var, &AssignOp::Eq, &initial_val.val, st, scope);
             st.get_block(loop_end).jump_loc = Jump::Uncond(loop_init_start);
@@ -420,7 +462,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
 
             // change to handle increments and decrements better
             let (update_var, loop_update, update_loc_end) =
-                lin_location(var_to_update.val.clone(), st, scope);
+                lin_location(&var_to_update.val, st, scope);
             let (update_start, _update_end) = lin_assign_expr(update_var, update_val, st, scope);
 
             st.get_block(update_loc_end).jump_loc = Jump::Uncond(update_start);
@@ -444,9 +486,11 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             None => {
                 let ret_instr = Instruction::Ret(None);
                 let ret_block = st.add_block(BasicBlock {
+                    block_id: 0,
                     body: vec![ret_instr],
                     jump_loc: Jump::Nowhere,
                 });
+
                 (ret_block, ret_block)
             }
         },
@@ -472,7 +516,7 @@ fn convert_incr_op(o: IncrOp) -> Bop {
 }
 
 fn lin_reg_assign(
-    target: Var,
+    target_id: VarLabel,
     op: &AssignOp,
     rhs: &Expr,
     st: &mut State,
@@ -484,25 +528,70 @@ fn lin_reg_assign(
     let op_ = convert_assign_op(op);
     let instr = match op_ {
         None => Instruction::MoveOp {
-            source: t1.clone(),
-            dest: target.clone(),
+            source: t1,
+            dest: target_id,
         },
         Some(binop) => Instruction::ThreeOp {
-            source1: target.clone(),
+            source1: target_id,
             source2: t1,
-            dest: target,
+            dest: target_id,
             op: binop,
         },
     };
     let end = st.add_block(BasicBlock {
+        block_id: 0,
         body: vec![instr],
         jump_loc: Jump::Nowhere,
     });
     (t1start, end)
 }
 
+// should work even when loc is array idx
+fn lin_assign_to_loc(
+    loc: &Location,
+    val_to_assign: &AssignExpr,
+    st: &mut State,
+    scope: &Scope,
+) -> (BlockLabel, BlockLabel) {
+    match loc {
+        Location::Var(id) => {
+            let ll_name = scope.lookup(id).unwrap().1;
+            lin_assign_expr(ll_name, val_to_assign, st, scope)
+        }
+        Location::ArrayIndex(id, idx) => {
+            let (t, ll_arr_name) = scope.lookup(id).unwrap();
+            let (idx, idx_start, idx_end) = lin_expr(&idx.val, st, scope);
+            let temp = gen_temp(type_to_prim(t.clone()), st);
+            let load_block = st.add_block(BasicBlock {
+                block_id: 0,
+                body: vec![Instruction::ArrayAccess {
+                    dest: temp,
+                    name: *ll_arr_name,
+                    idx: idx,
+                }],
+                jump_loc: Jump::Nowhere,
+            });
+            let (ass_start, ass_end) = lin_assign_expr(temp, val_to_assign, st, scope);
+            let store_block = st.add_block(BasicBlock {
+                block_id: 0,
+                body: vec![Instruction::ArrayStore {
+                    source: temp,
+                    arr: *ll_arr_name,
+                    idx: idx,
+                }],
+                jump_loc: Jump::Nowhere,
+            });
+            let (start, end) = link(idx_start, idx_end, load_block, load_block, st);
+            let (start, end) = link(start, end, ass_start, ass_end, st);
+            let (start, end) = link(start, end, store_block, store_block, st);
+            (start, end)
+        }
+    }
+}
+
+// assumes target is just a scalar
 fn lin_assign_expr(
-    target: Var,
+    target: VarLabel,
     assign_expr: &AssignExpr,
     st: &mut State,
     scope: &Scope,
@@ -512,15 +601,17 @@ fn lin_assign_expr(
         AssignExpr::IncrAssign(op) => {
             let t1 = gen_temp(Primitive::IntType, st);
             let end = st.add_block(BasicBlock {
+                block_id: 0,
                 body: vec![Instruction::ThreeOp {
-                    source1: target.clone(),
-                    source2: t1.clone(),
+                    source1: target,
+                    source2: t1,
                     dest: target,
                     op: convert_incr_op(op.val.clone()),
                 }],
                 jump_loc: Jump::Nowhere,
             });
             let start = st.add_block(BasicBlock {
+                block_id: 0,
                 body: vec![Instruction::Constant {
                     dest: t1,
                     constant: 1,
@@ -555,20 +646,17 @@ fn lin_literal(lit: Literal) -> (Primitive, i64) {
     }
 }
 
-fn lin_location(loc: Location, st: &mut State, scope: &Scope) -> (Var, BlockLabel, BlockLabel) {
+// Call for *getting the value*, not for setting
+fn lin_location(
+    loc: &Location,
+    st: &mut State,
+    scope: &Scope,
+) -> (VarLabel, BlockLabel, BlockLabel) {
     match loc {
         Location::Var(name) => match scope.lookup(&name) {
-            Some((Type::Prim(typ), id)) => {
+            Some((Type::Prim(_), id)) => {
                 let blk = new_noop(st);
-                return (
-                    Var::Scalar {
-                        id: *id,
-                        name: name.name,
-                        typ: typ.clone(),
-                    },
-                    blk,
-                    blk,
-                );
+                (*id, blk, blk)
             }
             Some(_) => panic!("location should have primitive type"),
             None => panic!("location not found"),
@@ -576,16 +664,23 @@ fn lin_location(loc: Location, st: &mut State, scope: &Scope) -> (Var, BlockLabe
         Location::ArrayIndex(name, idx) => match scope.lookup(&name) {
             Some((Type::Arr(typ, _), id)) => {
                 let (idx_val, tstart, tend) = lin_expr(&idx.val, st, scope);
-                return (
-                    Var::ArrIdx {
-                        id: *id,
-                        name: name.name,
-                        idx: idx_val.get_id(),
-                        typ: typ.clone(),
-                    },
-                    tstart,
-                    tend,
-                );
+
+                let dest = gen_temp(typ.clone(), st);
+                let instr = Instruction::ArrayAccess {
+                    dest: dest,
+                    name: *id,
+                    idx: idx_val,
+                };
+
+                let block: usize = st.add_block(BasicBlock {
+                    block_id: 0,
+                    body: vec![instr],
+                    jump_loc: Jump::Nowhere,
+                });
+
+                st.get_block(tend).jump_loc = Jump::Uncond(block);
+
+                (dest, tstart, block)
             }
             Some(_) => panic!("array should be an array"),
             None => panic!("array name not found"),
@@ -656,28 +751,42 @@ fn method_scope<'a, 'b>(
     params.append(fields);
     params.into_iter().map(|combination| {
         let (id, t) = combination;
-        (id, (t, gen_name(st)))
+        let p = type_to_prim(t.clone());
+        (
+            id,
+            (t.clone(), gen_var(CfgType::Scalar(p), id.to_string(), st)),
+        )
     })
 }
 
 fn fields_scope<'a, 'b>(
     fields: &'a Vec<Field>,
     st: &'b mut State,
-) -> impl Iterator<Item = (&'a String, (Type, u32))> + use<'a, 'b> {
+) -> impl Iterator<Item = (&'a String, (Type, VarLabel))> + use<'a, 'b> {
     fields.into_iter().map(|f| match f {
-        Field::Scalar(t, id) => (&id.val.name, (Type::Prim(t.clone()), gen_name(st))),
+        Field::Scalar(t, id) => (
+            &id.val.name,
+            (
+                Type::Prim(t.clone()),
+                gen_var(CfgType::Scalar(t.clone()), id.val.name.clone(), st),
+            ),
+        ),
         Field::Array(t, id, len) => (
             &id.val.name,
             (
                 Type::Arr(t.clone(), lin_literal(len.val.clone()).1 as i32),
-                gen_name(st),
+                gen_var(
+                    CfgType::Array(t.clone(), lin_literal(len.val.clone()).1 as i32),
+                    id.val.name.clone(),
+                    st,
+                ),
             ),
         ),
     })
 }
 
 impl Scoped for Program {
-    fn local_scope<'a>(&'a self, st: &mut State) -> HashMap<&'a String, (Type, u32)> {
+    fn local_scope<'a>(&'a self, st: &mut State) -> HashMap<&'a String, (Type, VarLabel)> {
         imports_scope(&self.imports)
             .chain(outer_methods_scope(&self.methods))
             .chain(fields_scope(&self.fields, st))

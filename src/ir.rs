@@ -22,6 +22,19 @@ pub enum Bop {
     Or,
 }
 
+impl fmt::Display for Bop {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Bop::MulBop(op) => write!(f, "{}", op),
+            Bop::AddBop(op) => write!(f, "{}", op),
+            Bop::RelBop(op) => write!(f, "{}", op),
+            Bop::EqBop(op) => write!(f, "{}", op),
+            Bop::And => write!(f, "&&"),
+            Bop::Or => write!(f, "||"),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum Location {
     Var(Ident),
@@ -72,6 +85,17 @@ pub enum UnOp {
     Not,
     IntCast,
     LongCast,
+}
+
+impl fmt::Display for UnOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            UnOp::Neg => write!(f, "-"),
+            UnOp::Not => write!(f, "!"),
+            UnOp::IntCast => write!(f, "(int)"),
+            UnOp::LongCast => write!(f, "(long)"),
+        }
+    }
 }
 
 #[derive(Clone)]

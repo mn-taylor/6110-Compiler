@@ -1,2 +1,12 @@
+int foo(){
+    if (true) {
+        return 5;
+    } else {
+        return 0;
+    }
+}
+
 void main ( ) {
+    foo();
+    foo();
 }

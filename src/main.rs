@@ -1,4 +1,5 @@
 mod utils;
+use decaf_skeleton_rust::cfg_build;
 use decaf_skeleton_rust::ir_build;
 use decaf_skeleton_rust::parse;
 use decaf_skeleton_rust::scan;
@@ -105,7 +106,40 @@ fn main() {
             }
         }
         utils::cli::CompilerAction::Assembly => {
-            todo!("assembly");
+            let tokens_result = scan::scan(input);
+            let mut tokens: Vec<(scan::Token, scan::ErrLoc)> = Vec::new();
+            println!("\n****************** scan error messages: ******************");
+            for t in tokens_result {
+                match t {
+                    (Ok(x), e) => {
+                        tokens.push((x, e));
+                    }
+                    (Err(msg), e) => {
+                        println!("{}: {}", e, msg);
+                    }
+                }
+            }
+            println!("************************************");
+            let mut tokens = tokens.iter();
+
+            let ast = parse::parse_program(&mut tokens);
+            if tokens.next().is_some() {
+                panic!("oops didnt parse everythign");
+            }
+
+            let prog = ir_build::build_program(ast);
+            let checked_prog = semantics::check_program(&prog);
+            // just marking the start and end of the error msgs bc it looks ugly in the terminal
+            println!("\n****************** semantic error messages: ******************");
+            checked_prog
+                .iter()
+                .for_each(|(loc, s)| println!("{}: {}", loc, s));
+            println!("************************************");
+            if !checked_prog.is_empty() {
+                panic!("your program has semantic errors");
+            }
+
+            cfg_build::lin_program(&prog);
         }
     }
 }
