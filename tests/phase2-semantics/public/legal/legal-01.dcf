@@ -1,12 +1,12 @@
 int foo(){
-    if (true) {
-        return 5;
-    } else {
-        return 0;
+    int x;
+    for (x = 0; x < 10; x++){
+        int b;
+        b = foo();
     }
+    return x;
 }
 
 void main ( ) {
-    foo();
     foo();
 }

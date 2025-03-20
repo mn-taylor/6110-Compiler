@@ -48,101 +48,125 @@ impl State {
 }
 
 fn collapse_jumps(st: &mut State) -> HashMap<usize, BasicBlock> {
-    let mut stack: Vec<usize> = vec![0];
+    let mut stack: Vec<Vec<usize>> = vec![vec![0]];
     let mut collapsed_blocks: HashMap<usize, BasicBlock> = HashMap::new();
     let mut seen: HashSet<usize> = HashSet::new();
 
     let curr = 0; // entry block for method
                   // while there are more jumps
-    let mut collapsed: Vec<BasicBlock> = vec![];
     while stack.len() != 0 {
-        print!("{:?}", seen);
-        let current_block_label = stack.pop().unwrap();
+        let mut head = stack.pop().unwrap();
+        let mut collapsed = vec![];
 
-        if seen.contains(&current_block_label) {
-            continue;
-        }
-        seen.insert(current_block_label);
+        loop {
+            let current_block_label = head[head.len() - 1];
 
-        let curr_block = st.get_block(current_block_label).clone();
-        match curr_block.jump_loc {
-            Jump::Uncond(next) => {
-                if (st.get_block(next).parents.len() > 1) {
-                    // link the current blocks together
-                    let instructions = collapsed
-                        .clone()
-                        .into_iter()
-                        .map(|c| c.body)
-                        .flatten()
-                        .collect::<Vec<_>>();
-                    let new_block = BasicBlock {
-                        parents: collapsed[0].clone().parents,
-                        body: instructions,
-                        block_id: collapsed[0].block_id,
-                        jump_loc: Jump::Uncond(next),
-                    };
-                    collapsed_blocks.insert(new_block.block_id, new_block);
-                    collapsed = vec![];
-                    stack.push(next);
-                } else {
-                    stack.push(next);
+            let curr_block = st.get_block(current_block_label).clone();
+
+            if seen.contains(&current_block_label) {
+                if collapsed.len() == 0 {
+                    break;
                 }
-            }
-            Jump::Cond {
-                source,
-                true_block,
-                false_block,
-            } => {
+
                 let instructions = collapsed
                     .clone()
                     .into_iter()
-                    .map(|c| c.body.clone())
+                    .map(|c: BasicBlock| c.body)
                     .flatten()
                     .collect::<Vec<_>>();
-
-                let new_false_block = false_block.clone();
-                let new_true_block = true_block.clone();
                 let new_block = BasicBlock {
                     parents: collapsed[0].clone().parents,
                     body: instructions,
                     block_id: collapsed[0].block_id,
-                    jump_loc: Jump::Cond {
-                        source: source,
-                        true_block: new_true_block,
-                        false_block: new_false_block,
-                    },
+                    jump_loc: collapsed[collapsed.len() - 1].jump_loc.clone(),
                 };
-
                 collapsed_blocks.insert(new_block.block_id, new_block);
-                collapsed = vec![];
-
-                stack.push(new_true_block);
-                stack.push(new_false_block);
-
-                println!("{}, {}", true_block, false_block);
+                break;
             }
-            Jump::Nowhere => {
-                let instructions = collapsed
-                    .clone()
-                    .into_iter()
-                    .map(|c| c.body.clone())
-                    .flatten()
-                    .collect::<Vec<_>>();
 
-                let new_block = BasicBlock {
-                    parents: collapsed[0].parents.clone(),
-                    body: instructions,
-                    block_id: collapsed[0].block_id,
-                    jump_loc: Jump::Nowhere,
-                };
+            seen.insert(current_block_label);
 
-                collapsed_blocks.insert(new_block.block_id, new_block);
-                collapsed = vec![];
+            match curr_block.jump_loc {
+                Jump::Uncond(next) => {
+                    if (st.get_block(next).parents.len() > 1) {
+                        // link the current blocks together
+                        collapsed.push(curr_block);
+                        let instructions = collapsed
+                            .clone()
+                            .into_iter()
+                            .map(|c: BasicBlock| c.body)
+                            .flatten()
+                            .collect::<Vec<_>>();
+                        let new_block = BasicBlock {
+                            parents: collapsed[0].clone().parents,
+                            body: instructions,
+                            block_id: collapsed[0].block_id,
+                            jump_loc: Jump::Uncond(next),
+                        };
+                        collapsed_blocks.insert(new_block.block_id, new_block);
+                        stack.push(vec![next]);
+                        break;
+                    } else {
+                        head.push(next);
+                    }
+                }
+                Jump::Cond {
+                    source,
+                    true_block,
+                    false_block,
+                } => {
+                    collapsed.push(curr_block);
+                    let instructions = collapsed
+                        .clone()
+                        .into_iter()
+                        .map(|c| c.body.clone())
+                        .flatten()
+                        .collect::<Vec<_>>();
+
+                    let new_false_block = false_block.clone();
+                    let new_true_block = true_block.clone();
+                    let new_block = BasicBlock {
+                        parents: collapsed[0].clone().parents,
+                        body: instructions,
+                        block_id: collapsed[0].block_id,
+                        jump_loc: Jump::Cond {
+                            source: source,
+                            true_block: new_true_block,
+                            false_block: new_false_block,
+                        },
+                    };
+
+                    collapsed_blocks.insert(new_block.block_id, new_block);
+                    collapsed = vec![];
+
+                    stack.push(vec![new_true_block]);
+                    stack.push(vec![new_false_block]);
+                    break;
+                }
+                Jump::Nowhere => {
+                    collapsed.push(curr_block);
+                    let instructions = collapsed
+                        .clone()
+                        .into_iter()
+                        .map(|c| c.body.clone())
+                        .flatten()
+                        .collect::<Vec<_>>();
+
+                    let new_block = BasicBlock {
+                        parents: collapsed[0].parents.clone(),
+                        body: instructions,
+                        block_id: collapsed[0].block_id,
+                        jump_loc: Jump::Nowhere,
+                    };
+
+                    collapsed_blocks.insert(new_block.block_id, new_block);
+                    collapsed = vec![];
+                    break;
+                }
             }
+            collapsed.push(curr_block);
         }
-        collapsed.push(curr_block);
     }
-
     return collapsed_blocks;
 }
 
@@ -219,9 +243,9 @@ pub fn lin_method(
         last = end;
     }
 
-    (collapse_jumps(&mut st));
-    return (st.all_blocks, st.all_fields);
-    // (collapse_jumps(&mut st), st.all_fields);
+    // (collapse_jumps(&mut st));
+    // return (st.all_blocks, st.all_fields);
+    (collapse_jumps(&mut st), st.all_fields)
 }
 
 fn lin_branch(
@@ -391,6 +415,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
 
             let ret_val = match scope.lookup(&id.val) {
                 Some((Type::Prim(t), _)) => gen_temp(t.clone(), st),
+                Some((Type::Func(_, _), _))=> 0,
                 _ => panic!("Should not get here. function calls within expression must have non-void return type"),
             };
             let call_instr = cfg::Instruction::Call(func_name, temp_args, Some(ret_val));
@@ -558,7 +583,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             st.get_block(while_condition).parents.push(while_block_end);
             st.get_block(while_block_end).jump_loc = Jump::Uncond(while_condition);
 
-            (while_block_start, end)
+            (continue_target, end)
         }
         ir::Stmt::For {
             var_to_set,
