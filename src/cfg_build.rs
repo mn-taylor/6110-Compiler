@@ -130,13 +130,11 @@ fn lin_branch(
     match cond {
         Expr::Bin(e1, Bop::And, e2) => {
             let e2start = lin_branch(true_branch, false_branch, &e2.val, st, scope);
-            let e1start = lin_branch(e2start, false_branch, &e1.val, st, scope);
-            return e1start;
+            lin_branch(e2start, false_branch, &e1.val, st, scope) // e1start
         }
         Expr::Bin(e1, Bop::Or, e2) => {
             let e2start = lin_branch(true_branch, false_branch, &e2.val, st, scope);
-            let e1start = lin_branch(true_branch, e2start, &e1.val, st, scope);
-            return e1start;
+            lin_branch(true_branch, e2start, &e1.val, st, scope) // e1start
         }
         _ => {
             let (t, tstart, tend) = lin_expr(cond, st, scope);
@@ -145,7 +143,7 @@ fn lin_branch(
                 true_block: true_branch,
                 false_block: false_branch,
             };
-            return tstart;
+            tstart
         }
     }
 }
@@ -175,7 +173,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                         jump_loc: Jump::Uncond(end),
                     }); //block taht  sets temp = fasle and jumpts to end;
                     let start = lin_branch(true_branch, false_branch, e, st, scope);
-                    return (temp, start, end);
+                    (temp, start, end)
                 }
                 _ => {
                     let (t1, t1start, t1end) = lin_expr(&e1.val, st, scope);
@@ -194,7 +192,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                         jump_loc: Jump::Nowhere,
                     });
                     st.get_block(t2end).jump_loc = Jump::Uncond(end);
-                    return (t3, t1start, end);
+                    (t3, t1start, end)
                 }
             }
         }
@@ -210,7 +208,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                 }],
                 jump_loc: Jump::Nowhere,
             });
-            return (t1, t1start, end);
+            (t1, t1start, end)
         }
         Expr::Len(id) => match scope.lookup(&id.val) {
             Some((Type::Arr(_, len), _)) => {
@@ -239,7 +237,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                 }],
                 jump_loc: Jump::Nowhere,
             });
-            return (t, end, end);
+            (t, end, end)
         }
         ir::Expr::Loc(loc) => {
             return lin_location(&loc.val, st, scope);
@@ -280,7 +278,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                 body: vec![call_instr],
                 jump_loc: Jump::Nowhere,
             });
-            return (ret_val, start, end);
+            (ret_val, start, end)
         }
     }
 }
@@ -296,7 +294,7 @@ fn lin_block(b: &Block, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabe
         last = end;
     }
 
-    return (fst, last);
+    (fst, last)
 }
 
 fn infer_unary_type(typ: Primitive, op: &UnOp) -> Primitive {
@@ -379,7 +377,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             });
             st.get_block(prev_block).jump_loc = Jump::Uncond(end);
 
-            return (start, end);
+            (start, end)
         }
         ir::Stmt::If(WithLoc { val: expr, loc: _ }, if_block, else_block) => {
             let (if_start, if_end) = lin_block(if_block, st, scope);
@@ -426,7 +424,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             st.get_block(continue_target).jump_loc = Jump::Uncond(while_condition);
             st.get_block(while_block_end).jump_loc = Jump::Uncond(while_condition);
 
-            return (while_block_start, end);
+            (while_block_start, end)
         }
         ir::Stmt::For {
             var_to_set,
@@ -473,7 +471,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             st.get_block(loop_init_end).jump_loc = Jump::Uncond(condition_start);
             st.get_block(loop_update).jump_loc = Jump::Uncond(condition_start);
 
-            return (loop_start, end);
+            (loop_start, end)
         }
         ir::Stmt::Return(_, ret_val) => match ret_val {
             Some(expr) => {
@@ -629,10 +627,7 @@ fn lin_literal(lit: Literal) -> (Primitive, i64) {
             Primitive::IntType,
             i64::from_str_radix(s.as_str(), 16).unwrap(),
         ),
-        Literal::DecLong(s) => (
-            Primitive::LongType,
-            i64::from_str_radix(s.as_str(), 10).unwrap(),
-        ),
+        Literal::DecLong(s) => (Primitive::LongType, str::parse(s.as_str()).unwrap()),
         Literal::HexLong(s) => (
             Primitive::LongType,
             i64::from_str_radix(s.as_str(), 16).unwrap(),
