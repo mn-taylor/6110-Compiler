@@ -11,6 +11,11 @@ use scan::{AddOp, AssignOp, MulOp};
 
 type Scope<'a> = ir::Scope<'a, (Type, u32)>;
 
+pub struct CfgMethod {
+    blocks: HashMap<BlockLabel, BasicBlock>,
+    fields: HashMap<VarLabel, (CfgType, u64)>,
+}
+
 struct State {
     break_loc: Option<BlockLabel>,
     continue_loc: Option<BlockLabel>,
@@ -170,6 +175,35 @@ fn collapse_jumps(st: &mut State) -> HashMap<usize, BasicBlock> {
     return collapsed_blocks;
 }
 
+fn build_stack(
+    all_fields: HashMap<VarLabel, (CfgType, String)>,
+) -> HashMap<VarLabel, (CfgType, u64)> {
+    let mut offset: u64 = 0;
+    let mut field = 0;
+    let mut lookup: HashMap<VarLabel, (CfgType, u64)> = HashMap::new();
+
+    loop {
+        let res = all_fields.get(&field);
+        match res {
+            Some((typ, _)) => match typ {
+                CfgType::Scalar(t) => {
+                    lookup.insert(field, (typ.clone(), offset.clone()));
+                    offset += 16;
+                }
+                CfgType::Array(t, len) => {
+                    lookup.insert(field, (typ.clone(), offset.clone()));
+                    offset += u64::from((len * 16) as u32);
+                }
+            },
+            None => break,
+        }
+
+        field += 1;
+    }
+
+    lookup
+}
+
 fn type_to_prim(t: Type) -> Primitive {
     match t {
         Type::Prim(p) => p,
@@ -200,19 +234,28 @@ fn gen_temp(t: Primitive, st: &mut State) -> VarLabel {
     gen_var(CfgType::Scalar(t), "temp".to_string(), st)
 }
 
-pub fn lin_program(program: &Program) {
+pub fn lin_program(program: &Program) -> Vec<CfgMethod> {
     // Get the local scope from the program
     //let scope = program.scope(None, &mut st);
+    let mut methods: Vec<CfgMethod> = vec![];
 
     // Process methods
     for method in &program.methods {
-        println!("START OF METHOD");
         let (blocks, fields) = lin_method(method, program);
+        let offsets = build_stack(fields);
+        methods.push(CfgMethod {
+            blocks: blocks.clone(),
+            fields: offsets,
+        });
+
+        println!("START OF METHOD");
         for block in blocks.values() {
             println!("{}", block);
         }
-        println!("END OF METHOD")
+        println!("END OF METHOD");
     }
+
+    methods
 }
 
 pub fn lin_method(
