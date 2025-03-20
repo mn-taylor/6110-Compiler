@@ -7,9 +7,9 @@ use std::fmt;
 pub type BlockLabel = usize;
 pub type VarLabel = u32;
 
-// #[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BasicBlock {
-    // parents: Vec<BasicBlock>,
+    pub parents: Vec<usize>,
     pub block_id: BlockLabel,
     pub body: Vec<Instruction>,
     pub jump_loc: Jump,
@@ -19,6 +19,7 @@ impl fmt::Display for BasicBlock {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "------------------------- \n");
         write!(f, "BasicBlock {} \n", &self.block_id);
+        writeln!(f, "  Parents: {:?}", self.parents)?;
         for instr in &self.body {
             writeln!(f, "| {} |", instr)?;
         }
@@ -27,6 +28,7 @@ impl fmt::Display for BasicBlock {
     }
 }
 
+#[derive(Clone)]
 pub enum Jump {
     Uncond(BlockLabel),
     Cond {
@@ -54,6 +56,7 @@ impl fmt::Display for Jump {
     }
 }
 
+#[derive(Clone)]
 pub enum Instruction {
     ThreeOp {
         source1: VarLabel,
@@ -133,6 +136,7 @@ impl fmt::Display for Instruction {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum Arg {
     VarArg(VarLabel),
     StrArg(String),
