@@ -17,8 +17,8 @@ pub struct BasicBlock {
 
 impl fmt::Display for BasicBlock {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "-------------------------");
-        writeln!(f, "BasicBlock {}", &self.block_id);
+        write!(f, "------------------------- \n");
+        write!(f, "BasicBlock {} \n", &self.block_id);
         for instr in &self.body {
             writeln!(f, "| {} |", instr)?;
         }

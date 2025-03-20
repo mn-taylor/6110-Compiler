@@ -4,8 +4,7 @@ use crate::{
     parse,
     scan::{self, IncrOp},
 };
-use cfg::{Arg, BasicBlock, BlockLabel, CfgType, Instruction, Jump, Type, Var, VarLabel};
-use clap::ArgGroup;
+use cfg::{Arg, BasicBlock, BlockLabel, CfgType, Instruction, Jump, Type, VarLabel};
 use ir::{AssignExpr, Block, Bop, Expr, Location, Method, Stmt, UnOp};
 use parse::{Field, Literal, Primitive, WithLoc};
 use scan::{AddOp, AssignOp, MulOp};
