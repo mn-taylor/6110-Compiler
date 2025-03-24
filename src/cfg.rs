@@ -32,24 +32,75 @@ impl fmt::Display for BasicBlock {
 pub enum Jump {
     Uncond(BlockLabel),
     Cond {
-        source: VarLabel,
+        cmp: Cmp,
+        jump_type: CmpType,
         true_block: BlockLabel,
         false_block: BlockLabel,
     },
     Nowhere,
 }
+
+#[derive(Clone, Copy)]
+pub enum CmpType {
+    Equal,
+    NotEqual,
+    Greater,
+    Less,
+    GreaterEqual,
+    LessEqual,
+}
+impl fmt::Display for CmpType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            CmpType::Equal => "eq",
+            CmpType::NotEqual => "ne",
+            CmpType::Greater => "gt",
+            CmpType::Less => "lt",
+            CmpType::GreaterEqual => "ge",
+            CmpType::LessEqual => "le",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum Cmp {
+    VarVar {
+        source1: VarLabel,
+        source2: VarLabel,
+    },
+    VarImmediate {
+        source: VarLabel,
+        imm: i32,
+    },
+}
+
+impl fmt::Display for Cmp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Cmp::VarVar { source1, source2 } => {
+                write!(f, "Comp t{}, t{}", source1, source2)
+            }
+            Cmp::VarImmediate { source, imm } => {
+                write!(f, "Comp t{}, {}", source, imm)
+            }
+        }
+    }
+}
+
 impl fmt::Display for Jump {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Jump::Uncond(block) => write!(f, "goto {}", block),
             Jump::Cond {
-                source,
+                cmp,
+                jump_type,
                 true_block,
                 false_block,
             } => write!(
                 f,
-                "if {} then goto {} else goto {}",
-                source, true_block, false_block
+                "if {} with {} then goto {} else goto {}",
+                cmp, jump_type, true_block, false_block
             ),
             Jump::Nowhere => write!(f, "nowhere"),
         }
@@ -89,6 +140,12 @@ pub enum Instruction {
     },
     Ret(Option<VarLabel>),
     Call(String, Vec<Arg>, Option<VarLabel>),
+    CondMove {
+        cmp: Cmp,
+        cmp_type: CmpType,
+        dest: VarLabel,
+        source: i64,
+    },
 }
 
 impl fmt::Display for Instruction {
@@ -131,6 +188,16 @@ impl fmt::Display for Instruction {
                     .map(|arg| arg.to_string())
                     .collect::<Vec<_>>()
                     .join(", ")
+            ),
+            Instruction::CondMove {
+                cmp,
+                dest,
+                source,
+                cmp_type,
+            } => write!(
+                f,
+                "{}, condmove t{} <- {} if {}",
+                cmp, dest, source, cmp_type
             ),
         }
     }

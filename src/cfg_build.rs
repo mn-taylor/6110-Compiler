@@ -4,10 +4,10 @@ use crate::{
     parse,
     scan::{self, IncrOp},
 };
-use cfg::{Arg, BasicBlock, BlockLabel, CfgType, Instruction, Jump, Type, VarLabel};
+use cfg::{Arg, BasicBlock, BlockLabel, CfgType, Cmp, CmpType, Instruction, Jump, Type, VarLabel};
 use ir::{AssignExpr, Block, Bop, Expr, Location, Method, Stmt, UnOp};
 use parse::{Field, Literal, Primitive, WithLoc};
-use scan::{AddOp, AssignOp, MulOp};
+use scan::{AddOp, AssignOp, EqOp, MulOp, RelOp};
 
 type Scope<'a> = ir::Scope<'a, (Type, u32)>;
 
@@ -45,9 +45,10 @@ impl State {
 
     // should only be given scalar-type var as input
     fn type_of(&self, v: VarLabel) -> Primitive {
-        match &self.all_fields.get(&v).unwrap().0 {
-            CfgType::Scalar(t) => t.clone(),
-            CfgType::Array(_, _) => panic!(),
+        match &self.all_fields.get(&v) {
+            Some((CfgType::Scalar(t), _)) => t.clone(),
+            Some((CfgType::Array(_, _), _)) => panic!(),
+            None => panic!("Couldn't find low-level variable {}", v),
         }
     }
 }
@@ -116,7 +117,8 @@ fn collapse_jumps(st: &mut State) -> HashMap<usize, BasicBlock> {
                     }
                 }
                 Jump::Cond {
-                    source,
+                    cmp,
+                    jump_type,
                     true_block,
                     false_block,
                 } => {
@@ -135,7 +137,8 @@ fn collapse_jumps(st: &mut State) -> HashMap<usize, BasicBlock> {
                         body: instructions,
                         block_id: collapsed[0].block_id,
                         jump_loc: Jump::Cond {
-                            source: source,
+                            cmp: cmp.clone(),
+                            jump_type: jump_type.clone(),
                             true_block: new_true_block,
                             false_block: new_false_block,
                         },
@@ -268,10 +271,19 @@ pub fn lin_method(
     let mut st: State = State {
         break_loc: None,
         continue_loc: None,
-        last_name: 0,
+        last_name: 3,
         all_blocks: HashMap::new(),
         all_fields: HashMap::new(),
     };
+
+    // insert the generic temps to represent functions
+    st.all_fields
+        .insert(1, (CfgType::Scalar(Primitive::IntType), "".to_string()));
+    st.all_fields
+        .insert(2, (CfgType::Scalar(Primitive::LongType), "".to_string()));
+    st.all_fields
+        .insert(3, (CfgType::Scalar(Primitive::BoolType), "".to_string()));
+
     let fst: usize = new_noop(&mut st);
     let mut last = fst;
     let scope = program.scope(None, &mut st);
@@ -311,15 +323,35 @@ fn lin_branch(
         _ => {
             let (t, tstart, tend) = lin_expr(cond, st, scope);
 
+            let cmp = Cmp::VarImmediate { source: t, imm: 1 };
+            let jump_type = CmpType::Equal;
+
             st.get_block(true_branch).parents.push(tend);
             st.get_block(false_branch).parents.push(tend);
             st.get_block(tend).jump_loc = Jump::Cond {
-                source: t,
+                cmp: cmp,
+                jump_type: jump_type,
                 true_block: true_branch,
                 false_block: false_branch,
             };
             tstart
         }
+    }
+}
+
+fn convert_rel_to_jump_type(op: Bop) -> CmpType {
+    match op {
+        Bop::EqBop(eop) => match eop {
+            EqOp::Eq => CmpType::Equal,
+            EqOp::Neq => CmpType::NotEqual,
+        },
+        Bop::RelBop(rop) => match rop {
+            RelOp::Lt => CmpType::Less,
+            RelOp::Le => CmpType::LessEqual,
+            RelOp::Ge => CmpType::GreaterEqual,
+            RelOp::Gt => CmpType::Greater,
+        },
+        _ => panic!("input should be relational operation"),
     }
 }
 
@@ -345,19 +377,19 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                         block_id: 0,
                         body: vec![Instruction::Constant {
                             dest: temp.clone(),
-                            constant: 1,
+                            constant: 0,
                         }],
                         jump_loc: Jump::Uncond(end),
-                    }); //block taht  sets temp = fasle and jumpts to end;
-                    let end = new_noop(st);
+                    }); //block taht  sets temp = fasle and jumps to end;
 
+                    print!("{}", end);
                     st.get_block(end).parents.push(true_branch);
                     st.get_block(end).parents.push(false_branch);
 
                     let start = lin_branch(true_branch, false_branch, e, st, scope);
                     (temp, start, end)
                 }
-                _ => {
+                Bop::MulBop(_) | Bop::AddBop(_) => {
                     let (t1, t1start, t1end) = lin_expr(&e1.val, st, scope);
                     let (t2, t2start, t2end) = lin_expr(&e2.val, st, scope);
                     st.get_block(t1end).jump_loc = Jump::Uncond(t2start);
@@ -376,6 +408,39 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                         jump_loc: Jump::Nowhere,
                     });
                     st.get_block(t2end).jump_loc = Jump::Uncond(end);
+                    st.get_block(end).parents.push(t2end);
+                    (t3, t1start, end)
+                }
+                _ => {
+                    let (t1, t1start, t1end) = lin_expr(&e1.val, st, scope);
+                    let (t2, t2start, t2end) = lin_expr(&e2.val, st, scope);
+                    st.get_block(t1end).jump_loc = Jump::Uncond(t2start);
+                    st.get_block(t2start).parents.push(t1end);
+
+                    let t3 = gen_temp(infer_type(st.type_of(t1), op), st);
+
+                    let end = new_noop(st);
+                    let instructions = vec![
+                        Instruction::Constant {
+                            dest: t3,
+                            constant: 0,
+                        },
+                        Instruction::CondMove {
+                            cmp: Cmp::VarVar {
+                                source1: t1,
+                                source2: t2,
+                            },
+                            cmp_type: convert_rel_to_jump_type(op.clone()),
+                            dest: t3,
+                            source: 1,
+                        },
+                    ];
+
+                    st.get_block(t2end).jump_loc = Jump::Uncond(end);
+                    st.get_block(end).parents.push(t2end);
+
+                    st.get_block(end).body = instructions;
+
                     (t3, t1start, end)
                 }
             }
@@ -458,7 +523,8 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
 
             let ret_val = match scope.lookup(&id.val) {
                 Some((Type::Prim(t), _)) => gen_temp(t.clone(), st),
-                Some((Type::Func(_, _), _))=> 0,
+                Some((Type::Func(_, p), _))=> convert_func_type_to_generic_temp(p.clone()),
+                Some((Type::ExtCall, _))=> 1,
                 _ => panic!("Should not get here. function calls within expression must have non-void return type"),
             };
             let call_instr = cfg::Instruction::Call(func_name, temp_args, Some(ret_val));
@@ -908,6 +974,23 @@ fn lin_location(
 
 use std::collections::{HashMap, HashSet};
 
+/**
+ * Generic Temporary values
+ * t0 - void (should never be used)
+ * t1 - int
+ * t2 - long
+ * t3 - bool
+ */
+
+fn convert_func_type_to_generic_temp(p: Option<Primitive>) -> u32 {
+    match p {
+        Some(Primitive::IntType) => 1,
+        Some(Primitive::BoolType) => 2,
+        Some(Primitive::LongType) => 3,
+        None => 0,
+    }
+}
+
 pub trait Scoped {
     fn scope<'a>(&'a self, parent: Option<&'a Scope>, st: &mut State) -> Scope<'a> {
         Scope::new(self.local_scope(st), parent)
@@ -918,7 +1001,7 @@ pub trait Scoped {
 fn imports_scope(
     imports: &Vec<WithLoc<parse::Ident>>,
 ) -> impl Iterator<Item = (&String, (Type, u32))> {
-    let default: u32 = 0;
+    let default: u32 = 1;
     imports
         .iter()
         .map(move |import| (&import.val.name, (Type::ExtCall, default)))
@@ -926,7 +1009,6 @@ fn imports_scope(
 
 fn outer_methods_scope(methods: &Vec<Method>) -> impl Iterator<Item = (&String, (Type, u32))> {
     methods.iter().map(|method| {
-        let default: u32 = 0;
         (
             &method.name.val.name,
             (
@@ -938,7 +1020,7 @@ fn outer_methods_scope(methods: &Vec<Method>) -> impl Iterator<Item = (&String, 
                         .collect::<Vec<_>>(),
                     method.meth_type.clone(),
                 ),
-                default,
+                convert_func_type_to_generic_temp(method.meth_type.clone()),
             ),
         )
     })
