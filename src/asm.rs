@@ -149,6 +149,24 @@ fn asm_instruction(
 
             return vec![get_source, return_to_stack];
         }
+        Instruction::Ret(ret_val) => {
+            let mut instructions = vec![];
+            match ret_val {
+                Some(var) => {
+                    let (_, var_offset) = stack_lookup.get(&var).unwrap();
+                    instructions.push(format!("MOV {} [{} + {}]", Reg::Rax, Reg::Rbp, var_offset));
+                }
+                None => {}
+            }
+            instructions.push("RET".to_string());
+            instructions
+        }
+        Instruction::Call(func_name, args, ret_dest) => {
+            let mut instructions = vec![];
+            for arg in args {
+                match arg {}
+            }
+        }
 
         _ => todo!(),
     }
