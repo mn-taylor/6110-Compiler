@@ -12,8 +12,10 @@ use scan::{AddOp, AssignOp, EqOp, MulOp, RelOp};
 type Scope<'a> = ir::Scope<'a, (Type, u32)>;
 
 pub struct CfgMethod {
+    name: String,
     blocks: HashMap<BlockLabel, BasicBlock>,
-    fields: HashMap<VarLabel, (CfgType, u64)>,
+    field_offsets: HashMap<VarLabel, (CfgType, u64)>,
+    total_offset: u64,
 }
 
 struct State {
@@ -28,6 +30,7 @@ struct State {
             String, /*high-level name for debugging purposes*/
         ),
     >,
+    all_strings: Vec<String>,
 }
 
 impl State {
@@ -180,7 +183,7 @@ fn collapse_jumps(st: &mut State) -> HashMap<usize, BasicBlock> {
 
 fn build_stack(
     all_fields: HashMap<VarLabel, (CfgType, String)>,
-) -> HashMap<VarLabel, (CfgType, u64)> {
+) -> (HashMap<VarLabel, (CfgType, u64)>, u64) {
     let mut offset: u64 = 0;
     let mut field = 0;
     let mut lookup: HashMap<VarLabel, (CfgType, u64)> = HashMap::new();
@@ -204,7 +207,7 @@ fn build_stack(
         field += 1;
     }
 
-    lookup
+    (lookup, offset)
 }
 
 fn type_to_prim(t: Type) -> Primitive {
@@ -237,19 +240,24 @@ fn gen_temp(t: Primitive, st: &mut State) -> VarLabel {
     gen_var(CfgType::Scalar(t), "temp".to_string(), st)
 }
 
-pub fn lin_program(program: &Program) -> Vec<CfgMethod> {
+pub fn lin_program(program: &Program) -> (Vec<CfgMethod>, HashMap<String, String>) {
     // Get the local scope from the program
     //let scope = program.scope(None, &mut st);
     let mut methods: Vec<CfgMethod> = vec![];
 
+    let mut global_strings: Vec<String> = vec![];
+
     // Process methods
     for method in &program.methods {
-        let (blocks, fields) = lin_method(method, program);
-        let offsets = build_stack(fields);
+        let (blocks, fields, data) = lin_method(method, program);
+        let (offsets, total_offset) = build_stack(fields);
         methods.push(CfgMethod {
+            name: method.name.val.name.clone(),
             blocks: blocks.clone(),
-            fields: offsets,
+            field_offsets: offsets,
+            total_offset: total_offset,
         });
+        global_strings.extend(data);
 
         println!("START OF METHOD");
         for block in blocks.values() {
@@ -258,7 +266,15 @@ pub fn lin_program(program: &Program) -> Vec<CfgMethod> {
         println!("END OF METHOD");
     }
 
-    methods
+    // build global data
+    let mut data_labels = HashMap::new();
+    for string in global_strings {
+        if !data_labels.contains_key(&string) {
+            data_labels.insert(string, format!("string{}", data_labels.len()));
+        }
+    }
+
+    (methods, data_labels)
 }
 
 pub fn lin_method(
@@ -267,6 +283,7 @@ pub fn lin_method(
 ) -> (
     HashMap<BlockLabel, BasicBlock>,
     HashMap<VarLabel, (CfgType, String)>,
+    Vec<String>,
 ) {
     let mut st: State = State {
         break_loc: None,
@@ -274,6 +291,7 @@ pub fn lin_method(
         last_name: 3,
         all_blocks: HashMap::new(),
         all_fields: HashMap::new(),
+        all_strings: vec![],
     };
 
     // insert the generic temps to represent functions
@@ -300,7 +318,7 @@ pub fn lin_method(
 
     // (collapse_jumps(&mut st));
     // return (st.all_blocks, st.all_fields);
-    (collapse_jumps(&mut st), st.all_fields)
+    (collapse_jumps(&mut st), st.all_fields, st.all_strings)
 }
 
 fn lin_branch(
@@ -515,6 +533,8 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                         val: string,
                         loc: _,
                     }) => {
+                        st.all_strings.push(string.to_string());
+
                         let cfg_arg = Arg::StrArg(string.to_string());
                         temp_args.push(cfg_arg);
                     }
@@ -617,6 +637,8 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
                         val: string,
                         loc: _,
                     }) => {
+                        st.all_strings.push(string.to_string());
+
                         let cfg_arg = Arg::StrArg(string.to_string());
                         temp_args.push(cfg_arg);
                     }

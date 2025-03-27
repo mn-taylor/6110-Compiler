@@ -1,4 +1,4 @@
-use crate::cfg::{BasicBlock, CfgType, Instruction, Jump, VarLabel};
+use crate::cfg::{Arg, BasicBlock, CfgType, Cmp, CmpType, Instruction, Jump, VarLabel};
 use crate::cfg_build::CfgMethod;
 use crate::ir::{Bop, UnOp};
 use crate::scan::{AddOp, MulOp};
@@ -61,8 +61,20 @@ fn convert_bop_to_asm(bop: Bop) -> String {
     .to_string()
 }
 
+fn convert_cmp_to_cond_move(cmpt: CmpType) -> String {
+    match cmpt {
+        CmpType::Equal => "CMOVE".to_string(),
+        CmpType::NotEqual => "CMOVNE".to_string(),
+        CmpType::Greater => "CMOVG".to_string(),
+        CmpType::GreaterEqual => "CMOVGE".to_string(),
+        CmpType::Less => "CMOVL".to_string(),
+        CmpType::LessEqual => "CMOVLE".to_string(),
+    }
+}
+
 fn asm_instruction(
     stack_lookup: HashMap<VarLabel, (CfgType, u64)>,
+    data: HashMap<String, String>,
     instr: Instruction,
 ) -> Vec<String> {
     match instr {
@@ -149,7 +161,145 @@ fn asm_instruction(
 
             return vec![get_source, return_to_stack];
         }
+        Instruction::Ret(ret_val) => {
+            let mut instructions = vec![];
+            match ret_val {
+                Some(var) => {
+                    let (_, var_offset) = stack_lookup.get(&var).unwrap();
+                    instructions.push(format!("MOV {} [{} + {}]", Reg::Rax, Reg::Rbp, var_offset));
+                }
+                None => {}
+            }
+            instructions.push("RET".to_string());
+            instructions
+        }
+        Instruction::Call(func_name, args, ret_dest) => {
+            let mut instructions: Vec<String> = vec![];
+            let mut argument_registers: Vec<Reg> =
+                vec![Reg::R9, Reg::R8, Reg::Rcx, Reg::Rdx, Reg::Rsi, Reg::Rdi];
 
-        _ => todo!(),
+            // push arguments into registers and onto stack if needed
+            for (i, arg) in args.iter().enumerate() {
+                match arg {
+                    Arg::VarArg(label) => {
+                        let (_, source_offset) = stack_lookup.get(&label).unwrap();
+                        let arg_reg = argument_registers.pop();
+                        match arg_reg {
+                            Some(reg) => {
+                                instructions.push(format!(
+                                    "MOV {} [{} + {}]",
+                                    reg,
+                                    Reg::Rbp,
+                                    source_offset
+                                ));
+                            }
+                            None => {
+                                instructions.push(format!(
+                                    "MOV {} [{} + {}]",
+                                    Reg::Rax,
+                                    Reg::Rbp,
+                                    source_offset
+                                ));
+                                instructions.push(format!("PUSH {}", Reg::Rax));
+                            }
+                        }
+                    }
+                    Arg::StrArg(string) => {
+                        let str_loc = data.get(string).unwrap();
+                        let arg_reg = argument_registers.pop();
+
+                        match arg_reg {
+                            Some(reg) => {
+                                instructions.push(format!("MOV {} {}", reg, str_loc));
+                            }
+                            None => {
+                                instructions.push(format!("MOV {} {}", Reg::Rax, str_loc));
+                                instructions.push(format!("PUSH {}", Reg::Rax));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // call the function
+            if func_name == "printf".to_string() {
+                instructions.push(format!("XOR {}, {}", Reg::Rax, Reg::Rax));
+            }
+            instructions.push(format!("CALL {}", func_name));
+
+            // store return value into temp
+            match ret_dest {
+                Some(dest) => {
+                    let (_, dest_offset) = stack_lookup.get(&dest).unwrap();
+                    instructions.push(format!(
+                        "MOV [{} + {}], {}",
+                        Reg::Rbp,
+                        dest_offset,
+                        Reg::Rax
+                    ));
+                }
+                None => {}
+            }
+
+            return instructions;
+        }
+        Instruction::CondMove {
+            cmp,
+            cmp_type,
+            dest,
+            source,
+        } => {
+            let mut instructions: Vec<String> = vec![];
+            let (_, dest_offset) = stack_lookup.get(&dest).unwrap();
+
+            match cmp {
+                Cmp::VarVar { source1, source2 } => {
+                    let (_, source1_offset) = stack_lookup.get(&source1).unwrap();
+                    let (_, source2_offset) = stack_lookup.get(&source2).unwrap();
+
+                    instructions.push(format!(
+                        "MOV {} [{} + {}]",
+                        Reg::Rax,
+                        Reg::Rbp,
+                        source1_offset
+                    ));
+                    instructions.push(format!(
+                        "MOV {} [{} + {}]",
+                        Reg::R9,
+                        Reg::Rbp,
+                        source2_offset
+                    ));
+
+                    instructions.push(format!("CMP {}, {}", Reg::Rax, Reg::R9));
+                }
+                Cmp::VarImmediate { source, imm } => {
+                    let (_, source_offset) = stack_lookup.get(&source).unwrap();
+                    instructions.push(format!(
+                        "MOV {} [{} + {}]",
+                        Reg::Rax,
+                        Reg::Rbp,
+                        source_offset
+                    ));
+
+                    instructions.push(format!("CMP {}, {}", Reg::Rax, imm));
+                }
+            }
+
+            instructions.push(format!(
+                "{} {} {}",
+                convert_cmp_to_cond_move(cmp_type),
+                Reg::Rax,
+                source
+            ));
+
+            instructions.push(format!(
+                "MOV [{} + {}], {}",
+                Reg::Rbp,
+                dest_offset,
+                Reg::Rax
+            ));
+
+            return instructions;
+        }
     }
 }
