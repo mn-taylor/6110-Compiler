@@ -72,6 +72,68 @@ fn convert_cmp_to_cond_move(cmpt: CmpType) -> String {
     }
 }
 
+fn asm_method(method: CfgMethod, global_data: HashMap<String, String>) {
+    let mut instructions: Vec<String> = vec![format!("{}:", method.name)];
+    // set up stack frame
+    instructions.push(format!("push {}", Reg::Rbp));
+    instructions.push(format!("mov {}, {}", Reg::Rbp, Reg::Rsp));
+
+    // allocate space enough space on the stack
+    instructions.push(format!("sub {}, {}", Reg::Rsp, method.total_offset));
+
+    // read parameters from registers and/or stack
+    let mut argument_registers: Vec<Reg> =
+        vec![Reg::R9, Reg::R8, Reg::Rcx, Reg::Rdx, Reg::Rsi, Reg::Rdi];
+    for (i, llname) in method.ll_params.iter().enumerate() {
+        let (_, dest) = method.field_offsets.get(llname).unwrap();
+        if i < 6 {
+            let reg = argument_registers.pop().unwrap();
+            instructions.push(format!("mov [{} - {}], {}", Reg::Rbp, dest, reg));
+        } else {
+            instructions.push(format!(
+                "move {}, [{} + {}]",
+                Reg::Rax,
+                Reg::Rbp,
+                16 + 16 * (6 - i) // check the math here
+            ));
+            instructions.push(format!("mov [{} - {}], {}", Reg::Rbp, dest, Reg::Rax));
+        }
+    }
+
+    // assemble blocks
+    let mut blocks: Vec<&BasicBlock> = method.blocks.values().collect::<Vec<_>>();
+    blocks.sort_by_key(|c| c.block_id);
+
+    for block in blocks {
+        instructions.extend(asm_block(
+            block,
+            &method.field_offsets,
+            &global_data,
+            &method.name,
+        ));
+    }
+
+    // make a label for end, that blocks which jump to Nowhere jump to.
+
+    // return the stack to original state
+
+    // ret instruction
+}
+
+fn asm_block(
+    b: &BasicBlock,
+    stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
+    data: &HashMap<String, String>,
+    root: &String,
+) -> Vec<String> {
+    // make label
+
+    // perform instructions
+
+    // handle jumps
+    vec![]
+}
+
 fn asm_instruction(
     stack_lookup: HashMap<VarLabel, (CfgType, u64)>,
     data: HashMap<String, String>,
@@ -170,7 +232,7 @@ fn asm_instruction(
                 }
                 None => {}
             }
-            instructions.push("RET".to_string());
+            // instructions.push("RET".to_string());
             instructions
         }
         Instruction::Call(func_name, args, ret_dest) => {

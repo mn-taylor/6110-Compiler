@@ -12,10 +12,11 @@ use scan::{AddOp, AssignOp, EqOp, MulOp, RelOp};
 type Scope<'a> = ir::Scope<'a, (Type, u32)>;
 
 pub struct CfgMethod {
-    name: String,
-    blocks: HashMap<BlockLabel, BasicBlock>,
-    field_offsets: HashMap<VarLabel, (CfgType, u64)>,
-    total_offset: u64,
+    pub name: String,
+    pub ll_params: Vec<u32>,
+    pub blocks: HashMap<BlockLabel, BasicBlock>,
+    pub field_offsets: HashMap<VarLabel, (CfgType, u64)>,
+    pub total_offset: u64,
 }
 
 struct State {
@@ -194,11 +195,11 @@ fn build_stack(
             Some((typ, _)) => match typ {
                 CfgType::Scalar(t) => {
                     lookup.insert(field, (typ.clone(), offset.clone()));
-                    offset += 16;
+                    offset += 8;
                 }
                 CfgType::Array(t, len) => {
                     lookup.insert(field, (typ.clone(), offset.clone()));
-                    offset += u64::from((len * 16) as u32);
+                    offset += u64::from((len * 8) as u32);
                 }
             },
             None => break,
@@ -207,7 +208,7 @@ fn build_stack(
         field += 1;
     }
 
-    (lookup, offset)
+    (lookup, offset + (16 - offset % 16))
 }
 
 fn type_to_prim(t: Type) -> Primitive {
@@ -249,10 +250,11 @@ pub fn lin_program(program: &Program) -> (Vec<CfgMethod>, HashMap<String, String
 
     // Process methods
     for method in &program.methods {
-        let (blocks, fields, data) = lin_method(method, program);
+        let (blocks, fields, ll_params, data) = lin_method(method, program);
         let (offsets, total_offset) = build_stack(fields);
         methods.push(CfgMethod {
             name: method.name.val.name.clone(),
+            ll_params: ll_params,
             blocks: blocks.clone(),
             field_offsets: offsets,
             total_offset: total_offset,
@@ -283,6 +285,7 @@ pub fn lin_method(
 ) -> (
     HashMap<BlockLabel, BasicBlock>,
     HashMap<VarLabel, (CfgType, String)>,
+    Vec<u32>,
     Vec<String>,
 ) {
     let mut st: State = State {
@@ -316,9 +319,24 @@ pub fn lin_method(
         last = end;
     }
 
+    // get low_level_names of all parameters so we can lookup stack offsets at start of method when we asm
+    let ll_params = method
+        .params
+        .iter()
+        .map(|c| {
+            let (_, ll_name) = method_scope.lookup(&c.name.val).unwrap();
+            *ll_name
+        })
+        .collect::<Vec<_>>();
+
     // (collapse_jumps(&mut st));
     // return (st.all_blocks, st.all_fields);
-    (collapse_jumps(&mut st), st.all_fields, st.all_strings)
+    (
+        collapse_jumps(&mut st),
+        st.all_fields,
+        ll_params,
+        st.all_strings,
+    )
 }
 
 fn lin_branch(
