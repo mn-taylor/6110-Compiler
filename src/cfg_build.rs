@@ -194,31 +194,34 @@ fn gen_temp(
 }
 
 pub fn lin_program(program: &Program) -> (Vec<CfgMethod>, HashMap<String, String>) {
-    // Get the local scope from the program
-    //let scope = program.scope(None, &mut st);
-    let mut methods: Vec<CfgMethod> = vec![];
-
+    let mut global_fields = HashMap::new();
+    let mut last_name = 0;
+    let scope = program.scope(None, &mut last_name, &mut global_fields);
     let mut global_strings: Vec<String> = vec![];
 
     // Process methods
-    for method in &program.methods {
-        let (blocks, fields, ll_params, data) = lin_method(method, program);
-        let (offsets, total_offset) = build_stack(fields);
-        methods.push(CfgMethod {
-            name: method.name.val.name.clone(),
-            ll_params: ll_params,
-            blocks: blocks.clone(),
-            field_offsets: offsets,
-            total_offset: total_offset,
-        });
-        global_strings.extend(data);
+    let methods = program
+        .methods
+        .iter()
+        .map(|method| {
+            let (blocks, fields, ll_params, data) = lin_method(method, last_name, &scope);
+            let (field_offsets, total_offset) = build_stack(fields);
+            global_strings.extend(data);
 
-        println!("START OF METHOD");
-        for block in blocks.values() {
-            println!("{}", block);
-        }
-        println!("END OF METHOD");
-    }
+            println!("START OF METHOD");
+            for block in blocks.values() {
+                println!("{}", block);
+            }
+            println!("END OF METHOD");
+            CfgMethod {
+                name: method.name.val.name.clone(),
+                ll_params,
+                blocks: blocks.clone(),
+                field_offsets,
+                total_offset,
+            }
+        })
+        .collect();
 
     // build global data
     let mut data_labels = HashMap::new();
@@ -242,7 +245,8 @@ fn block_with_instr(instr: Instruction) -> BasicBlock {
 
 pub fn lin_method(
     method: &Method,
-    program: &Program,
+    last_name: VarLabel,
+    scope: &Scope,
 ) -> (
     HashMap<BlockLabel, BasicBlock>,
     HashMap<VarLabel, (CfgType, String)>,
@@ -252,7 +256,7 @@ pub fn lin_method(
     let mut st: State = State {
         break_loc: None,
         continue_loc: None,
-        last_name: 0,
+        last_name: last_name,
         all_blocks: HashMap::new(),
         all_fields: HashMap::new(),
         all_strings: vec![],
@@ -260,7 +264,6 @@ pub fn lin_method(
 
     let fst: usize = new_noop(&mut st);
     let mut last = fst;
-    let scope = program.scope(None, &mut st.last_name, &mut st.all_fields);
     let method_scope = method.scope(Some(&scope), &mut st.last_name, &mut st.all_fields);
 
     for s in method.stmts.iter() {
