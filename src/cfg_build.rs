@@ -57,128 +57,38 @@ impl State {
     }
 }
 
-fn collapse_jumps(st: &mut State) -> HashMap<usize, BasicBlock> {
-    get_parents(&mut st.all_blocks);
-    let mut stack: Vec<Vec<usize>> = vec![vec![0]];
-    let mut collapsed_blocks: HashMap<usize, BasicBlock> = HashMap::new();
-    let mut seen: HashSet<usize> = HashSet::new();
-
-    let curr = 0; // entry block for method
-                  // while there are more jumps
-    while stack.len() != 0 {
-        let mut head = stack.pop().unwrap();
-        let mut collapsed = vec![];
-
-        loop {
-            let current_block_label = head[head.len() - 1];
-
-            let curr_block = st.get_block(current_block_label).clone();
-
-            if seen.contains(&current_block_label) {
-                if collapsed.len() == 0 {
-                    break;
-                }
-
-                let instructions = collapsed
-                    .clone()
-                    .into_iter()
-                    .map(|c: BasicBlock| c.body)
-                    .flatten()
-                    .collect::<Vec<_>>();
-                let new_block = BasicBlock {
-                    parents: collapsed[0].clone().parents,
-                    body: instructions,
-                    block_id: collapsed[0].block_id,
-                    jump_loc: collapsed[collapsed.len() - 1].jump_loc.clone(),
-                };
-                collapsed_blocks.insert(new_block.block_id, new_block);
-                break;
-            }
-
-            seen.insert(current_block_label);
-
-            match curr_block.jump_loc {
-                Jump::Uncond(next) => {
-                    if st.get_block(next).parents.len() > 1 {
-                        // link the current blocks together
-                        collapsed.push(curr_block);
-                        let instructions = collapsed
-                            .clone()
-                            .into_iter()
-                            .map(|c: BasicBlock| c.body)
-                            .flatten()
-                            .collect::<Vec<_>>();
-                        let new_block = BasicBlock {
-                            parents: collapsed[0].clone().parents,
-                            body: instructions,
-                            block_id: collapsed[0].block_id,
-                            jump_loc: Jump::Uncond(next),
-                        };
-                        collapsed_blocks.insert(new_block.block_id, new_block);
-                        stack.push(vec![next]);
-                        break;
-                    } else {
-                        head.push(next);
-                    }
-                }
-                Jump::Cond {
-                    source,
-                    true_block,
-                    false_block,
-                } => {
-                    collapsed.push(curr_block);
-                    let instructions = collapsed
-                        .clone()
-                        .into_iter()
-                        .map(|c| c.body.clone())
-                        .flatten()
-                        .collect::<Vec<_>>();
-
-                    let new_false_block = false_block.clone();
-                    let new_true_block = true_block.clone();
-                    let new_block = BasicBlock {
-                        parents: collapsed[0].clone().parents,
-                        body: instructions,
-                        block_id: collapsed[0].block_id,
-                        jump_loc: Jump::Cond {
-                            source,
-                            true_block: new_true_block,
-                            false_block: new_false_block,
-                        },
-                    };
-
-                    collapsed_blocks.insert(new_block.block_id, new_block);
-                    collapsed = vec![];
-
-                    stack.push(vec![new_true_block]);
-                    stack.push(vec![new_false_block]);
-                    break;
-                }
-                Jump::Nowhere => {
-                    collapsed.push(curr_block);
-                    let instructions = collapsed
-                        .clone()
-                        .into_iter()
-                        .map(|c| c.body.clone())
-                        .flatten()
-                        .collect::<Vec<_>>();
-
-                    let new_block = BasicBlock {
-                        parents: collapsed[0].parents.clone(),
-                        body: instructions,
-                        block_id: collapsed[0].block_id,
-                        jump_loc: Jump::Nowhere,
-                    };
-
-                    collapsed_blocks.insert(new_block.block_id, new_block);
-                    collapsed = vec![];
-                    break;
+fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>) {
+    get_parents(blks);
+    let mut lbls_set: HashSet<BlockLabel> = blks.keys().map(|x| *x).collect();
+    // for each parent, see if we can glue parent with its child
+    // note that we completely screw up parent pointers, but it doesn't matter,
+    // because the *number* of parents a block has is all that matters.
+    while let Some(parent_lbl) = lbls_set.iter().next() {
+        let parent_lbl = *parent_lbl;
+        let parent = blks.get(&parent_lbl).unwrap().clone();
+        match parent.jump_loc {
+            Jump::Uncond(child_lbl) => {
+                let child = blks.get_mut(&child_lbl).unwrap();
+                if parent_lbl != child_lbl && child.parents.len() == 1 {
+                    // glue parent with child
+                    let mut parent_and_child = parent;
+                    parent_and_child.body.append(&mut child.body);
+                    parent_and_child.jump_loc = child.jump_loc.clone();
+                    blks.insert(parent_lbl, parent_and_child);
+                    // remove child
+                    blks.remove(&child_lbl);
+                    lbls_set.remove(&child_lbl);
+                } else {
+                    lbls_set.remove(&parent_lbl);
                 }
             }
-            collapsed.push(curr_block);
+            _ => {
+                lbls_set.remove(&parent_lbl);
+            }
         }
     }
-    return collapsed_blocks;
+    // fix screwed-up parents
+    get_parents(blks);
 }
 
 fn build_stack(
@@ -353,14 +263,9 @@ pub fn lin_method(
         })
         .collect::<Vec<_>>();
 
-    // (collapse_jumps(&mut st));
+    collapse_jumps(&mut st.all_blocks);
     // return (st.all_blocks, st.all_fields);
-    (
-        collapse_jumps(&mut st),
-        st.all_fields,
-        ll_params,
-        st.all_strings,
-    )
+    (st.all_blocks, st.all_fields, ll_params, st.all_strings)
 }
 
 fn lin_branch(
