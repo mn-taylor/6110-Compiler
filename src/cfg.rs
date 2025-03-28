@@ -17,13 +17,13 @@ pub struct BasicBlock {
 
 impl fmt::Display for BasicBlock {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "------------------------- \n");
-        write!(f, "BasicBlock {} \n", &self.block_id);
+        write!(f, "------------------------- \n")?;
+        write!(f, "BasicBlock {} \n", &self.block_id)?;
         writeln!(f, "  Parents: {:?}", self.parents)?;
         for instr in &self.body {
             writeln!(f, "| {} |", instr)?;
         }
-        writeln!(f, "| {} |", self.jump_loc);
+        writeln!(f, "| {} |", self.jump_loc)?;
         writeln!(f, "-------------------------")
     }
 }

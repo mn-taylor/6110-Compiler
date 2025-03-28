@@ -878,7 +878,7 @@ fn lin_location(
 
 use std::collections::{HashMap, HashSet};
 
-pub trait Scoped {
+trait Scoped {
     fn scope<'a>(&'a self, parent: Option<&'a Scope>, st: &mut State) -> Scope<'a> {
         Scope::new(self.local_scope(st), parent)
     }

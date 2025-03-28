@@ -1,4 +1,4 @@
-use crate::cfg::{Arg, BasicBlock, CfgType, Cmp, CmpType, Instruction, VarLabel};
+use crate::cfg::{Arg, BasicBlock, CfgType, CmpType, Instruction, VarLabel};
 use crate::cfg_build::CfgMethod;
 use crate::ir::{Bop, UnOp};
 use crate::scan::{AddOp, MulOp};
@@ -72,7 +72,7 @@ fn convert_cmp_to_cond_move(cmpt: CmpType) -> String {
     }
 }
 
-fn asm_method(method: CfgMethod, global_data: HashMap<String, String>) {
+pub fn asm_method(method: CfgMethod, global_data: HashMap<String, String>) {
     let mut instructions: Vec<String> = vec![format!("{}:", method.name)];
     // set up stack frame
     instructions.push(format!("push {}", Reg::Rbp));
@@ -141,10 +141,10 @@ fn asm_instruction(
 ) -> Vec<String> {
     match instr {
         Instruction::ThreeOp {
-            source1: source1,
-            source2: source2,
-            dest: dest,
-            op: op,
+            source1,
+            source2,
+            dest,
+            op,
         } => {
             let (_, source1_offset) = stack_lookup.get(&source1).unwrap();
             let (_, source2_offset) = stack_lookup.get(&source2).unwrap();
@@ -304,64 +304,63 @@ fn asm_instruction(
             }
 
             return instructions;
-        }
-        Instruction::CondMove {
-            cmp,
-            cmp_type,
-            dest,
-            source,
-        } => {
-            let mut instructions: Vec<String> = vec![];
-            let (_, dest_offset) = stack_lookup.get(&dest).unwrap();
+        } // Instruction::CondMove {
+          //     cmp,
+          //     cmp_type,
+          //     dest,
+          //     source,
+          // } => {
+          //     let mut instructions: Vec<String> = vec![];
+          //     let (_, dest_offset) = stack_lookup.get(&dest).unwrap();
 
-            match cmp {
-                Cmp::VarVar { source1, source2 } => {
-                    let (_, source1_offset) = stack_lookup.get(&source1).unwrap();
-                    let (_, source2_offset) = stack_lookup.get(&source2).unwrap();
+          //     match cmp {
+          //         Cmp::VarVar { source1, source2 } => {
+          //             let (_, source1_offset) = stack_lookup.get(&source1).unwrap();
+          //             let (_, source2_offset) = stack_lookup.get(&source2).unwrap();
 
-                    instructions.push(format!(
-                        "MOV {} [{} + {}]",
-                        Reg::Rax,
-                        Reg::Rbp,
-                        source1_offset
-                    ));
-                    instructions.push(format!(
-                        "MOV {} [{} + {}]",
-                        Reg::R9,
-                        Reg::Rbp,
-                        source2_offset
-                    ));
+          //             instructions.push(format!(
+          //                 "MOV {} [{} + {}]",
+          //                 Reg::Rax,
+          //                 Reg::Rbp,
+          //                 source1_offset
+          //             ));
+          //             instructions.push(format!(
+          //                 "MOV {} [{} + {}]",
+          //                 Reg::R9,
+          //                 Reg::Rbp,
+          //                 source2_offset
+          //             ));
 
-                    instructions.push(format!("CMP {}, {}", Reg::Rax, Reg::R9));
-                }
-                Cmp::VarImmediate { source, imm } => {
-                    let (_, source_offset) = stack_lookup.get(&source).unwrap();
-                    instructions.push(format!(
-                        "MOV {} [{} + {}]",
-                        Reg::Rax,
-                        Reg::Rbp,
-                        source_offset
-                    ));
+          //             instructions.push(format!("CMP {}, {}", Reg::Rax, Reg::R9));
+          //         }
+          //         Cmp::VarImmediate { source, imm } => {
+          //             let (_, source_offset) = stack_lookup.get(&source).unwrap();
+          //             instructions.push(format!(
+          //                 "MOV {} [{} + {}]",
+          //                 Reg::Rax,
+          //                 Reg::Rbp,
+          //                 source_offset
+          //             ));
 
-                    instructions.push(format!("CMP {}, {}", Reg::Rax, imm));
-                }
-            }
+          //             instructions.push(format!("CMP {}, {}", Reg::Rax, imm));
+          //         }
+          //     }
 
-            instructions.push(format!(
-                "{} {} {}",
-                convert_cmp_to_cond_move(cmp_type),
-                Reg::Rax,
-                source
-            ));
+          //     instructions.push(format!(
+          //         "{} {} {}",
+          //         convert_cmp_to_cond_move(cmp_type),
+          //         Reg::Rax,
+          //         source
+          //     ));
 
-            instructions.push(format!(
-                "MOV [{} + {}], {}",
-                Reg::Rbp,
-                dest_offset,
-                Reg::Rax
-            ));
+          //     instructions.push(format!(
+          //         "MOV [{} + {}], {}",
+          //         Reg::Rbp,
+          //         dest_offset,
+          //         Reg::Rax
+          //     ));
 
-            return instructions;
-        }
+          //     return instructions;
+          // }
     }
 }
