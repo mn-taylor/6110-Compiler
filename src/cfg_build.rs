@@ -58,6 +58,7 @@ impl State {
 }
 
 fn collapse_jumps(st: &mut State) -> HashMap<usize, BasicBlock> {
+    get_parents(&mut st.all_blocks);
     let mut stack: Vec<Vec<usize>> = vec![vec![0]];
     let mut collapsed_blocks: HashMap<usize, BasicBlock> = HashMap::new();
     let mut seen: HashSet<usize> = HashSet::new();
@@ -211,6 +212,13 @@ fn build_stack(
     (lookup, offset + (16 - offset % 16))
 }
 
+// might be prettier to have parents separate from cfg.  fewer things to worry about.  debatable.
+fn get_parents(blocks: &mut HashMap<BlockLabel, BasicBlock>) {
+    for (parent, child) in blocks {
+        child.parents.push(*parent);
+    }
+}
+
 fn type_to_prim(t: Type) -> Primitive {
     match t {
         Type::Prim(p) => p,
@@ -313,7 +321,6 @@ pub fn lin_method(
     for s in method.stmts.iter() {
         let (start, end) = lin_stmt(s, &mut st, &method_scope);
 
-        st.get_block(start).parents.push(last);
         st.get_block(last).jump_loc = Jump::Uncond(start);
 
         last = end;
@@ -362,8 +369,6 @@ fn lin_branch(
             let cmp = Cmp::VarImmediate { source: t, imm: 1 };
             let jump_type = CmpType::Equal;
 
-            st.get_block(true_branch).parents.push(tend);
-            st.get_block(false_branch).parents.push(tend);
             st.get_block(tend).jump_loc = Jump::Cond {
                 cmp: cmp,
                 jump_type: jump_type,
@@ -419,8 +424,6 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                     }); //block taht  sets temp = fasle and jumps to end;
 
                     print!("{}", end);
-                    st.get_block(end).parents.push(true_branch);
-                    st.get_block(end).parents.push(false_branch);
 
                     let start = lin_branch(true_branch, false_branch, e, st, scope);
                     (temp, start, end)
@@ -429,11 +432,10 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                     let (t1, t1start, t1end) = lin_expr(&e1.val, st, scope);
                     let (t2, t2start, t2end) = lin_expr(&e2.val, st, scope);
                     st.get_block(t1end).jump_loc = Jump::Uncond(t2start);
-                    st.get_block(t2start).parents.push((t1end));
 
                     let t3 = gen_temp(infer_type(st.type_of(t1), op), st);
                     let end = st.add_block(BasicBlock {
-                        parents: vec![t2end], // set on line 220
+                        parents: vec![], // set on line 220
                         block_id: 0,
                         body: vec![Instruction::ThreeOp {
                             source1: t1,
@@ -444,14 +446,12 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                         jump_loc: Jump::Nowhere,
                     });
                     st.get_block(t2end).jump_loc = Jump::Uncond(end);
-                    st.get_block(end).parents.push(t2end);
                     (t3, t1start, end)
                 }
                 _ => {
                     let (t1, t1start, t1end) = lin_expr(&e1.val, st, scope);
                     let (t2, t2start, t2end) = lin_expr(&e2.val, st, scope);
                     st.get_block(t1end).jump_loc = Jump::Uncond(t2start);
-                    st.get_block(t2start).parents.push(t1end);
 
                     let t3 = gen_temp(infer_type(st.type_of(t1), op), st);
 
@@ -473,7 +473,6 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                     ];
 
                     st.get_block(t2end).jump_loc = Jump::Uncond(end);
-                    st.get_block(end).parents.push(t2end);
 
                     st.get_block(end).body = instructions;
 
@@ -485,7 +484,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
             let (t1, t1start, t1end) = lin_expr(&e.val, st, scope);
             let t2 = gen_temp(infer_unary_type(st.type_of(t1), op), st);
             let end = st.add_block(BasicBlock {
-                parents: vec![t1end],
+                parents: vec![],
                 block_id: 0,
                 body: vec![Instruction::TwoOp {
                     source1: t1,
@@ -567,7 +566,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
             };
             let call_instr = cfg::Instruction::Call(func_name, temp_args, Some(ret_val));
             let end = st.add_block(BasicBlock {
-                parents: vec![prev_block],
+                parents: vec![],
                 block_id: 0,
                 body: vec![call_instr],
                 jump_loc: Jump::Nowhere,
@@ -585,7 +584,6 @@ fn lin_block(b: &Block, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabe
 
     for s in b.stmts.iter() {
         let (start, end) = lin_stmt(s, st, &block_scope);
-        st.get_block(start).parents.push(last);
         st.get_block(last).jump_loc = Jump::Uncond(start);
         last = end;
     }
@@ -616,7 +614,6 @@ fn link<'a>(
     end2: BlockLabel,
     st: &mut State,
 ) -> (BlockLabel, BlockLabel) {
-    st.get_block(start2).parents.push(end1);
     st.get_block(end1).jump_loc = Jump::Uncond(start2);
     (start1, end2)
 }
@@ -647,7 +644,6 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
                         let cfg_arg = Arg::VarArg(t);
                         temp_args.push(cfg_arg);
 
-                        st.get_block(tstart).parents.push(prev_block);
                         st.get_block(prev_block).jump_loc = Jump::Uncond(tstart);
                         prev_block = tend;
                     }
@@ -676,7 +672,6 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
                 body: vec![call_instr],
                 jump_loc: Jump::Nowhere,
             });
-            st.get_block(end).parents.push(prev_block);
             st.get_block(prev_block).jump_loc = Jump::Uncond(end);
 
             (start, end)
@@ -695,10 +690,8 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
 
             let end = new_noop(st);
             st.get_block(if_end).jump_loc = Jump::Uncond(end);
-            st.get_block(end).parents.push(if_end);
 
             st.get_block(else_end).jump_loc = Jump::Uncond(end);
-            st.get_block(end).parents.push(else_end);
 
             (start, end)
         }
@@ -726,10 +719,8 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
 
             let while_condition = lin_branch(while_block_start, end, condition, st, scope);
 
-            st.get_block(while_condition).parents.push(continue_target);
             st.get_block(continue_target).jump_loc = Jump::Uncond(while_condition);
 
-            st.get_block(while_condition).parents.push(while_block_end);
             st.get_block(while_block_end).jump_loc = Jump::Uncond(while_condition);
 
             (continue_target, end)
@@ -747,7 +738,6 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             let (loop_init_start, loop_init_end) =
                 lin_reg_assign(loop_var, &AssignOp::Eq, &initial_val.val, st, scope);
 
-            st.get_block(loop_init_start).parents.push(loop_end);
             st.get_block(loop_end).jump_loc = Jump::Uncond(loop_init_start);
 
             let end = new_noop(st);
@@ -772,21 +762,16 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
                 lin_location(&var_to_update.val, st, scope);
             let (update_start, _update_end) = lin_assign_expr(update_var, update_val, st, scope);
 
-            st.get_block(update_start).parents.push(update_loc_end);
             st.get_block(update_loc_end).jump_loc = Jump::Uncond(update_start);
 
-            st.get_block(loop_update).parents.push(body_end);
             st.get_block(body_end).jump_loc = Jump::Uncond(loop_update);
 
             let condition_start = lin_branch(body_start, end, &test.val, st, scope);
 
-            st.get_block(loop_update).parents.push(continue_target);
             st.get_block(continue_target).jump_loc = Jump::Uncond(loop_update);
 
-            st.get_block(condition_start).parents.push(loop_init_end);
             st.get_block(loop_init_end).jump_loc = Jump::Uncond(condition_start);
 
-            st.get_block(condition_start).parents.push(loop_update);
             st.get_block(loop_update).jump_loc = Jump::Uncond(condition_start);
 
             (loop_start, end)
@@ -855,7 +840,7 @@ fn lin_reg_assign(
         },
     };
     let end = st.add_block(BasicBlock {
-        parents: vec![t1end],
+        parents: vec![],
         block_id: 0,
         body: vec![instr],
         jump_loc: Jump::Nowhere,
@@ -943,7 +928,6 @@ fn lin_assign_expr(
                 }],
                 jump_loc: Jump::Uncond(end),
             });
-            st.get_block(end).parents.push(start);
             (start, end)
         }
     }
@@ -996,7 +980,7 @@ fn lin_location(
                 };
 
                 let block: usize = st.add_block(BasicBlock {
-                    parents: vec![tend],
+                    parents: vec![],
                     block_id: 0,
                     body: vec![instr],
                     jump_loc: Jump::Nowhere,
