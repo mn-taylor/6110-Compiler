@@ -55,6 +55,10 @@ impl State {
             None => panic!("Couldn't find low-level variable {}", v),
         }
     }
+
+    fn gen_temp(&mut self, t: Primitive) -> VarLabel {
+        gen_temp(t, &mut self.last_name, &mut self.all_fields)
+    }
 }
 
 fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>) {
@@ -164,15 +168,29 @@ fn new_noop(st: &mut State) -> BlockLabel {
     })
 }
 
-fn gen_var(t: CfgType, high_name: String, st: &mut State) -> VarLabel {
-    st.last_name += 1;
-    let name = st.last_name;
-    st.all_fields.insert(name, (t, high_name));
+fn gen_var(
+    t: CfgType,
+    high_name: String,
+    last_name: &mut VarLabel,
+    all_fields: &mut HashMap<VarLabel, (CfgType, String)>,
+) -> VarLabel {
+    *last_name += 1;
+    let name = *last_name;
+    all_fields.insert(name, (t, high_name));
     name
 }
 
-fn gen_temp(t: Primitive, st: &mut State) -> VarLabel {
-    gen_var(CfgType::Scalar(t), "temp".to_string(), st)
+fn gen_temp(
+    t: Primitive,
+    last_name: &mut VarLabel,
+    all_fields: &mut HashMap<VarLabel, (CfgType, String)>,
+) -> VarLabel {
+    gen_var(
+        CfgType::Scalar(t),
+        "temp".to_string(),
+        last_name,
+        all_fields,
+    )
 }
 
 pub fn lin_program(program: &Program) -> (Vec<CfgMethod>, HashMap<String, String>) {
@@ -242,8 +260,8 @@ pub fn lin_method(
 
     let fst: usize = new_noop(&mut st);
     let mut last = fst;
-    let scope = program.scope(None, &mut st);
-    let method_scope = method.scope(Some(&scope), &mut st);
+    let scope = program.scope(None, &mut st.last_name, &mut st.all_fields);
+    let method_scope = method.scope(Some(&scope), &mut st.last_name, &mut st.all_fields);
 
     for s in method.stmts.iter() {
         let (start, end) = lin_stmt(s, &mut st, &method_scope);
@@ -304,7 +322,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
         Expr::Bin(e1, op, e2) => match op {
             Bop::And | Bop::Or => {
                 let end = new_noop(st);
-                let temp = gen_temp(Primitive::BoolType, st);
+                let temp = st.gen_temp(Primitive::BoolType);
                 let true_branch = st.add_block(BasicBlock {
                     parents: vec![],
                     block_id: 0,
@@ -334,7 +352,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                 let (t2, t2start, t2end) = lin_expr(&e2.val, st, scope);
                 st.get_block(t1end).jump_loc = Jump::Uncond(t2start);
 
-                let t3 = gen_temp(infer_type(st.type_of(t1), op), st);
+                let t3 = st.gen_temp(infer_type(st.type_of(t1), op));
                 let end = st.add_block(block_with_instr(Instruction::ThreeOp {
                     source1: t1,
                     source2: t2,
@@ -347,7 +365,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
         },
         Expr::Unary(op, e) => {
             let (t1, t1start, t1end) = lin_expr(&e.val, st, scope);
-            let t2 = gen_temp(infer_unary_type(st.type_of(t1), op), st);
+            let t2 = st.gen_temp(infer_unary_type(st.type_of(t1), op));
             let end = st.add_block(block_with_instr(Instruction::TwoOp {
                 source1: t1,
                 dest: t2,
@@ -358,7 +376,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
         }
         Expr::Len(id) => match scope.lookup(&id.val) {
             Some((Type::Arr(_, len), _)) => {
-                let t = gen_temp(Primitive::IntType, st);
+                let t = st.gen_temp(Primitive::IntType);
                 let blk = st.add_block(block_with_instr(Instruction::Constant {
                     dest: t.clone(),
                     constant: *len as i64,
@@ -370,7 +388,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
         },
         Expr::Lit(lit) => {
             let (typ, val) = lin_literal(lit.val.clone());
-            let t = gen_temp(typ, st);
+            let t = st.gen_temp(typ);
             let end = st.add_block(block_with_instr(Instruction::Constant {
                 dest: t,
                 constant: val,
@@ -413,7 +431,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                 Some((Type::ExtCall, _)) => Primitive::IntType,
                 _ => panic!("could not find function name"),
             };
-            let ret_val = gen_temp(ret_val_type, st);
+            let ret_val = st.gen_temp(ret_val_type);
             let call_instr = Instruction::Call(func_name, temp_args, Some(ret_val));
             let end = st.add_block(block_with_instr(call_instr));
             st.get_block(prev_block).jump_loc = Jump::Uncond(end);
@@ -425,7 +443,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
 fn lin_block(b: &Block, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel) {
     let fst = new_noop(st);
     let mut last = fst;
-    let block_scope = b.scope(Some(scope), st);
+    let block_scope = b.scope(Some(scope), &mut st.last_name, &mut st.all_fields);
 
     for s in b.stmts.iter() {
         let (start, end) = lin_stmt(s, st, &block_scope);
@@ -506,7 +524,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
 
             // lookup method and get type
             let ret_val = match scope.lookup(&id.val) {
-                Some((Type::Prim(t), _)) => Some(gen_temp(t.clone(), st)),
+                Some((Type::Prim(t), _)) => Some(st.gen_temp(t.clone())),
                 _ => None,
             };
 
@@ -692,7 +710,7 @@ fn lin_assign_to_loc(
         Location::ArrayIndex(id, idx) => {
             let (t, ll_arr_name) = scope.lookup(id).unwrap();
             let (idx, idx_start, idx_end) = lin_expr(&idx.val, st, scope);
-            let temp = gen_temp(type_to_prim(t.clone()), st);
+            let temp = st.gen_temp(type_to_prim(t.clone()));
             let load_block = st.add_block(block_with_instr(Instruction::ArrayAccess {
                 dest: temp,
                 name: *ll_arr_name,
@@ -723,7 +741,7 @@ fn lin_assign_expr(
     match assign_expr {
         AssignExpr::RegularAssign(op, rhs) => lin_reg_assign(target, &op.val, &rhs.val, st, scope),
         AssignExpr::IncrAssign(op) => {
-            let t1 = gen_temp(Primitive::IntType, st);
+            let t1 = st.gen_temp(Primitive::IntType);
 
             // can just do the instructions in sequence in one block.
             let end = st.add_block(block_with_instr(Instruction::ThreeOp {
@@ -780,7 +798,7 @@ fn lin_location(
             Some((Type::Arr(typ, _), id)) => {
                 let (idx_val, tstart, tend) = lin_expr(&idx.val, st, scope);
 
-                let dest = gen_temp(typ.clone(), st);
+                let dest = st.gen_temp(typ.clone());
                 let instr = Instruction::ArrayAccess {
                     dest: dest,
                     name: *id,
@@ -802,10 +820,19 @@ fn lin_location(
 use std::collections::{HashMap, HashSet};
 
 trait Scoped {
-    fn scope<'a>(&'a self, parent: Option<&'a Scope>, st: &mut State) -> Scope<'a> {
-        Scope::new(self.local_scope(st), parent)
+    fn scope<'a>(
+        &'a self,
+        parent: Option<&'a Scope>,
+        last_name: &mut VarLabel,
+        all_fields: &mut HashMap<VarLabel, (CfgType, String)>,
+    ) -> Scope<'a> {
+        Scope::new(self.local_scope(last_name, all_fields), parent)
     }
-    fn local_scope<'a>(&'a self, st: &mut State) -> HashMap<&'a String, (Type, u32)>;
+    fn local_scope<'a>(
+        &'a self,
+        last_name: &mut VarLabel,
+        all_fields: &mut HashMap<VarLabel, (CfgType, String)>,
+    ) -> HashMap<&'a String, (Type, u32)>;
 }
 
 fn imports_scope(
@@ -818,99 +845,99 @@ fn imports_scope(
 
 fn outer_methods_scope(methods: &Vec<Method>) -> impl Iterator<Item = (&String, (Type, u32))> {
     methods.iter().map(|method| {
-        (
-            &method.name.val.name,
-            (
-                Type::Func(
-                    method
-                        .params
-                        .iter()
-                        .map(|param| param.param_type.clone())
-                        .collect::<Vec<_>>(),
-                    method.meth_type.clone(),
-                ),
-                0, /*value should never be used.*/
-            ),
-        )
+        let param_types = method
+            .params
+            .iter()
+            .map(|param| param.param_type.clone())
+            .collect();
+        let hl_name = &method.name.val.name;
+        let ret_type = method.meth_type.clone();
+        (hl_name, (Type::Func(param_types, ret_type), 0))
     })
 }
 
 fn method_scope<'a, 'b>(
     method: &'a Method,
-    st: &'b mut State,
+    last_name: &'b mut VarLabel,
+    all_fields: &'b mut HashMap<VarLabel, (CfgType, String)>,
 ) -> impl Iterator<Item = (&'a String, (Type, u32))> + use<'a, 'b> {
-    let mut params: Vec<(&String, Type)> = method
+    let params = method
         .params
         .iter()
-        .map(|param| (&param.name.val.name, Type::Prim(param.param_type.clone())))
-        .collect::<Vec<_>>();
+        .map(|param| (&param.name.val.name, Type::Prim(param.param_type.clone())));
 
-    let fields = &mut method
-        .fields
-        .iter()
-        .map(|field| match field {
-            Field::Scalar(t, id) => (&id.val.name, Type::Prim(t.clone())),
-            Field::Array(t, id, len) => (
-                &id.val.name,
-                Type::Arr(t.clone(), lin_literal(len.val.clone()).1 as i32),
-            ),
-        })
-        .collect::<Vec<_>>();
+    let fields = method.fields.iter().map(|field| match field {
+        Field::Scalar(t, id) => (&id.val.name, Type::Prim(t.clone())),
+        Field::Array(t, id, len) => (
+            &id.val.name,
+            Type::Arr(t.clone(), lin_literal(len.val.clone()).1 as i32),
+        ),
+    });
 
-    params.append(fields);
-    params.into_iter().map(|combination| {
-        let (id, t) = combination;
+    params.chain(fields).map(|(id, t)| {
         let p = type_to_prim(t.clone());
-        (
-            id,
-            (t.clone(), gen_var(CfgType::Scalar(p), id.to_string(), st)),
-        )
+        let name = gen_var(CfgType::Scalar(p), id.to_string(), last_name, all_fields);
+        (id, (t.clone(), name))
     })
 }
 
 fn fields_scope<'a, 'b>(
     fields: &'a Vec<Field>,
-    st: &'b mut State,
+    last_name: &'b mut VarLabel,
+    all_fields: &'b mut HashMap<VarLabel, (CfgType, String)>,
 ) -> impl Iterator<Item = (&'a String, (Type, VarLabel))> + use<'a, 'b> {
     fields.into_iter().map(|f| match f {
-        Field::Scalar(t, id) => (
-            &id.val.name,
-            (
-                Type::Prim(t.clone()),
-                gen_var(CfgType::Scalar(t.clone()), id.val.name.clone(), st),
-            ),
-        ),
-        Field::Array(t, id, len) => (
-            &id.val.name,
-            (
-                Type::Arr(t.clone(), lin_literal(len.val.clone()).1 as i32),
-                gen_var(
-                    CfgType::Array(t.clone(), lin_literal(len.val.clone()).1 as i32),
-                    id.val.name.clone(),
-                    st,
-                ),
-            ),
-        ),
+        Field::Scalar(t, id) => {
+            let name = gen_var(
+                CfgType::Scalar(t.clone()),
+                id.val.name.clone(),
+                last_name,
+                all_fields,
+            );
+            (&id.val.name, (Type::Prim(t.clone()), name))
+        }
+        Field::Array(t, id, len) => {
+            let name = gen_var(
+                CfgType::Array(t.clone(), lin_literal(len.val.clone()).1 as i32),
+                id.val.name.clone(),
+                last_name,
+                all_fields,
+            );
+            let typ = Type::Arr(t.clone(), lin_literal(len.val.clone()).1 as i32);
+            (&id.val.name, (typ, name))
+        }
     })
 }
 
 impl Scoped for Program {
-    fn local_scope<'a>(&'a self, st: &mut State) -> HashMap<&'a String, (Type, VarLabel)> {
+    fn local_scope<'a>(
+        &'a self,
+        last_name: &mut VarLabel,
+        all_fields: &mut HashMap<VarLabel, (CfgType, String)>,
+    ) -> HashMap<&'a String, (Type, VarLabel)> {
         imports_scope(&self.imports)
             .chain(outer_methods_scope(&self.methods))
-            .chain(fields_scope(&self.fields, st))
+            .chain(fields_scope(&self.fields, last_name, all_fields))
             .collect()
     }
 }
 
 impl Scoped for Method {
-    fn local_scope<'a>(&'a self, st: &mut State) -> HashMap<&'a String, (Type, u32)> {
-        method_scope(&self, st).collect()
+    fn local_scope<'a>(
+        &'a self,
+        last_name: &mut VarLabel,
+        all_fields: &mut HashMap<VarLabel, (CfgType, String)>,
+    ) -> HashMap<&'a String, (Type, u32)> {
+        method_scope(&self, last_name, all_fields).collect()
     }
 }
 
 impl Scoped for Block {
-    fn local_scope<'a>(&'a self, st: &mut State) -> HashMap<&'a String, (Type, u32)> {
-        fields_scope(&self.fields, st).collect()
+    fn local_scope<'a>(
+        &'a self,
+        last_name: &mut VarLabel,
+        all_fields: &mut HashMap<VarLabel, (CfgType, String)>,
+    ) -> HashMap<&'a String, (Type, u32)> {
+        fields_scope(&self.fields, last_name, all_fields).collect()
     }
 }
