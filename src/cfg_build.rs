@@ -99,7 +99,7 @@ fn collapse_jumps(st: &mut State) -> HashMap<usize, BasicBlock> {
 
             match curr_block.jump_loc {
                 Jump::Uncond(next) => {
-                    if (st.get_block(next).parents.len() > 1) {
+                    if st.get_block(next).parents.len() > 1 {
                         // link the current blocks together
                         collapsed.push(curr_block);
                         let instructions = collapsed
