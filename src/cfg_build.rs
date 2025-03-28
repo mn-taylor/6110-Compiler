@@ -4,10 +4,10 @@ use crate::{
     parse,
     scan::{self, IncrOp},
 };
-use cfg::{Arg, BasicBlock, BlockLabel, CfgType, Cmp, CmpType, Instruction, Jump, Type, VarLabel};
+use cfg::{Arg, BasicBlock, BlockLabel, CfgType, Instruction, Jump, Type, VarLabel};
 use ir::{AssignExpr, Block, Bop, Expr, Location, Method, Stmt, UnOp};
 use parse::{Field, Literal, Primitive, WithLoc};
-use scan::{AddOp, AssignOp, EqOp, MulOp, RelOp};
+use scan::{AddOp, AssignOp, MulOp};
 
 type Scope<'a> = ir::Scope<'a, (Type, u32)>;
 
@@ -122,8 +122,7 @@ fn collapse_jumps(st: &mut State) -> HashMap<usize, BasicBlock> {
                     }
                 }
                 Jump::Cond {
-                    cmp,
-                    jump_type,
+                    source,
                     true_block,
                     false_block,
                 } => {
@@ -142,8 +141,7 @@ fn collapse_jumps(st: &mut State) -> HashMap<usize, BasicBlock> {
                         body: instructions,
                         block_id: collapsed[0].block_id,
                         jump_loc: Jump::Cond {
-                            cmp: cmp.clone(),
-                            jump_type: jump_type.clone(),
+                            source,
                             true_block: new_true_block,
                             false_block: new_false_block,
                         },
@@ -194,11 +192,11 @@ fn build_stack(
         let res = all_fields.get(&field);
         match res {
             Some((typ, _)) => match typ {
-                CfgType::Scalar(t) => {
+                CfgType::Scalar(_) => {
                     lookup.insert(field, (typ.clone(), offset.clone()));
                     offset += 8;
                 }
-                CfgType::Array(t, len) => {
+                CfgType::Array(_, len) => {
                     lookup.insert(field, (typ.clone(), offset.clone()));
                     offset += u64::from((len * 8) as u32);
                 }
@@ -367,12 +365,8 @@ fn lin_branch(
         _ => {
             let (t, tstart, tend) = lin_expr(cond, st, scope);
 
-            let cmp = Cmp::VarImmediate { source: t, imm: 1 };
-            let jump_type = CmpType::Equal;
-
             st.get_block(tend).jump_loc = Jump::Cond {
-                cmp: cmp,
-                jump_type: jump_type,
+                source: t,
                 true_block: true_branch,
                 false_block: false_branch,
             };
@@ -381,101 +375,53 @@ fn lin_branch(
     }
 }
 
-fn convert_rel_to_jump_type(op: Bop) -> CmpType {
-    match op {
-        Bop::EqBop(eop) => match eop {
-            EqOp::Eq => CmpType::Equal,
-            EqOp::Neq => CmpType::NotEqual,
-        },
-        Bop::RelBop(rop) => match rop {
-            RelOp::Lt => CmpType::Less,
-            RelOp::Le => CmpType::LessEqual,
-            RelOp::Ge => CmpType::GreaterEqual,
-            RelOp::Gt => CmpType::Greater,
-        },
-        _ => panic!("input should be relational operation"),
-    }
-}
-
 // will call lin_branch to deal with bool exprs
 fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, BlockLabel) {
     match e {
-        Expr::Bin(e1, op, e2) => {
-            match op {
-                Bop::And | Bop::Or => {
-                    let end = new_noop(st);
-                    let temp = gen_temp(Primitive::BoolType, st);
-                    let true_branch = st.add_block(BasicBlock {
-                        parents: vec![],
-                        block_id: 0,
-                        body: vec![Instruction::Constant {
-                            dest: temp.clone(),
-                            constant: 1,
-                        }],
-                        jump_loc: Jump::Uncond(end),
-                    }); //block that sets temp = true and jumps to end;
-                    let false_branch = st.add_block(BasicBlock {
-                        parents: vec![],
-                        block_id: 0,
-                        body: vec![Instruction::Constant {
-                            dest: temp.clone(),
-                            constant: 0,
-                        }],
-                        jump_loc: Jump::Uncond(end),
-                    }); //block taht  sets temp = fasle and jumps to end;
+        Expr::Bin(e1, op, e2) => match op {
+            Bop::And | Bop::Or => {
+                let end = new_noop(st);
+                let temp = gen_temp(Primitive::BoolType, st);
+                let true_branch = st.add_block(BasicBlock {
+                    parents: vec![],
+                    block_id: 0,
+                    body: vec![Instruction::Constant {
+                        dest: temp.clone(),
+                        constant: 1,
+                    }],
+                    jump_loc: Jump::Uncond(end),
+                });
+                let false_branch = st.add_block(BasicBlock {
+                    parents: vec![],
+                    block_id: 0,
+                    body: vec![Instruction::Constant {
+                        dest: temp.clone(),
+                        constant: 0,
+                    }],
+                    jump_loc: Jump::Uncond(end),
+                });
 
-                    print!("{}", end);
+                print!("{}", end);
 
-                    let start = lin_branch(true_branch, false_branch, e, st, scope);
-                    (temp, start, end)
-                }
-                Bop::MulBop(_) | Bop::AddBop(_) => {
-                    let (t1, t1start, t1end) = lin_expr(&e1.val, st, scope);
-                    let (t2, t2start, t2end) = lin_expr(&e2.val, st, scope);
-                    st.get_block(t1end).jump_loc = Jump::Uncond(t2start);
-
-                    let t3 = gen_temp(infer_type(st.type_of(t1), op), st);
-                    let end = st.add_block(block_with_instr(Instruction::ThreeOp {
-                        source1: t1,
-                        source2: t2,
-                        dest: t3,
-                        op: op.clone(),
-                    }));
-                    st.get_block(t2end).jump_loc = Jump::Uncond(end);
-                    (t3, t1start, end)
-                }
-                _ => {
-                    let (t1, t1start, t1end) = lin_expr(&e1.val, st, scope);
-                    let (t2, t2start, t2end) = lin_expr(&e2.val, st, scope);
-                    st.get_block(t1end).jump_loc = Jump::Uncond(t2start);
-
-                    let t3 = gen_temp(infer_type(st.type_of(t1), op), st);
-
-                    let end = new_noop(st);
-                    let instructions = vec![
-                        Instruction::Constant {
-                            dest: t3,
-                            constant: 0,
-                        },
-                        Instruction::CondMove {
-                            cmp: Cmp::VarVar {
-                                source1: t1,
-                                source2: t2,
-                            },
-                            cmp_type: convert_rel_to_jump_type(op.clone()),
-                            dest: t3,
-                            source: 1,
-                        },
-                    ];
-
-                    st.get_block(t2end).jump_loc = Jump::Uncond(end);
-
-                    st.get_block(end).body = instructions;
-
-                    (t3, t1start, end)
-                }
+                let start = lin_branch(true_branch, false_branch, e, st, scope);
+                (temp, start, end)
             }
-        }
+            _ => {
+                let (t1, t1start, t1end) = lin_expr(&e1.val, st, scope);
+                let (t2, t2start, t2end) = lin_expr(&e2.val, st, scope);
+                st.get_block(t1end).jump_loc = Jump::Uncond(t2start);
+
+                let t3 = gen_temp(infer_type(st.type_of(t1), op), st);
+                let end = st.add_block(block_with_instr(Instruction::ThreeOp {
+                    source1: t1,
+                    source2: t2,
+                    dest: t3,
+                    op: op.clone(),
+                }));
+                st.get_block(t2end).jump_loc = Jump::Uncond(end);
+                (t3, t1start, end)
+            }
+        },
         Expr::Unary(op, e) => {
             let (t1, t1start, t1end) = lin_expr(&e.val, st, scope);
             let t2 = gen_temp(infer_unary_type(st.type_of(t1), op), st);
@@ -942,10 +888,9 @@ pub trait Scoped {
 fn imports_scope(
     imports: &Vec<WithLoc<parse::Ident>>,
 ) -> impl Iterator<Item = (&String, (Type, u32))> {
-    let default: u32 = 1;
     imports
         .iter()
-        .map(move |import| (&import.val.name, (Type::ExtCall, default)))
+        .map(move |import| (&import.val.name, (Type::ExtCall, 0 /*never used*/)))
 }
 
 fn outer_methods_scope(methods: &Vec<Method>) -> impl Iterator<Item = (&String, (Type, u32))> {

@@ -32,8 +32,7 @@ impl fmt::Display for BasicBlock {
 pub enum Jump {
     Uncond(BlockLabel),
     Cond {
-        cmp: Cmp,
-        jump_type: CmpType,
+        source: VarLabel,
         true_block: BlockLabel,
         false_block: BlockLabel,
     },
@@ -93,14 +92,13 @@ impl fmt::Display for Jump {
         match self {
             Jump::Uncond(block) => write!(f, "goto {}", block),
             Jump::Cond {
-                cmp,
-                jump_type,
+                source,
                 true_block,
                 false_block,
             } => write!(
                 f,
-                "if {} with {} then goto {} else goto {}",
-                cmp, jump_type, true_block, false_block
+                "if {} then goto {} else goto {}",
+                source, true_block, false_block
             ),
             Jump::Nowhere => write!(f, "nowhere"),
         }
@@ -140,12 +138,6 @@ pub enum Instruction {
     },
     Ret(Option<VarLabel>),
     Call(String, Vec<Arg>, Option<VarLabel>),
-    CondMove {
-        cmp: Cmp,
-        cmp_type: CmpType,
-        dest: VarLabel,
-        source: i64,
-    },
 }
 
 impl fmt::Display for Instruction {
@@ -188,16 +180,6 @@ impl fmt::Display for Instruction {
                     .map(|arg| arg.to_string())
                     .collect::<Vec<_>>()
                     .join(", ")
-            ),
-            Instruction::CondMove {
-                cmp,
-                dest,
-                source,
-                cmp_type,
-            } => write!(
-                f,
-                "{}, condmove t{} <- {} if {}",
-                cmp, dest, source, cmp_type
             ),
         }
     }
