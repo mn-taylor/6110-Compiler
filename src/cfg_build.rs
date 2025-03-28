@@ -287,6 +287,15 @@ pub fn lin_program(program: &Program) -> (Vec<CfgMethod>, HashMap<String, String
     (methods, data_labels)
 }
 
+fn block_with_instr(instr: Instruction) -> BasicBlock {
+    BasicBlock {
+        parents: vec![],
+        block_id: 0,
+        body: vec![instr],
+        jump_loc: Jump::Nowhere,
+    }
+}
+
 pub fn lin_method(
     method: &Method,
     program: &Program,
@@ -434,17 +443,12 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                     st.get_block(t1end).jump_loc = Jump::Uncond(t2start);
 
                     let t3 = gen_temp(infer_type(st.type_of(t1), op), st);
-                    let end = st.add_block(BasicBlock {
-                        parents: vec![], // set on line 220
-                        block_id: 0,
-                        body: vec![Instruction::ThreeOp {
-                            source1: t1,
-                            source2: t2,
-                            dest: t3,
-                            op: op.clone(),
-                        }],
-                        jump_loc: Jump::Nowhere,
-                    });
+                    let end = st.add_block(block_with_instr(Instruction::ThreeOp {
+                        source1: t1,
+                        source2: t2,
+                        dest: t3,
+                        op: op.clone(),
+                    }));
                     st.get_block(t2end).jump_loc = Jump::Uncond(end);
                     (t3, t1start, end)
                 }
@@ -483,31 +487,21 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
         Expr::Unary(op, e) => {
             let (t1, t1start, t1end) = lin_expr(&e.val, st, scope);
             let t2 = gen_temp(infer_unary_type(st.type_of(t1), op), st);
-            let end = st.add_block(BasicBlock {
-                parents: vec![],
-                block_id: 0,
-                body: vec![Instruction::TwoOp {
-                    source1: t1,
-                    dest: t2,
-                    op: op.clone(),
-                }],
-                jump_loc: Jump::Nowhere,
-            });
+            let end = st.add_block(block_with_instr(Instruction::TwoOp {
+                source1: t1,
+                dest: t2,
+                op: op.clone(),
+            }));
             st.get_block(t1end).jump_loc = Jump::Uncond(end);
             (t1, t1start, end)
         }
         Expr::Len(id) => match scope.lookup(&id.val) {
             Some((Type::Arr(_, len), _)) => {
                 let t = gen_temp(Primitive::IntType, st);
-                let blk = st.add_block(BasicBlock {
-                    parents: vec![],
-                    block_id: 0,
-                    body: vec![Instruction::Constant {
-                        dest: t.clone(),
-                        constant: *len as i64,
-                    }],
-                    jump_loc: Jump::Nowhere,
-                });
+                let blk = st.add_block(block_with_instr(Instruction::Constant {
+                    dest: t.clone(),
+                    constant: *len as i64,
+                }));
                 (t, blk, blk)
             }
             Some(_) => panic!("can only take len of array"),
@@ -516,15 +510,10 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
         Expr::Lit(lit) => {
             let (typ, val) = lin_literal(lit.val.clone());
             let t = gen_temp(typ, st);
-            let end = st.add_block(BasicBlock {
-                parents: vec![],
-                block_id: 0,
-                body: vec![Instruction::Constant {
-                    dest: t,
-                    constant: val,
-                }],
-                jump_loc: Jump::Nowhere,
-            });
+            let end = st.add_block(block_with_instr(Instruction::Constant {
+                dest: t,
+                constant: val,
+            }));
             (t, end, end)
         }
         ir::Expr::Loc(loc) => {
@@ -564,13 +553,8 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                 Some((Type::ExtCall, _))=> 1,
                 _ => panic!("Should not get here. function calls within expression must have non-void return type"),
             };
-            let call_instr = cfg::Instruction::Call(func_name, temp_args, Some(ret_val));
-            let end = st.add_block(BasicBlock {
-                parents: vec![],
-                block_id: 0,
-                body: vec![call_instr],
-                jump_loc: Jump::Nowhere,
-            });
+            let call_instr = Instruction::Call(func_name, temp_args, Some(ret_val));
+            let end = st.add_block(block_with_instr(call_instr));
             st.get_block(prev_block).jump_loc = Jump::Uncond(end);
             (ret_val, start, end)
         }
@@ -665,13 +649,8 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
                 _ => None,
             };
 
-            let call_instr = cfg::Instruction::Call(func_name, temp_args, ret_val);
-            let end = st.add_block(BasicBlock {
-                parents: vec![],
-                block_id: 0,
-                body: vec![call_instr],
-                jump_loc: Jump::Nowhere,
-            });
+            let call_instr = Instruction::Call(func_name, temp_args, ret_val);
+            let end = st.add_block(block_with_instr(call_instr));
             st.get_block(prev_block).jump_loc = Jump::Uncond(end);
 
             (start, end)
@@ -784,14 +763,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
                 (tstart, tend)
             }
             None => {
-                let ret_instr = Instruction::Ret(None);
-                let ret_block = st.add_block(BasicBlock {
-                    parents: vec![],
-                    block_id: 0,
-                    body: vec![ret_instr],
-                    jump_loc: Jump::Nowhere,
-                });
-
+                let ret_block = st.add_block(block_with_instr(Instruction::Ret(None)));
                 (ret_block, ret_block)
             }
         },
@@ -839,12 +811,7 @@ fn lin_reg_assign(
             op: binop,
         },
     };
-    let end = st.add_block(BasicBlock {
-        parents: vec![],
-        block_id: 0,
-        body: vec![instr],
-        jump_loc: Jump::Nowhere,
-    });
+    let end = st.add_block(block_with_instr(instr));
     st.get_block(t1end).jump_loc = Jump::Uncond(end);
     (t1start, end)
 }
@@ -865,28 +832,18 @@ fn lin_assign_to_loc(
             let (t, ll_arr_name) = scope.lookup(id).unwrap();
             let (idx, idx_start, idx_end) = lin_expr(&idx.val, st, scope);
             let temp = gen_temp(type_to_prim(t.clone()), st);
-            let load_block = st.add_block(BasicBlock {
-                parents: vec![],
-                block_id: 0,
-                body: vec![Instruction::ArrayAccess {
-                    dest: temp,
-                    name: *ll_arr_name,
-                    idx: idx,
-                }],
-                jump_loc: Jump::Nowhere,
-            });
+            let load_block = st.add_block(block_with_instr(Instruction::ArrayAccess {
+                dest: temp,
+                name: *ll_arr_name,
+                idx: idx,
+            }));
             // what are these naming conventions????!
             let (ass_start, ass_end) = lin_assign_expr(temp, val_to_assign, st, scope);
-            let store_block = st.add_block(BasicBlock {
-                parents: vec![],
-                block_id: 0,
-                body: vec![Instruction::ArrayStore {
-                    source: temp,
-                    arr: *ll_arr_name,
-                    idx: idx,
-                }],
-                jump_loc: Jump::Nowhere,
-            });
+            let store_block = st.add_block(block_with_instr(Instruction::ArrayStore {
+                source: temp,
+                arr: *ll_arr_name,
+                idx: idx,
+            }));
             let (start, end) = link(idx_start, idx_end, load_block, load_block, st);
             let (start, end) = link(start, end, ass_start, ass_end, st);
             let (start, end) = link(start, end, store_block, store_block, st);
@@ -908,26 +865,16 @@ fn lin_assign_expr(
             let t1 = gen_temp(Primitive::IntType, st);
 
             // can just do the instructions in sequence in one block.
-            let end = st.add_block(BasicBlock {
-                parents: vec![],
-                block_id: 0,
-                body: vec![Instruction::ThreeOp {
-                    source1: target,
-                    source2: t1,
-                    dest: target,
-                    op: convert_incr_op(op.val.clone()),
-                }],
-                jump_loc: Jump::Nowhere,
-            });
-            let start = st.add_block(BasicBlock {
-                parents: vec![],
-                block_id: 0,
-                body: vec![Instruction::Constant {
-                    dest: t1,
-                    constant: 1,
-                }],
-                jump_loc: Jump::Uncond(end),
-            });
+            let end = st.add_block(block_with_instr(Instruction::ThreeOp {
+                source1: target,
+                source2: t1,
+                dest: target,
+                op: convert_incr_op(op.val.clone()),
+            }));
+            let start = st.add_block(block_with_instr(Instruction::Constant {
+                dest: t1,
+                constant: 1,
+            }));
             (start, end)
         }
     }
@@ -979,12 +926,7 @@ fn lin_location(
                     idx: idx_val,
                 };
 
-                let block: usize = st.add_block(BasicBlock {
-                    parents: vec![],
-                    block_id: 0,
-                    body: vec![instr],
-                    jump_loc: Jump::Nowhere,
-                });
+                let block = st.add_block(block_with_instr(instr));
 
                 st.get_block(tend).jump_loc = Jump::Uncond(block);
 
