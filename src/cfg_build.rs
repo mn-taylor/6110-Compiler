@@ -308,19 +308,11 @@ pub fn lin_method(
     let mut st: State = State {
         break_loc: None,
         continue_loc: None,
-        last_name: 3,
+        last_name: 0,
         all_blocks: HashMap::new(),
         all_fields: HashMap::new(),
         all_strings: vec![],
     };
-
-    // insert the generic temps to represent functions
-    st.all_fields
-        .insert(1, (CfgType::Scalar(Primitive::IntType), "".to_string()));
-    st.all_fields
-        .insert(2, (CfgType::Scalar(Primitive::LongType), "".to_string()));
-    st.all_fields
-        .insert(3, (CfgType::Scalar(Primitive::BoolType), "".to_string()));
 
     let fst: usize = new_noop(&mut st);
     let mut last = fst;
@@ -547,12 +539,12 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                 }
             }
 
-            let ret_val = match scope.lookup(&id.val) {
-                Some((Type::Prim(t), _)) => gen_temp(t.clone(), st),
-                Some((Type::Func(_, p), _))=> convert_func_type_to_generic_temp(p.clone()),
-                Some((Type::ExtCall, _))=> 1,
-                _ => panic!("Should not get here. function calls within expression must have non-void return type"),
+            let ret_val_type = match scope.lookup(&id.val) {
+                Some((Type::Func(_, p), _)) => p.clone().unwrap(),
+                Some((Type::ExtCall, _)) => Primitive::IntType,
+                _ => panic!("could not find function name"),
             };
+            let ret_val = gen_temp(ret_val_type, st);
             let call_instr = Instruction::Call(func_name, temp_args, Some(ret_val));
             let end = st.add_block(block_with_instr(call_instr));
             st.get_block(prev_block).jump_loc = Jump::Uncond(end);
@@ -940,23 +932,6 @@ fn lin_location(
 
 use std::collections::{HashMap, HashSet};
 
-/**
- * Generic Temporary values
- * t0 - void (should never be used)
- * t1 - int
- * t2 - long
- * t3 - bool
- */
-
-fn convert_func_type_to_generic_temp(p: Option<Primitive>) -> u32 {
-    match p {
-        Some(Primitive::IntType) => 1,
-        Some(Primitive::BoolType) => 2,
-        Some(Primitive::LongType) => 3,
-        None => 0,
-    }
-}
-
 pub trait Scoped {
     fn scope<'a>(&'a self, parent: Option<&'a Scope>, st: &mut State) -> Scope<'a> {
         Scope::new(self.local_scope(st), parent)
@@ -986,7 +961,7 @@ fn outer_methods_scope(methods: &Vec<Method>) -> impl Iterator<Item = (&String, 
                         .collect::<Vec<_>>(),
                     method.meth_type.clone(),
                 ),
-                convert_func_type_to_generic_temp(method.meth_type.clone()),
+                0, /*value should never be used.*/
             ),
         )
     })
