@@ -19,7 +19,6 @@ struct State {
     last_name: VarLabel,
     all_blocks: HashMap<BlockLabel, BasicBlock>,
     all_fields: HashMap<VarLabel, (CfgType, String /*high-level name*/)>,
-    all_strings: Vec<String>,
 }
 
 impl State {
@@ -188,7 +187,6 @@ pub fn lin_method(method: &Method, last_name: VarLabel, scope: &Scope) -> CfgMet
         last_name,
         all_blocks: HashMap::new(),
         all_fields: HashMap::new(),
-        all_strings: vec![],
     };
 
     let fst: usize = new_noop(&mut st);
@@ -353,8 +351,6 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                         val: string,
                         loc: _,
                     }) => {
-                        st.all_strings.push(string.to_string());
-
                         let cfg_arg = Arg::StrArg(string.to_string());
                         temp_args.push(cfg_arg);
                     }
@@ -449,8 +445,6 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
                         val: string,
                         loc: _,
                     }) => {
-                        st.all_strings.push(string.to_string());
-
                         let cfg_arg = Arg::StrArg(string.to_string());
                         temp_args.push(cfg_arg);
                     }

@@ -100,19 +100,33 @@ fn build_stack(
     (lookup, offset + (16 - offset % 16))
 }
 
-// let (blocks, fields, ll_params, data) = lin_method(method, last_name, &scope);
-// let (field_offsets, total_offset) = build_stack(fields);
-// global_strings.extend(data);
-
-fn get_global_strings(p: CfgProgram) -> HashMap<String, String> {
-    todo!()
-    // build global data
-    // let mut data_labels = HashMap::new();
-    // for string in global_strings {
-    //     if !data_labels.contains_key(&string) {
-    //         data_labels.insert(string, format!("string{}", data_labels.len()));
-    //     }
-    // }
+fn get_global_strings(p: &CfgProgram) -> HashMap<String, String> {
+    let mut data_labels = HashMap::new();
+    for method in p.methods.values() {
+        for block in method.blocks.values() {
+            for insn in block.body.iter() {
+                match insn {
+                    Instruction::Call(_, args, _) => {
+                        for arg in args {
+                            match arg {
+                                Arg::StrArg(s) => {
+                                    if !data_labels.contains_key(s) {
+                                        data_labels.insert(
+                                            s.to_string(),
+                                            format!("string{}", data_labels.len()),
+                                        );
+                                    }
+                                }
+                                _ => (),
+                            }
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        }
+    }
+    data_labels
 }
 
 pub fn asm_method(method: CfgMethod, global_data: HashMap<String, String>) {
