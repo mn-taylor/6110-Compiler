@@ -2,10 +2,22 @@ use crate::ir;
 use crate::parse;
 use ir::{Bop, UnOp};
 use parse::Primitive;
+use std::collections::HashMap;
 use std::fmt;
 
 pub type BlockLabel = usize;
 pub type VarLabel = u32;
+
+pub struct CfgMethod {
+    pub params: Vec<VarLabel>,
+    pub blocks: HashMap<BlockLabel, BasicBlock>,
+    pub fields: HashMap<VarLabel, (CfgType, String)>,
+}
+
+pub struct CfgProgram {
+    pub methods: HashMap<String, CfgMethod>,
+    pub global_fields: HashMap<VarLabel, (CfgType, String)>,
+}
 
 #[derive(Clone)]
 pub struct BasicBlock {

@@ -4,14 +4,16 @@ use crate::{
     parse,
     scan::{self, IncrOp},
 };
-use cfg::{Arg, BasicBlock, BlockLabel, CfgType, Instruction, Jump, Type, VarLabel};
+use cfg::{
+    Arg, BasicBlock, BlockLabel, CfgMethod, CfgProgram, CfgType, Instruction, Jump, Type, VarLabel,
+};
 use ir::{AssignExpr, Block, Bop, Expr, Location, Method, Stmt, UnOp};
 use parse::{Field, Literal, Primitive, WithLoc};
 use scan::{AddOp, AssignOp, MulOp};
 
 type Scope<'a> = ir::Scope<'a, (Type, u32)>;
 
-pub struct CfgMethod {
+pub struct CfgMethodWithStackInfo {
     pub name: String,
     pub ll_params: Vec<u32>,
     pub blocks: HashMap<BlockLabel, BasicBlock>,
@@ -24,13 +26,7 @@ struct State {
     continue_loc: Option<BlockLabel>,
     last_name: VarLabel,
     all_blocks: HashMap<BlockLabel, BasicBlock>,
-    all_fields: HashMap<
-        VarLabel,
-        (
-            CfgType,
-            String, /*high-level name for debugging purposes*/
-        ),
-    >,
+    all_fields: HashMap<VarLabel, (CfgType, String /*high-level name*/)>,
     all_strings: Vec<String>,
 }
 
@@ -193,45 +189,45 @@ fn gen_temp(
     )
 }
 
-pub fn lin_program(program: &Program) -> (Vec<CfgMethod>, HashMap<String, String>) {
+// let (blocks, fields, ll_params, data) = lin_method(method, last_name, &scope);
+// let (field_offsets, total_offset) = build_stack(fields);
+// global_strings.extend(data);
+
+// println!("START OF METHOD");
+// for block in blocks.values() {
+//     println!("{}", block);
+// }
+// println!("END OF METHOD");
+
+fn get_global_strings(p: CfgProgram) -> HashMap<String, String> {
+    todo!()
+    // build global data
+    // let mut data_labels = HashMap::new();
+    // for string in global_strings {
+    //     if !data_labels.contains_key(&string) {
+    //         data_labels.insert(string, format!("string{}", data_labels.len()));
+    //     }
+    // }
+}
+
+pub fn lin_program(program: &Program) -> CfgProgram {
     let mut global_fields = HashMap::new();
     let mut last_name = 0;
     let scope = program.scope(None, &mut last_name, &mut global_fields);
-    let mut global_strings: Vec<String> = vec![];
-
-    // Process methods
+    let last_name = last_name;
     let methods = program
         .methods
         .iter()
         .map(|method| {
-            let (blocks, fields, ll_params, data) = lin_method(method, last_name, &scope);
-            let (field_offsets, total_offset) = build_stack(fields);
-            global_strings.extend(data);
-
-            println!("START OF METHOD");
-            for block in blocks.values() {
-                println!("{}", block);
-            }
-            println!("END OF METHOD");
-            CfgMethod {
-                name: method.name.val.name.clone(),
-                ll_params,
-                blocks: blocks.clone(),
-                field_offsets,
-                total_offset,
-            }
+            let name = method.name.val.name.clone();
+            (name, lin_method(method, last_name, &scope))
         })
         .collect();
 
-    // build global data
-    let mut data_labels = HashMap::new();
-    for string in global_strings {
-        if !data_labels.contains_key(&string) {
-            data_labels.insert(string, format!("string{}", data_labels.len()));
-        }
+    CfgProgram {
+        methods,
+        global_fields,
     }
-
-    (methods, data_labels)
 }
 
 fn block_with_instr(instr: Instruction) -> BasicBlock {
@@ -243,20 +239,11 @@ fn block_with_instr(instr: Instruction) -> BasicBlock {
     }
 }
 
-pub fn lin_method(
-    method: &Method,
-    last_name: VarLabel,
-    scope: &Scope,
-) -> (
-    HashMap<BlockLabel, BasicBlock>,
-    HashMap<VarLabel, (CfgType, String)>,
-    Vec<u32>,
-    Vec<String>,
-) {
+pub fn lin_method(method: &Method, last_name: VarLabel, scope: &Scope) -> CfgMethod {
     let mut st: State = State {
         break_loc: None,
         continue_loc: None,
-        last_name: last_name,
+        last_name,
         all_blocks: HashMap::new(),
         all_fields: HashMap::new(),
         all_strings: vec![],
@@ -275,7 +262,7 @@ pub fn lin_method(
     }
 
     // get low_level_names of all parameters so we can lookup stack offsets at start of method when we asm
-    let ll_params = method
+    let params = method
         .params
         .iter()
         .map(|c| {
@@ -285,8 +272,11 @@ pub fn lin_method(
         .collect::<Vec<_>>();
 
     collapse_jumps(&mut st.all_blocks);
-    // return (st.all_blocks, st.all_fields);
-    (st.all_blocks, st.all_fields, ll_params, st.all_strings)
+    CfgMethod {
+        blocks: st.all_blocks,
+        fields: st.all_fields,
+        params,
+    }
 }
 
 fn lin_branch(

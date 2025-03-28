@@ -1,5 +1,4 @@
-use crate::cfg::{Arg, BasicBlock, CfgType, CmpType, Instruction, VarLabel};
-use crate::cfg_build::CfgMethod;
+use crate::cfg::{Arg, BasicBlock, CfgMethod, CfgType, CmpType, Instruction, VarLabel};
 use crate::ir::{Bop, UnOp};
 use crate::scan::{AddOp, MulOp};
 use std::fmt;
