@@ -1,4 +1,4 @@
-use crate::cfg::{Arg, BasicBlock, CfgMethod, CfgType, CmpType, Instruction, VarLabel};
+use crate::cfg::{Arg, BasicBlock, CfgMethod, CfgProgram, CfgType, CmpType, Instruction, VarLabel};
 use crate::ir::{Bop, UnOp};
 use crate::scan::{AddOp, MulOp};
 use std::fmt;
@@ -71,20 +71,66 @@ fn convert_cmp_to_cond_move(cmpt: CmpType) -> String {
     }
 }
 
+fn build_stack(
+    all_fields: HashMap<VarLabel, (CfgType, String)>,
+) -> (HashMap<VarLabel, (CfgType, u64)>, u64) {
+    let mut offset: u64 = 0;
+    let mut field = 0;
+    let mut lookup: HashMap<VarLabel, (CfgType, u64)> = HashMap::new();
+
+    loop {
+        let res = all_fields.get(&field);
+        match res {
+            Some((typ, _)) => match typ {
+                CfgType::Scalar(_) => {
+                    lookup.insert(field, (typ.clone(), offset.clone()));
+                    offset += 8;
+                }
+                CfgType::Array(_, len) => {
+                    lookup.insert(field, (typ.clone(), offset.clone()));
+                    offset += u64::from((len * 8) as u32);
+                }
+            },
+            None => break,
+        }
+
+        field += 1;
+    }
+
+    (lookup, offset + (16 - offset % 16))
+}
+
+// let (blocks, fields, ll_params, data) = lin_method(method, last_name, &scope);
+// let (field_offsets, total_offset) = build_stack(fields);
+// global_strings.extend(data);
+
+fn get_global_strings(p: CfgProgram) -> HashMap<String, String> {
+    todo!()
+    // build global data
+    // let mut data_labels = HashMap::new();
+    // for string in global_strings {
+    //     if !data_labels.contains_key(&string) {
+    //         data_labels.insert(string, format!("string{}", data_labels.len()));
+    //     }
+    // }
+}
+
 pub fn asm_method(method: CfgMethod, global_data: HashMap<String, String>) {
-    let mut instructions: Vec<String> = vec![format!("{}:", method.name)];
+    let mut instructions: Vec<String> = vec![];
     // set up stack frame
     instructions.push(format!("push {}", Reg::Rbp));
     instructions.push(format!("mov {}, {}", Reg::Rbp, Reg::Rsp));
 
+    let (offsets, total_offset) = build_stack(method.fields);
+
     // allocate space enough space on the stack
-    instructions.push(format!("sub {}, {}", Reg::Rsp, method.total_offset));
+    instructions.push(format!("sub {}, {}", Reg::Rsp, total_offset));
 
     // read parameters from registers and/or stack
     let mut argument_registers: Vec<Reg> =
         vec![Reg::R9, Reg::R8, Reg::Rcx, Reg::Rdx, Reg::Rsi, Reg::Rdi];
-    for (i, llname) in method.ll_params.iter().enumerate() {
-        let (_, dest) = method.field_offsets.get(llname).unwrap();
+    for (i, llname) in method.params.iter().enumerate() {
+        let (_, dest) = offsets.get(llname).unwrap();
         if i < 6 {
             let reg = argument_registers.pop().unwrap();
             instructions.push(format!("mov [{} - {}], {}", Reg::Rbp, dest, reg));
@@ -104,12 +150,7 @@ pub fn asm_method(method: CfgMethod, global_data: HashMap<String, String>) {
     blocks.sort_by_key(|c| c.block_id);
 
     for block in blocks {
-        instructions.extend(asm_block(
-            block,
-            &method.field_offsets,
-            &global_data,
-            &method.name,
-        ));
+        instructions.extend(asm_block(block, &offsets, &global_data));
     }
 
     // make a label for end, that blocks which jump to Nowhere jump to.
@@ -123,7 +164,8 @@ fn asm_block(
     b: &BasicBlock,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
     data: &HashMap<String, String>,
-    root: &String,
+    // root: &String,
+    // ^hopefully this parameter should not be necessary?
 ) -> Vec<String> {
     // make label
 

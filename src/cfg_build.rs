@@ -13,14 +13,6 @@ use scan::{AddOp, AssignOp, MulOp};
 
 type Scope<'a> = ir::Scope<'a, (Type, u32)>;
 
-pub struct CfgMethodWithStackInfo {
-    pub name: String,
-    pub ll_params: Vec<u32>,
-    pub blocks: HashMap<BlockLabel, BasicBlock>,
-    pub field_offsets: HashMap<VarLabel, (CfgType, u64)>,
-    pub total_offset: u64,
-}
-
 struct State {
     break_loc: Option<BlockLabel>,
     continue_loc: Option<BlockLabel>,
@@ -91,35 +83,6 @@ fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>) {
     get_parents(blks);
 }
 
-fn build_stack(
-    all_fields: HashMap<VarLabel, (CfgType, String)>,
-) -> (HashMap<VarLabel, (CfgType, u64)>, u64) {
-    let mut offset: u64 = 0;
-    let mut field = 0;
-    let mut lookup: HashMap<VarLabel, (CfgType, u64)> = HashMap::new();
-
-    loop {
-        let res = all_fields.get(&field);
-        match res {
-            Some((typ, _)) => match typ {
-                CfgType::Scalar(_) => {
-                    lookup.insert(field, (typ.clone(), offset.clone()));
-                    offset += 8;
-                }
-                CfgType::Array(_, len) => {
-                    lookup.insert(field, (typ.clone(), offset.clone()));
-                    offset += u64::from((len * 8) as u32);
-                }
-            },
-            None => break,
-        }
-
-        field += 1;
-    }
-
-    (lookup, offset + (16 - offset % 16))
-}
-
 // might be prettier to have parents separate from cfg.  fewer things to worry about.  debatable.
 fn get_parents(blocks: &mut HashMap<BlockLabel, BasicBlock>) {
     let mut parents = HashMap::new();
@@ -187,21 +150,6 @@ fn gen_temp(
         last_name,
         all_fields,
     )
-}
-
-// let (blocks, fields, ll_params, data) = lin_method(method, last_name, &scope);
-// let (field_offsets, total_offset) = build_stack(fields);
-// global_strings.extend(data);
-
-fn get_global_strings(p: CfgProgram) -> HashMap<String, String> {
-    todo!()
-    // build global data
-    // let mut data_labels = HashMap::new();
-    // for string in global_strings {
-    //     if !data_labels.contains_key(&string) {
-    //         data_labels.insert(string, format!("string{}", data_labels.len()));
-    //     }
-    // }
 }
 
 pub fn lin_program(program: &Program) -> CfgProgram {

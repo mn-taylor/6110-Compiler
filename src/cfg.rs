@@ -20,8 +20,8 @@ impl fmt::Display for CfgMethod {
         writeln!(f, "START OF METHOD")?;
         writeln!(f, "params: {:?}", self.params)?;
         for (lbl, blk) in self.blocks.iter() {
-            writeln!(f, "Block {}:", lbl);
-            write!(f, "{}", blk);
+            writeln!(f, "Block {}:", lbl)?;
+            write!(f, "{}", blk)?;
         }
         writeln!(f, "END OF METHOD")
     }
