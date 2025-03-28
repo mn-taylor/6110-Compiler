@@ -212,8 +212,26 @@ fn build_stack(
 
 // might be prettier to have parents separate from cfg.  fewer things to worry about.  debatable.
 fn get_parents(blocks: &mut HashMap<BlockLabel, BasicBlock>) {
-    for (parent, child) in blocks {
-        child.parents.push(*parent);
+    let mut parents = HashMap::new();
+    for lbl in blocks.keys() {
+        parents.insert(*lbl, vec![]);
+    }
+    for (parent_label, parent) in blocks.iter() {
+        let children = match parent.jump_loc {
+            Jump::Nowhere => vec![],
+            Jump::Uncond(c1) => vec![c1],
+            Jump::Cond {
+                source: _,
+                true_block,
+                false_block,
+            } => vec![true_block, false_block],
+        };
+        for child in children {
+            parents.get_mut(&child).unwrap().push(*parent_label);
+        }
+    }
+    for (child, child_parents) in parents {
+        blocks.get_mut(&child).unwrap().parents = child_parents;
     }
 }
 
