@@ -193,12 +193,6 @@ fn gen_temp(
 // let (field_offsets, total_offset) = build_stack(fields);
 // global_strings.extend(data);
 
-// println!("START OF METHOD");
-// for block in blocks.values() {
-//     println!("{}", block);
-// }
-// println!("END OF METHOD");
-
 fn get_global_strings(p: CfgProgram) -> HashMap<String, String> {
     todo!()
     // build global data

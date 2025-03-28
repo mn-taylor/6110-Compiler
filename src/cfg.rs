@@ -14,9 +14,37 @@ pub struct CfgMethod {
     pub fields: HashMap<VarLabel, (CfgType, String)>,
 }
 
+impl fmt::Display for CfgMethod {
+    // making a conscious choice not to display all the fields
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "START OF METHOD")?;
+        writeln!(f, "params: {:?}", self.params)?;
+        for (lbl, blk) in self.blocks.iter() {
+            writeln!(f, "Block {}:", lbl);
+            write!(f, "{}", blk);
+        }
+        writeln!(f, "END OF METHOD")
+    }
+}
+
 pub struct CfgProgram {
     pub methods: HashMap<String, CfgMethod>,
     pub global_fields: HashMap<VarLabel, (CfgType, String)>,
+}
+
+impl fmt::Display for CfgProgram {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "Global fields:")?;
+        for (lbl, (t, name)) in self.global_fields.iter() {
+            writeln!(f, "{:?} {} (high-level  name {})", t, lbl, name)?;
+        }
+        writeln!(f, "Methods:")?;
+        for (name, method) in self.methods.iter() {
+            writeln!(f, "Method {}", name)?;
+            write!(f, "{}", method)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone)]

@@ -198,7 +198,7 @@ fn main() {
                 panic!("your program has semantic errors");
             }
 
-            cfg_build::lin_program(&prog);
+            write!("{}", cfg_build::lin_program(&prog));
         }
     }
 }
