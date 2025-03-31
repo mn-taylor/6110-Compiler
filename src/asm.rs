@@ -1,6 +1,8 @@
-use crate::cfg::{Arg, BasicBlock, CfgMethod, CfgProgram, CfgType, CmpType, Instruction, VarLabel};
+use crate::cfg::{
+    Arg, BasicBlock, CfgMethod, CfgProgram, CfgType, CmpType, Instruction, Jump, VarLabel,
+};
 use crate::ir::{Bop, UnOp};
-use crate::scan::{AddOp, MulOp};
+use crate::scan::{AddOp, EqOp, MulOp, RelOp};
 use std::fmt;
 
 use std::collections::HashMap;
@@ -60,6 +62,24 @@ fn convert_bop_to_asm(bop: Bop) -> String {
     .to_string()
 }
 
+fn convert_rel_op_to_cmov_type(op: Bop) -> String {
+    match op {
+        Bop::RelBop(rop) => match rop {
+            RelOp::Lt => "cmovl".to_string(),
+            RelOp::Le => "cmovle".to_string(),
+            RelOp::Gt => "cmovge".to_string(),
+            RelOp::Ge => "cmovg".to_string(),
+        },
+        Bop::EqBop(eop) => match eop {
+            EqOp::Eq => "cmove".to_string(),
+            EqOp::Neq => "cmovne".to_string(),
+        },
+        _ => {
+            panic!()
+        }
+    }
+}
+
 fn convert_cmp_to_cond_move(cmpt: CmpType) -> String {
     match cmpt {
         CmpType::Equal => "CMOVE".to_string(),
@@ -97,7 +117,7 @@ fn build_stack(
         field += 1;
     }
 
-    (lookup, offset + (16 - offset % 16))
+    (lookup, offset + (16 - offset % 16)) // keep stack 16 byte aligned
 }
 
 fn get_global_strings(p: &CfgProgram) -> HashMap<String, String> {
@@ -110,7 +130,7 @@ fn get_global_strings(p: &CfgProgram) -> HashMap<String, String> {
                         for arg in args {
                             match arg {
                                 Arg::StrArg(s) => {
-                                    if !data_labels.contains_key(s) {
+                                    if !data_labels.contains_key(&s) {
                                         data_labels.insert(
                                             s.to_string(),
                                             format!("string{}", data_labels.len()),
@@ -129,16 +149,20 @@ fn get_global_strings(p: &CfgProgram) -> HashMap<String, String> {
     data_labels
 }
 
-pub fn asm_method(method: CfgMethod, global_data: HashMap<String, String>) {
+pub fn asm_program(program: CfgProgram)-> Vec<Strings> {
+    let CfgProgram{methods: Vec}
+}
+
+pub fn asm_method(method: CfgMethod, global_data: HashMap<String, String>) -> Vec<String> {
     let mut instructions: Vec<String> = vec![];
     // set up stack frame
-    instructions.push(format!("push {}", Reg::Rbp));
-    instructions.push(format!("mov {}, {}", Reg::Rbp, Reg::Rsp));
+    instructions.push(format!("\tpush {}", Reg::Rbp));
+    instructions.push(format!("\tmov {}, {}", Reg::Rbp, Reg::Rsp));
 
     let (offsets, total_offset) = build_stack(method.fields);
 
     // allocate space enough space on the stack
-    instructions.push(format!("sub {}, {}", Reg::Rsp, total_offset));
+    instructions.push(format!("\tsub {}, {}", Reg::Rsp, total_offset));
 
     // read parameters from registers and/or stack
     let mut argument_registers: Vec<Reg> =
@@ -147,15 +171,15 @@ pub fn asm_method(method: CfgMethod, global_data: HashMap<String, String>) {
         let (_, dest) = offsets.get(llname).unwrap();
         if i < 6 {
             let reg = argument_registers.pop().unwrap();
-            instructions.push(format!("mov [{} - {}], {}", Reg::Rbp, dest, reg));
+            instructions.push(format!("\tmov [{} - {}], {}", Reg::Rbp, dest, reg));
         } else {
             instructions.push(format!(
-                "move {}, [{} + {}]",
+                "\tmove {}, [{} + {}]",
                 Reg::Rax,
                 Reg::Rbp,
                 16 + 16 * (6 - i) // check the math here
             ));
-            instructions.push(format!("mov [{} - {}], {}", Reg::Rbp, dest, Reg::Rax));
+            instructions.push(format!("\tmov [{} - {}], {}", Reg::Rbp, dest, Reg::Rax));
         }
     }
 
@@ -164,34 +188,63 @@ pub fn asm_method(method: CfgMethod, global_data: HashMap<String, String>) {
     blocks.sort_by_key(|c| c.block_id);
 
     for block in blocks {
-        instructions.extend(asm_block(block, &offsets, &global_data));
+        instructions.extend(asm_block(block, &offsets, &global_data, &method.name));
     }
 
     // make a label for end, that blocks which jump to Nowhere jump to.
+    instructions.push(format!("{}end:", &method.name));
 
     // return the stack to original state
+    instructions.push(format!("\tadd {}, {}", Reg::Rsp, total_offset));
 
     // ret instruction
+    instructions.push(format!("\tret"));
+    return instructions;
 }
 
 fn asm_block(
     b: &BasicBlock,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
     data: &HashMap<String, String>,
-    // root: &String,
+    root: &String,
     // ^hopefully this parameter should not be necessary?
 ) -> Vec<String> {
+    let mut instructions: Vec<String> = vec![];
+
     // make label
+    instructions.push(format!("{}{}:", root, b.block_id));
 
     // perform instructions
+    for instruction in &b.body {
+        instructions.extend(asm_instruction(stack_lookup, data, instruction.clone()));
+    }
 
     // handle jumps
+    match b.jump_loc {
+        Jump::Uncond(block_id) => instructions.push(format!("jmp {}{}", root, block_id)),
+        Jump::Cond {
+            source,
+            true_block,
+            false_block,
+        } => {
+            let (_, source_offset) = stack_lookup.get(&source).unwrap();
+            let get_source = format!("\tmov {}, [{} + {}]", Reg::R9, Reg::Rbp, source_offset);
+            let compare = format!("\tcmp {}, {}", Reg::R9, 1);
+            let true_jump = format!("\tje {}{}", root, true_block);
+            let false_jump = format!("\tjmp {}{}", root, false_block);
+
+            instructions.extend([get_source, compare, true_jump, false_jump]);
+        }
+        Jump::Nowhere => {
+            instructions.push(format!("\tjmp {}end", root)); // this is the label that I'm thinking we should use.
+        }
+    }
     vec![]
 }
 
 fn asm_instruction(
-    stack_lookup: HashMap<VarLabel, (CfgType, u64)>,
-    data: HashMap<String, String>,
+    stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
+    data: &HashMap<String, String>,
     instr: Instruction,
 ) -> Vec<String> {
     match instr {
@@ -205,48 +258,70 @@ fn asm_instruction(
             let (_, source2_offset) = stack_lookup.get(&source2).unwrap();
             let (_, dest_offset) = stack_lookup.get(&dest).unwrap();
 
-            let get_source1 = format!("mov {}, [{} + {}]", Reg::R9, Reg::Rbp, source1_offset);
-            let get_source2 = format!("mov {}, [{} + {}]", Reg::R10, Reg::Rbp, source1_offset);
-            let operate = format!("{} {}, {}", convert_bop_to_asm(op), Reg::R9, Reg::R10);
-            let return_to_stack = format!("move [{} + {}], {}", Reg::Rbp, dest_offset, Reg::R9);
+            let get_source1 = format!("\tmov {}, [{} + {}]", Reg::R9, Reg::Rbp, source1_offset);
+            let get_source2 = format!("\tmov {}, [{} + {}]", Reg::R10, Reg::Rbp, source1_offset);
 
-            return vec![get_source1, get_source2, operate, return_to_stack];
+            match op {
+                Bop::AddBop(_) | Bop::MulBop(_) => {
+                    let operate = format!("{} {}, {}", convert_bop_to_asm(op), Reg::R9, Reg::R10);
+                    let return_to_stack =
+                        format!("\tmov [{} + {}], {}", Reg::Rbp, dest_offset, Reg::R9);
+
+                    return vec![get_source1, get_source2, operate, return_to_stack];
+                }
+                _ => {
+                    let compare = format!("\tcmp {}, {}", Reg::R9, Reg::R10);
+                    let initialize_dest = format!("\tmov {}, {}", Reg::R9, 0);
+                    let cond_move =
+                        format!("\t{} {}, {}", convert_rel_op_to_cmov_type(op), Reg::R9, 1);
+                    let return_to_stack =
+                        format!("\tmov [{} + {}], {}", Reg::Rbp, dest_offset, Reg::R9);
+                    return vec![
+                        get_source1,
+                        get_source2,
+                        compare,
+                        initialize_dest,
+                        cond_move,
+                        return_to_stack,
+                    ];
+                }
+            }
         }
         Instruction::TwoOp { source1, dest, op } => {
             let (_, source1_offset) = stack_lookup.get(&source1).unwrap();
             let (_, dest_offset) = stack_lookup.get(&dest).unwrap();
 
-            let get_source1 = format!("MOV {}, [{} + {}]", Reg::Rax, Reg::Rbp, source1_offset);
+            let get_source1 = format!("\tmov {}, [{} + {}]", Reg::Rax, Reg::Rbp, source1_offset);
             let operate = match op {
                 UnOp::Not => {
-                    format!("NOT {}", Reg::Rax)
+                    format!("\tnot {}", Reg::Rax)
                 }
                 UnOp::Neg => {
-                    format!("NEG {}", Reg::Rax)
+                    format!("\tneg {}", Reg::Rax)
                 }
                 UnOp::IntCast => {
-                    format!("MOV EAX, RAX")
+                    format!("\tmov eax, rax")
                 }
                 UnOp::LongCast => {
-                    format!("MOV RAX, RAX")
+                    format!("\tmov rax, rax")
                 }
             };
-            let return_to_stack = format!("move [{} + {}], {}", Reg::Rbp, dest_offset, Reg::Rax);
+            let return_to_stack = format!("\tmove [{} + {}], {}", Reg::Rbp, dest_offset, Reg::Rax);
             return vec![get_source1, operate, return_to_stack];
         }
         Instruction::MoveOp { source, dest } => {
             let (_, source_offset) = stack_lookup.get(&source).unwrap();
             let (_, dest_offset) = stack_lookup.get(&dest).unwrap();
 
-            let get_source = format!("MOV {}, [{} + {}]", Reg::Rax, Reg::Rbp, source_offset);
-            let return_to_stack = format!("move [{} + {}], {}", Reg::Rbp, dest_offset, Reg::Rax);
+            let get_source = format!("\tmov {}, [{} + {}]", Reg::Rax, Reg::Rbp, source_offset);
+            let return_to_stack = format!("\tmov [{} + {}], {}", Reg::Rbp, dest_offset, Reg::Rax);
 
             return vec![get_source, return_to_stack];
         }
         Instruction::Constant { dest, constant } => {
             let (_, dest_offset) = stack_lookup.get(&dest).unwrap();
 
-            let operate = format!("MOV QWORD [{} + {}], {}", Reg::Rbp, dest_offset, constant);
+            let operate = format!("\tmov QWORD [{} + {}], {}", Reg::Rbp, dest_offset, constant);
 
             return vec![operate];
         }
@@ -255,12 +330,12 @@ fn asm_instruction(
             let (_, dest_offset) = stack_lookup.get(&dest).unwrap();
 
             let get_source = format!(
-                "MOV {}, [{} + {}]",
+                "\tmov {}, [{} + {}]",
                 Reg::Rax,
                 Reg::Rbp,
                 *arr_root + 16 * idx as u64
             );
-            let return_to_stack = format!("MOV [{} + {}], {}", Reg::Rbp, dest_offset, Reg::Rax);
+            let return_to_stack = format!("\tmov [{} + {}], {}", Reg::Rbp, dest_offset, Reg::Rax);
 
             return vec![get_source, return_to_stack];
         }
@@ -268,9 +343,9 @@ fn asm_instruction(
             let (_, source_offset) = stack_lookup.get(&source).unwrap();
             let (_, arr_root) = stack_lookup.get(&arr).unwrap();
 
-            let get_source = format!("MOV {}, [{} + {}]", Reg::Rax, Reg::Rbp, source_offset);
+            let get_source = format!("\tmov {}, [{} + {}]", Reg::Rax, Reg::Rbp, source_offset);
             let return_to_stack = format!(
-                "MOV [{} + {}], {}",
+                "\tmov [{} + {}], {}",
                 Reg::Rbp,
                 arr_root + 16 * idx as u64,
                 Reg::Rax
@@ -283,7 +358,12 @@ fn asm_instruction(
             match ret_val {
                 Some(var) => {
                     let (_, var_offset) = stack_lookup.get(&var).unwrap();
-                    instructions.push(format!("MOV {} [{} + {}]", Reg::Rax, Reg::Rbp, var_offset));
+                    instructions.push(format!(
+                        "\tmov {} [{} + {}]",
+                        Reg::Rax,
+                        Reg::Rbp,
+                        var_offset
+                    ));
                 }
                 None => {}
             }
@@ -304,7 +384,7 @@ fn asm_instruction(
                         match arg_reg {
                             Some(reg) => {
                                 instructions.push(format!(
-                                    "MOV {} [{} + {}]",
+                                    "\tmov {} [{} + {}]",
                                     reg,
                                     Reg::Rbp,
                                     source_offset
@@ -312,12 +392,12 @@ fn asm_instruction(
                             }
                             None => {
                                 instructions.push(format!(
-                                    "MOV {} [{} + {}]",
+                                    "\tmov {} [{} + {}]",
                                     Reg::Rax,
                                     Reg::Rbp,
                                     source_offset
                                 ));
-                                instructions.push(format!("PUSH {}", Reg::Rax));
+                                instructions.push(format!("\tpush {}", Reg::Rax));
                             }
                         }
                     }
@@ -327,11 +407,11 @@ fn asm_instruction(
 
                         match arg_reg {
                             Some(reg) => {
-                                instructions.push(format!("MOV {} {}", reg, str_loc));
+                                instructions.push(format!("\tpush {} {}", reg, str_loc));
                             }
                             None => {
-                                instructions.push(format!("MOV {} {}", Reg::Rax, str_loc));
-                                instructions.push(format!("PUSH {}", Reg::Rax));
+                                instructions.push(format!("\tmov {} {}", Reg::Rax, str_loc));
+                                instructions.push(format!("\tpush {}", Reg::Rax));
                             }
                         }
                     }
@@ -340,16 +420,16 @@ fn asm_instruction(
 
             // call the function
             if func_name == "printf".to_string() {
-                instructions.push(format!("XOR {}, {}", Reg::Rax, Reg::Rax));
+                instructions.push(format!("\txor {}, {}", Reg::Rax, Reg::Rax));
             }
-            instructions.push(format!("CALL {}", func_name));
+            instructions.push(format!("\tcall {}", func_name));
 
             // store return value into temp
             match ret_dest {
                 Some(dest) => {
                     let (_, dest_offset) = stack_lookup.get(&dest).unwrap();
                     instructions.push(format!(
-                        "MOV [{} + {}], {}",
+                        "\tmov [{} + {}], {}",
                         Reg::Rbp,
                         dest_offset,
                         Reg::Rax
@@ -358,64 +438,7 @@ fn asm_instruction(
                 None => {}
             }
 
-            return instructions;
-        } // Instruction::CondMove {
-          //     cmp,
-          //     cmp_type,
-          //     dest,
-          //     source,
-          // } => {
-          //     let mut instructions: Vec<String> = vec![];
-          //     let (_, dest_offset) = stack_lookup.get(&dest).unwrap();
-
-          //     match cmp {
-          //         Cmp::VarVar { source1, source2 } => {
-          //             let (_, source1_offset) = stack_lookup.get(&source1).unwrap();
-          //             let (_, source2_offset) = stack_lookup.get(&source2).unwrap();
-
-          //             instructions.push(format!(
-          //                 "MOV {} [{} + {}]",
-          //                 Reg::Rax,
-          //                 Reg::Rbp,
-          //                 source1_offset
-          //             ));
-          //             instructions.push(format!(
-          //                 "MOV {} [{} + {}]",
-          //                 Reg::R9,
-          //                 Reg::Rbp,
-          //                 source2_offset
-          //             ));
-
-          //             instructions.push(format!("CMP {}, {}", Reg::Rax, Reg::R9));
-          //         }
-          //         Cmp::VarImmediate { source, imm } => {
-          //             let (_, source_offset) = stack_lookup.get(&source).unwrap();
-          //             instructions.push(format!(
-          //                 "MOV {} [{} + {}]",
-          //                 Reg::Rax,
-          //                 Reg::Rbp,
-          //                 source_offset
-          //             ));
-
-          //             instructions.push(format!("CMP {}, {}", Reg::Rax, imm));
-          //         }
-          //     }
-
-          //     instructions.push(format!(
-          //         "{} {} {}",
-          //         convert_cmp_to_cond_move(cmp_type),
-          //         Reg::Rax,
-          //         source
-          //     ));
-
-          //     instructions.push(format!(
-          //         "MOV [{} + {}], {}",
-          //         Reg::Rbp,
-          //         dest_offset,
-          //         Reg::Rax
-          //     ));
-
-          //     return instructions;
-          // }
+            instructions
+        }
     }
 }

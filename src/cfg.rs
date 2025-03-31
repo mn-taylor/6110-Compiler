@@ -9,27 +9,27 @@ pub type BlockLabel = usize;
 pub type VarLabel = u32;
 
 pub struct CfgMethod {
-    pub params: Vec<VarLabel>,
+    pub name: String,
+    pub params: Vec<u32>,
     pub blocks: HashMap<BlockLabel, BasicBlock>,
-    pub fields: HashMap<VarLabel, (CfgType, String)>,
+    pub field_offsets: HashMap<VarLabel, (CfgType, u64)>,
+    pub total_offset: u64,
 }
 
 impl fmt::Display for CfgMethod {
-    // making a conscious choice not to display all the fields
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "START OF METHOD")?;
-        writeln!(f, "params: {:?}", self.params)?;
-        for (lbl, blk) in self.blocks.iter() {
-            writeln!(f, "Block {}:", lbl)?;
-            write!(f, "{}", blk)?;
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Method: {}", self.name)?;
+        for block in self.blocks.values() {
+            writeln!(f, "{}", block)?;
         }
-        writeln!(f, "END OF METHOD")
+        Ok(())
     }
 }
 
 pub struct CfgProgram {
-    pub methods: HashMap<String, CfgMethod>,
+    pub methods: Vec<CfgMethod>,
     pub global_fields: HashMap<VarLabel, (CfgType, String)>,
+    pub global_data: HashMap<String, String>,
 }
 
 impl fmt::Display for CfgProgram {
@@ -39,8 +39,8 @@ impl fmt::Display for CfgProgram {
             writeln!(f, "{:?} {} (high-level  name {})", t, lbl, name)?;
         }
         writeln!(f, "Methods:")?;
-        for (name, method) in self.methods.iter() {
-            writeln!(f, "Method {}", name)?;
+        for (method) in self.methods.iter() {
+            writeln!(f, "Method {}", method.name)?;
             write!(f, "{}", method)?;
         }
         Ok(())

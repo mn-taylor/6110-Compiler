@@ -197,8 +197,8 @@ fn main() {
             if !checked_prog.is_empty() {
                 panic!("your program has semantic errors");
             }
-
-            println!("{}", cfg_build::lin_program(&prog));
+            cfg_build::lin_program(&prog);
+            // println!("{}", cfg_build::lin_program(&prog));
         }
     }
 }
