@@ -80,17 +80,6 @@ fn convert_rel_op_to_cmov_type(op: Bop) -> String {
     }
 }
 
-fn convert_cmp_to_cond_move(cmpt: CmpType) -> String {
-    match cmpt {
-        CmpType::Equal => "CMOVE".to_string(),
-        CmpType::NotEqual => "CMOVNE".to_string(),
-        CmpType::Greater => "CMOVG".to_string(),
-        CmpType::GreaterEqual => "CMOVGE".to_string(),
-        CmpType::Less => "CMOVL".to_string(),
-        CmpType::LessEqual => "CMOVLE".to_string(),
-    }
-}
-
 fn build_stack(
     all_fields: HashMap<VarLabel, (CfgType, String)>,
 ) -> (HashMap<VarLabel, (CfgType, u64)>, u64) {
@@ -149,8 +138,8 @@ fn get_global_strings(p: &CfgProgram) -> HashMap<String, String> {
     data_labels
 }
 
-pub fn asm_program(program: CfgProgram)-> Vec<Strings> {
-    let CfgProgram{methods: Vec}
+pub fn asm_program(program: CfgProgram) -> Vec<String> {
+    todo!()
 }
 
 pub fn asm_method(method: CfgMethod, global_data: HashMap<String, String>) -> Vec<String> {
@@ -207,7 +196,6 @@ fn asm_block(
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
     data: &HashMap<String, String>,
     root: &String,
-    // ^hopefully this parameter should not be necessary?
 ) -> Vec<String> {
     let mut instructions: Vec<String> = vec![];
 
@@ -236,7 +224,9 @@ fn asm_block(
             instructions.extend([get_source, compare, true_jump, false_jump]);
         }
         Jump::Nowhere => {
-            instructions.push(format!("\tjmp {}end", root)); // this is the label that I'm thinking we should use.
+            // TODO this is correct only if the return type is void.
+            // if it is not void, we should instead error here.  what an error looks like idk.
+            instructions.push(format!("\tjmp {}end", root));
         }
     }
     vec![]
