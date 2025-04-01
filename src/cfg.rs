@@ -12,8 +12,7 @@ pub struct CfgMethod {
     pub name: String,
     pub params: Vec<u32>,
     pub blocks: HashMap<BlockLabel, BasicBlock>,
-    pub field_offsets: HashMap<VarLabel, (CfgType, u64)>,
-    pub total_offset: u64,
+    pub fields: HashMap<VarLabel, (CfgType, String)>,
 }
 
 impl fmt::Display for CfgMethod {
@@ -29,7 +28,6 @@ impl fmt::Display for CfgMethod {
 pub struct CfgProgram {
     pub methods: Vec<CfgMethod>,
     pub global_fields: HashMap<VarLabel, (CfgType, String)>,
-    pub global_data: HashMap<String, String>,
 }
 
 impl fmt::Display for CfgProgram {
