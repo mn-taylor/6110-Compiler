@@ -109,9 +109,11 @@ fn build_stack(
     (lookup, offset + (16 - offset % 16)) // keep stack 16 byte aligned
 }
 
-fn get_global_strings(p: &CfgProgram) -> HashMap<String, String> {
-    let mut data_labels = HashMap::new();
-    for method in p.methods.values() {
+use std::collections::HashSet;
+
+fn get_global_strings(p: &CfgProgram) -> Vec<String> {
+    let mut all_strings = HashSet::new();
+    for method in p.methods.iter() {
         for block in method.blocks.values() {
             for insn in block.body.iter() {
                 match insn {
@@ -119,12 +121,7 @@ fn get_global_strings(p: &CfgProgram) -> HashMap<String, String> {
                         for arg in args {
                             match arg {
                                 Arg::StrArg(s) => {
-                                    if !data_labels.contains_key(&s) {
-                                        data_labels.insert(
-                                            s.to_string(),
-                                            format!("string{}", data_labels.len()),
-                                        );
-                                    }
+                                    all_strings.insert(s.clone());
                                 }
                                 _ => (),
                             }
@@ -135,11 +132,21 @@ fn get_global_strings(p: &CfgProgram) -> HashMap<String, String> {
             }
         }
     }
-    data_labels
+    all_strings.into_iter().collect()
 }
 
-pub fn asm_program(program: CfgProgram) -> Vec<String> {
-    todo!()
+pub fn asm_program(p: &CfgProgram) -> Vec<String> {
+    let mut insns = vec![];
+    let glob_strings = get_global_strings(p);
+    let glob_fields = &p.global_fields;
+    for (varname, (typ, hl_name)) in glob_fields {
+        insns.push(format!("global{}:\n\t.zero 8", varname)); /*8 bytes*/
+    }
+    for strin in glob_strings {
+        // TODO this syntax is not right, I don't think .string is even a thing.
+        insns.push(format!("global_{}:\n\t.string {}", strin, strin));
+    }
+    insns
 }
 
 pub fn asm_method(method: CfgMethod, global_data: HashMap<String, String>) -> Vec<String> {
