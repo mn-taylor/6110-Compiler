@@ -159,10 +159,7 @@ pub fn lin_program(program: &Program) -> CfgProgram {
     let methods = program
         .methods
         .iter()
-        .map(|method| {
-            let name = method.name.val.name.clone();
-            (name, lin_method(method, last_name, &scope))
-        })
+        .map(|method| lin_method(method, last_name, &scope))
         .collect();
 
     CfgProgram {
@@ -213,6 +210,7 @@ pub fn lin_method(method: &Method, last_name: VarLabel, scope: &Scope) -> CfgMet
 
     collapse_jumps(&mut st.all_blocks);
     CfgMethod {
+        name: method.name.val.to_string(),
         blocks: st.all_blocks,
         fields: st.all_fields,
         params,

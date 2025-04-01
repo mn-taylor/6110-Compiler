@@ -37,7 +37,7 @@ impl fmt::Display for CfgProgram {
             writeln!(f, "{:?} {} (high-level  name {})", t, lbl, name)?;
         }
         writeln!(f, "Methods:")?;
-        for (method) in self.methods.iter() {
+        for method in self.methods.iter() {
             writeln!(f, "Method {}", method.name)?;
             write!(f, "{}", method)?;
         }
