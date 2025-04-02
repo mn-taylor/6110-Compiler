@@ -910,6 +910,70 @@ pub fn parse_program<'a, T: TokenErrIter<'a>>(tokens: &mut T) -> Program {
     }
 }
 
+use std::cell::RefCell;
+
+struct FancyIter<'a, T, U: Iterator<Item = T>> {
+    iter: U,
+    next_idx: u32,
+    glob_next_idx: &'a RefCell<u32>,
+    glob_last_val: &'a RefCell<Option<T>>,
+}
+
+impl<'a, T: Clone, U: Iterator<Item = T>> Iterator for FancyIter<'a, T, U> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut glob_next_idx = self.glob_next_idx.borrow_mut();
+        let mut glob_last_val = self.glob_last_val.borrow_mut();
+        let next_val = self.iter.next();
+        if *glob_next_idx == self.next_idx {
+            *glob_next_idx = self.next_idx + 1;
+            *glob_last_val = next_val.clone();
+        }
+        self.next_idx += 1;
+        next_val
+    }
+}
+
+impl<'a, T: Clone, U: Iterator<Item = T>> FancyIter<'a, T, U> {
+    fn new(it: U, glob_next_idx: &'a RefCell<u32>, glob_last_val: &'a RefCell<Option<T>>) -> Self {
+        FancyIter {
+            iter: it,
+            next_idx: 0,
+            glob_next_idx,
+            glob_last_val,
+        }
+    }
+
+    fn last_val(&self) -> Option<T> {
+        self.glob_last_val.borrow().clone()
+    }
+}
+
+impl<'a, T: Clone, U: Clone + Iterator<Item = T>> Clone for FancyIter<'a, T, U> {
+    fn clone(&self) -> Self {
+        FancyIter {
+            iter: self.iter.clone(),
+            next_idx: self.next_idx,
+            glob_next_idx: self.glob_next_idx,
+            glob_last_val: self.glob_last_val,
+        }
+    }
+}
+
+//
+pub fn parse_program_with_error_info<'a, T: TokenErrIter<'a>>(
+    tokens: T,
+) -> Result<Program, (Program, &'a (Token, ErrLoc))> {
+    let initial_idx = RefCell::new(0);
+    let initial_last_val = RefCell::new(None);
+    let mut tokens = FancyIter::new(tokens, &initial_idx, &initial_last_val);
+    let program = parse_program(&mut tokens);
+    match tokens.next() {
+        None => Ok(program),
+        Some(_) => Err((program, tokens.last_val().unwrap())),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
