@@ -131,13 +131,24 @@ fn main() {
                     }
                 }
             }
-            println!("************************************");
-            let mut tokens = tokens.iter();
+            println!("**********************************************************");
 
-            let ast = parse::parse_program(&mut tokens);
-            if tokens.next().is_some() {
-                panic!("oops didn't parse everything");
+            let ast;
+            println!("\n***************** parsing error messages: *****************");
+            match parse::parse_program_with_error_info(tokens.iter()) {
+                Ok(prog) => ast = prog,
+                Err((prog, (last_attempted_to_parse_token, loc))) => {
+                    ast = prog;
+                    writeln!(
+                        writer,
+                        "parser failed near token `{}` at {}",
+                        last_attempted_to_parse_token.format_for_output(),
+                        loc
+                    )
+                    .unwrap();
+                }
             }
+            println!("***********************************************************");
 
             let prog = ir_build::build_program(ast);
             let checked_prog = semantics::check_program(&prog);
@@ -146,15 +157,15 @@ fn main() {
             checked_prog
                 .iter()
                 .for_each(|(loc, s)| println!("{}: {}", loc, s));
-            println!("************************************");
+            println!("**************************************************************");
             if !checked_prog.is_empty() {
                 panic!("your program has semantic errors");
             }
             let p = cfg_build::lin_program(&prog);
+            // println!("{}", p);
             for l in asm::asm_program(&p) {
-                println!("{}", l);
+                writeln!(writer, "{}", l).unwrap();
             }
-            // println!("{}", cfg_build::lin_program(&prog));
         }
     }
 }
