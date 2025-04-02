@@ -20,9 +20,13 @@ main0:
         movq $5, %rax
         movq %rax, -0(%rbp)
         movq -0(%rbp), %rax
+
+        call printf
         movq %rax, global1(%rip)
+
+
         jmp mainend
 mainend:
         addq $16, %rsp
         popq %rbp
-        ret
+        ret 

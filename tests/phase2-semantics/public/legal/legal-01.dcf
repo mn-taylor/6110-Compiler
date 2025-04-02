@@ -1,5 +1,5 @@
-int a;
+import printf;
 
 void main() {
-    a = 5;
+    printf("0");
 }

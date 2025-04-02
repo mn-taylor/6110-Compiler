@@ -27,6 +27,7 @@ impl fmt::Display for CfgMethod {
 }
 
 pub struct CfgProgram {
+    pub externals: Vec<String>,
     pub methods: Vec<CfgMethod>,
     pub global_fields: HashMap<VarLabel, (CfgType, String)>,
 }

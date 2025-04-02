@@ -163,8 +163,13 @@ pub fn lin_program(program: &Program) -> CfgProgram {
         .collect();
 
     CfgProgram {
-        methods,
-        global_fields,
+        externals: program
+            .imports
+            .iter()
+            .map(|c| c.val.name.clone())
+            .collect::<Vec<_>>(),
+        methods: methods,
+        global_fields: global_fields,
     }
 }
 
