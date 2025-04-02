@@ -134,7 +134,7 @@ fn get_global_strings(p: &CfgProgram) -> Vec<String> {
     all_strings.into_iter().collect()
 }
 
-pub fn asm_program(p: &CfgProgram) -> Vec<String> {
+pub fn asm_program(p: &CfgProgram, mac: bool) -> Vec<String> {
     let mut insns: Vec<String> = vec![];
     let glob_strings = get_global_strings(p);
     let glob_fields = &p.global_fields;
@@ -161,24 +161,21 @@ pub fn asm_program(p: &CfgProgram) -> Vec<String> {
     insns.push(format!("\tsyscall"));
 
     for method in p.methods.iter() {
-        insns.extend(asm_method(method));
+        insns.extend(asm_method(method, mac));
     }
 
     insns
 }
 
-pub fn asm_method(method: &CfgMethod) -> Vec<String> {
+pub fn asm_method(method: &CfgMethod, mac: bool) -> Vec<String> {
     let mut instructions: Vec<String> = vec![];
-    if method.name.as_str() == "main" {
-        instructions.push(".globl _main".to_string());
-        instructions.push("_main:".to_string());
-        instructions.push("\tcall main".to_string());
-        instructions.push(format!("\tmovq $0, {}", Reg::Rax));
-        instructions.push("\tret".to_string());
+    if method.name == "main" {
+        let name = format!("{}main", if mac { "_" } else { "" });
+        instructions.push(format!(".globl {}", name));
+        instructions.push(format!("{}:", name));
+    } else {
+        instructions.push(format!("{}:", method.name));
     }
-
-    // set up stack frame
-    instructions.push(format!("{}:", method.name));
 
     instructions.push(format!("\tpushq {}", Reg::Rbp));
     instructions.push(format!("\tmovq {}, {}", Reg::Rsp, Reg::Rbp));
@@ -227,6 +224,10 @@ pub fn asm_method(method: &CfgMethod) -> Vec<String> {
     // return the stack to original state
     instructions.push(format!("\taddq ${}, {}", total_offset, Reg::Rsp,));
     instructions.push(format!("\tpopq {}", Reg::Rbp));
+
+    if method.name == "main" {
+        instructions.push(format!("\tmovq $0, {}", Reg::Rax));
+    }
 
     // ret instruction
     instructions.push(format!("\tret"));
