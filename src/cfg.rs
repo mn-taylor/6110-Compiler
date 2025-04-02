@@ -13,6 +13,7 @@ pub struct CfgMethod {
     pub params: Vec<u32>,
     pub blocks: HashMap<BlockLabel, BasicBlock>,
     pub fields: HashMap<VarLabel, (CfgType, String)>,
+    pub return_type: Option<Primitive>,
 }
 
 impl fmt::Display for CfgMethod {

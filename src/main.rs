@@ -1,4 +1,5 @@
 mod utils;
+use decaf_skeleton_rust::asm;
 use decaf_skeleton_rust::cfg_build;
 use decaf_skeleton_rust::ir_build;
 use decaf_skeleton_rust::parse;
@@ -183,7 +184,7 @@ fn main() {
 
             let ast = parse::parse_program(&mut tokens);
             if tokens.next().is_some() {
-                panic!("oops didnt parse everythign");
+                panic!("oops didn't parse everything");
             }
 
             let prog = ir_build::build_program(ast);
@@ -197,7 +198,10 @@ fn main() {
             if !checked_prog.is_empty() {
                 panic!("your program has semantic errors");
             }
-            cfg_build::lin_program(&prog);
+            let p = cfg_build::lin_program(&prog);
+            for l in asm::asm_program(&p) {
+                println!("{}", l);
+            }
             // println!("{}", cfg_build::lin_program(&prog));
         }
     }

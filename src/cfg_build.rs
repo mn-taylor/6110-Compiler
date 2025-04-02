@@ -213,7 +213,8 @@ pub fn lin_method(method: &Method, last_name: VarLabel, scope: &Scope) -> CfgMet
         name: method.name.val.to_string(),
         blocks: st.all_blocks,
         fields: st.all_fields,
-        params,
+        params: params,
+        return_type: method.meth_type.clone(),
     }
 }
 
