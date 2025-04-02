@@ -1,5 +1,9 @@
 import printf;
+int a[5];
 
 void main() {
-    printf("0");
+
+    a[0] = 5;
+    a[0]++;
+    printf("%d\n", a[0]);
 }

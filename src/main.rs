@@ -139,13 +139,11 @@ fn main() {
                 Ok(prog) => ast = prog,
                 Err((prog, (last_attempted_to_parse_token, loc))) => {
                     ast = prog;
-                    writeln!(
-                        writer,
+                    println!(
                         "parser failed near token `{}` at {}",
                         last_attempted_to_parse_token.format_for_output(),
                         loc
-                    )
-                    .unwrap();
+                    );
                 }
             }
             println!("***********************************************************");
@@ -162,8 +160,10 @@ fn main() {
                 panic!("your program has semantic errors");
             }
             let p = cfg_build::lin_program(&prog);
-            // println!("{}", p);
-            for l in asm::asm_program(&p) {
+            if args.debug {
+                println!("{}", p);
+            }
+            for l in asm::asm_program(&p, args.mac) {
                 writeln!(writer, "{}", l).unwrap();
             }
         }

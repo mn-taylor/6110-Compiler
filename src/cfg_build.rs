@@ -212,7 +212,6 @@ pub fn lin_method(method: &Method, last_name: VarLabel, scope: &Scope) -> CfgMet
             *ll_name
         })
         .collect::<Vec<_>>();
-
     collapse_jumps(&mut st.all_blocks);
     CfgMethod {
         name: method.name.val.to_string(),
@@ -528,19 +527,22 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
                 lin_location(&Location::Var(var_to_set.val.clone()), st, scope);
             let (loop_init_start, loop_init_end) =
                 lin_reg_assign(loop_var, &AssignOp::Eq, &initial_val.val, st, scope);
-
             st.get_block(loop_end).jump_loc = Jump::Uncond(loop_init_start);
 
             let end = new_noop(st);
 
             // Modify state so that we point to continue and break to the right places.
-            let continue_target = new_noop(st);
+
+            // change to handle increments and decrements better
+            let (update_var, loop_update, update_loc_end) =
+                lin_location(&var_to_update.val, st, scope);
+            let (update_start, update_end) = lin_assign_expr(update_var, update_val, st, scope);
 
             // update break and continue locations
             let old_break_loc = st.break_loc;
             let old_continue_loc = st.continue_loc;
             st.break_loc = Some(end);
-            st.continue_loc = Some(continue_target);
+            st.continue_loc = Some(loop_update);
 
             let (body_start, body_end) = lin_block(body, st, scope);
 
@@ -548,22 +550,17 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             st.break_loc = old_break_loc;
             st.continue_loc = old_continue_loc;
 
-            // change to handle increments and decrements better
-            let (update_var, loop_update, update_loc_end) =
-                lin_location(&var_to_update.val, st, scope);
-            let (update_start, _update_end) = lin_assign_expr(update_var, update_val, st, scope);
-
             st.get_block(update_loc_end).jump_loc = Jump::Uncond(update_start);
 
             st.get_block(body_end).jump_loc = Jump::Uncond(loop_update);
 
             let condition_start = lin_branch(body_start, end, &test.val, st, scope);
 
-            st.get_block(continue_target).jump_loc = Jump::Uncond(loop_update);
+            // st.get_block(continue_target).jump_loc = Jump::Uncond(loop_update);
 
             st.get_block(loop_init_end).jump_loc = Jump::Uncond(condition_start);
 
-            st.get_block(loop_update).jump_loc = Jump::Uncond(condition_start);
+            st.get_block(/*loop_update*/ update_end).jump_loc = Jump::Uncond(condition_start);
 
             (loop_start, end)
         }
@@ -687,6 +684,7 @@ fn lin_assign_expr(
                 dest: t1,
                 constant: 1,
             }));
+            st.get_block(start).jump_loc = Jump::Uncond(end);
             (start, end)
         }
     }

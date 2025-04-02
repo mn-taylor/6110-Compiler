@@ -45,6 +45,10 @@ pub struct Args {
     #[arg(short, long, default_value_t = false)]
     pub debug: bool,
 
+    /// Compile for Mac
+    #[arg(short, long, default_value_t = false)]
+    pub mac: bool,
+
     /// Decaf file
     pub input: std::path::PathBuf,
 }

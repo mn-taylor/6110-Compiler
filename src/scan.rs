@@ -280,7 +280,7 @@ pub enum Token {
 
 use Token::*;
 
-fn format_char_for_output(c: char) -> String {
+pub fn format_char_for_output(c: char) -> String {
     match c {
         '"' => "\\\"".to_string(),
         '\'' => "\\\'".to_string(),
@@ -291,6 +291,10 @@ fn format_char_for_output(c: char) -> String {
         FORM_FEED => "\\f".to_string(),
         _ => c.to_string(),
     }
+}
+
+pub fn format_str_for_output(s: &String) -> String {
+    s.chars().map(format_char_for_output).collect()
 }
 
 impl Token {

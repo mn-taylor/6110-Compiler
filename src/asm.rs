@@ -1,9 +1,7 @@
-use crate::cfg::{
-    Arg, BasicBlock, CfgMethod, CfgProgram, CfgType, CmpType, Instruction, Jump, VarLabel,
-};
+use crate::cfg::{Arg, BasicBlock, CfgMethod, CfgProgram, CfgType, Instruction, Jump, VarLabel};
 use crate::ir::{Bop, UnOp};
 use crate::parse::Primitive;
-use crate::scan::{AddOp, EqOp, MulOp, RelOp};
+use crate::scan::{format_str_for_output, AddOp, EqOp, MulOp, RelOp};
 use std::fmt;
 
 use std::collections::HashMap;
@@ -55,7 +53,7 @@ fn convert_bop_to_asm(bop: Bop) -> String {
     match bop {
         Bop::MulBop(MulOp::Div) => "idivq",
         Bop::MulBop(MulOp::Mul) => "imulq",
-        Bop::MulBop(MulOp::Mod) => "mod",
+        Bop::MulBop(MulOp::Mod) => "modq",
         Bop::AddBop(AddOp::Add) => "addq",
         Bop::AddBop(AddOp::Sub) => "subq",
         _ => panic!("Only operations allowed in cfg are multiplicative and additive"),
@@ -108,10 +106,8 @@ fn build_stack(
     (lookup, round_up(offset, 16)) // keep stack 16 byte aligned
 }
 
-use std::collections::HashSet;
-
-fn get_global_strings(p: &CfgProgram) -> Vec<String> {
-    let mut all_strings = HashSet::new();
+fn get_global_strings(p: &CfgProgram) -> HashMap<String, usize> {
+    let mut all_strings = HashMap::new();
     for method in p.methods.iter() {
         for block in method.blocks.values() {
             for insn in block.body.iter() {
@@ -120,7 +116,9 @@ fn get_global_strings(p: &CfgProgram) -> Vec<String> {
                         for arg in args {
                             match arg {
                                 Arg::StrArg(s) => {
-                                    all_strings.insert(s.clone());
+                                    if let None = all_strings.get(s) {
+                                        all_strings.insert(s.clone(), all_strings.len());
+                                    }
                                 }
                                 _ => (),
                             }
@@ -131,43 +129,66 @@ fn get_global_strings(p: &CfgProgram) -> Vec<String> {
             }
         }
     }
-    all_strings.into_iter().collect()
+    all_strings
 }
 
 pub fn asm_program(p: &CfgProgram, mac: bool) -> Vec<String> {
     let mut insns: Vec<String> = vec![];
-    let glob_strings = get_global_strings(p);
+
+    let external_funcs = &p.externals;
+    let glob_strings = &get_global_strings(p);
     let glob_fields = &p.global_fields;
 
     insns.push(".data".to_string());
     for (varname, (typ, _)) in glob_fields {
         match typ {
             CfgType::Array(_, len) => {
-                insns.push(format!("global{}:\n\t.zero {}", varname, len * 8))
+                insns.push(format!("global_var{}:\n\t.zero {}", varname, len * 8))
             }
-            CfgType::Scalar(_) => insns.push(format!("global{}:\n\t.zero 8", varname)), /*8 bytes*/
+            CfgType::Scalar(_) => insns.push(format!("global_var{}:\n\t.zero 8", varname)), /*8 bytes*/
         }
     }
-    for strin in glob_strings {
-        // TODO this syntax is not right, I don't think .string is even a thing.
-        insns.push(format!("global_{}:\n\t.string {}", strin, strin));
+    for (strin, label) in glob_strings {
+        insns.push(format!(
+            "global_str{}:\n\t.string \"{}\"",
+            label,
+            format_str_for_output(strin)
+        ));
     }
 
     insns.push(".text".to_string());
+    for external in external_funcs {
+        if mac {
+            insns.push(format!("\t.extern _{}", external));
+        } else {
+            insns.push(format!("\t.extern {}", external));
+        }
+    }
 
     insns.push(format!("error_handler:"));
-    insns.push(format!("\tmovl $0x2000001, %eax"));
-    insns.push(format!("\tmovl $-1, %edi"));
-    insns.push(format!("\tsyscall"));
+    if mac {
+        insns.push(format!("\tmovl $0x2000001, %eax"));
+        insns.push(format!("\tmovl $-1, %edi"));
+        insns.push(format!("\tsyscall"));
+    } else {
+        insns.push(format!("\tmovl $0x01, %eax"));
+        insns.push(format!("\tmovl $-1, %ebx"));
+        insns.push(format!("\tsyscall"));
+    }
 
     for method in p.methods.iter() {
-        insns.extend(asm_method(method, mac));
+        insns.extend(asm_method(method, mac, external_funcs, glob_strings));
     }
 
     insns
 }
 
-pub fn asm_method(method: &CfgMethod, mac: bool) -> Vec<String> {
+pub fn asm_method(
+    method: &CfgMethod,
+    mac: bool,
+    external_funcs: &Vec<String>,
+    global_strings: &HashMap<String, usize>,
+) -> Vec<String> {
     let mut instructions: Vec<String> = vec![];
     if method.name == "main" {
         let name = format!("{}main", if mac { "_" } else { "" });
@@ -215,6 +236,9 @@ pub fn asm_method(method: &CfgMethod, mac: bool) -> Vec<String> {
             &offsets,
             &method.name,
             method.return_type.clone(),
+            external_funcs,
+            mac,
+            global_strings,
         ));
     }
 
@@ -226,7 +250,7 @@ pub fn asm_method(method: &CfgMethod, mac: bool) -> Vec<String> {
     instructions.push(format!("\tpopq {}", Reg::Rbp));
 
     if method.name == "main" {
-        instructions.push(format!("\tmovq $0, {}", Reg::Rax));
+        instructions.push(format!("\txorq {}, {}", Reg::Rax, Reg::Rax));
     }
 
     // ret instruction
@@ -239,6 +263,9 @@ fn asm_block(
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
     root: &String,
     return_type: Option<Primitive>,
+    external_funcs: &Vec<String>,
+    mac: bool,
+    global_strings: &HashMap<String, usize>,
 ) -> Vec<String> {
     let mut instructions: Vec<String> = vec![];
 
@@ -247,7 +274,15 @@ fn asm_block(
 
     // perform instructions
     for instruction in &b.body {
-        instructions.extend(asm_instruction(stack_lookup, instruction.clone(), root));
+        instructions.extend(asm_instruction(
+            stack_lookup,
+            instruction.clone(),
+            root,
+            external_funcs,
+            mac,
+            global_strings,
+        ));
+        instructions.push("".to_string());
     }
 
     // handle jumps
@@ -260,15 +295,13 @@ fn asm_block(
         } => {
             let (_, source_offset) = stack_lookup.get(&source).unwrap();
             let get_source = format!("\tmovq -{}({}), {}", source_offset, Reg::Rbp, Reg::R9,);
-            let compare = format!("\tcmp {}, {}", Reg::R9, 1);
+            let compare = format!("\tcmpq $1, {}", Reg::R9);
             let true_jump = format!("\tje {}{}", root, true_block);
             let false_jump = format!("\tjmp {}{}", root, false_block);
 
             instructions.extend([get_source, compare, true_jump, false_jump]);
         }
         Jump::Nowhere => {
-            // TODO this is correct only if the return type is void.
-            // if it is not void, we should instead error here.  what an error looks like idk.
             if return_type.is_some() {
                 instructions.push(format!("\tjmp error_handler"));
             } else {
@@ -286,8 +319,76 @@ fn load_into_reg(
 ) -> String {
     match stack_lookup.get(&varname) {
         Some((_, offset)) => format!("\tmovq -{}({}), {}", offset, Reg::Rbp, dest),
-        None => format!("\tmovq global{}(%rip), {}", varname, dest),
+        None => format!("\tmovq global_var{}(%rip), {}", varname, dest),
     }
+}
+
+fn load_into_reg_arr(
+    dest: Reg,
+    varname: VarLabel,
+    index: VarLabel,
+    stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
+) -> Vec<String> {
+    let mut instructions = vec![];
+    instructions.push(load_into_reg(Reg::R9, index, stack_lookup));
+    match stack_lookup.get(&varname) {
+        Some((_, offset)) => {
+            // movl offset(base, index, scale), destination
+
+            instructions.push(format!(
+                "\tmovq -{}({}, {}, $8), {dest}",
+                offset,
+                Reg::Rbp,
+                Reg::R9
+            ))
+            // instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            // instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
+            // instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            // instructions.push(format!("\tmovq -{offset}({}), {dest}", Reg::R10));
+        }
+        None => {
+            instructions.push(format!(
+                "\tleaq (global_var{}(%rip), {}, $8), {}",
+                varname,
+                Reg::R9,
+                Reg::R9
+            ));
+            instructions.push(format!("\tmovq 0({}), {}", Reg::R9, dest))
+            // instructions.push(format!("\taddq {}, {}", Reg::R10, Reg::R9));
+        }
+    }
+    instructions
+}
+
+fn store_from_reg_arr(
+    src: Reg,
+    arrname: VarLabel,
+    index: VarLabel,
+    stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
+) -> Vec<String> {
+    let mut instructions = vec![];
+    instructions.push(load_into_reg(Reg::R9, index, stack_lookup));
+    match stack_lookup.get(&arrname) {
+        Some((_, offset)) => {
+            instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
+            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tmovq {src}, -{offset}({})", Reg::R10));
+        }
+        None => {
+            instructions.push(format!(
+                "\tleaq (global_var{}(%rip), {}, $16), {}",
+                arrname,
+                Reg::R9,
+                Reg::R9
+            ));
+            instructions.push(format!("\tmovq {src}, 0({})", Reg::R9))
+            // instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
+            // instructions.push(format!("\taddq {}, {}", Reg::R10, Reg::R9));
+            // instructions.push(format!("\tmovq {src}, 0({})", Reg::R9))
+        }
+    }
+    instructions
 }
 
 fn store_from_reg(
@@ -297,7 +398,7 @@ fn store_from_reg(
 ) -> String {
     match stack_lookup.get(&varname) {
         Some((_, offset)) => format!("\tmovq {}, -{}({})", src, offset, Reg::Rbp),
-        None => format!("\tmovq {}, global{}(%rip)", src, varname),
+        None => format!("\tmovq {}, global_var{}(%rip)", src, varname),
     }
 }
 
@@ -305,6 +406,9 @@ fn asm_instruction(
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
     instr: Instruction,
     root: &String,
+    external_funcs: &Vec<String>,
+    mac: bool,
+    global_strings: &HashMap<String, usize>,
 ) -> Vec<String> {
     match instr {
         Instruction::ThreeOp {
@@ -324,16 +428,23 @@ fn asm_instruction(
                     return vec![get_source1, get_source2, operate, return_to_stack];
                 }
                 _ => {
-                    let compare = format!("\tcmp {}, {}", Reg::R9, Reg::R10);
-                    let initialize_dest = format!("\tmovq {}, {}", 0, Reg::R9,);
-                    let cond_move =
-                        format!("\t{} {}, {}", convert_rel_op_to_cmov_type(op), Reg::R9, 1);
+                    let compare = format!("\tcmpq {}, {}", Reg::R10, Reg::R9);
+                    let initialize_dest = format!("\tmovq ${}, {}", 0, Reg::R9,);
+
+                    let set_one = format!("\tmovq ${}, {}", 1, Reg::R11);
+                    let cond_move = format!(
+                        "\t{} {}, {}",
+                        convert_rel_op_to_cmov_type(op),
+                        Reg::R11,
+                        Reg::R9
+                    );
                     let return_to_stack = store_from_reg(Reg::R9, dest, stack_lookup);
                     return vec![
                         get_source1,
                         get_source2,
                         compare,
                         initialize_dest,
+                        set_one,
                         cond_move,
                         return_to_stack,
                     ];
@@ -373,31 +484,19 @@ fn asm_instruction(
             return vec![load_const, restore_to_stack];
         }
         Instruction::ArrayAccess { dest, name, idx } => {
-            let (_, arr_root) = stack_lookup.get(&name).unwrap();
+            let mut instructions = vec![];
 
-            let get_source = format!(
-                "\tmovq -{}({}), {}",
-                arr_root + 16 * idx as u64,
-                Reg::Rbp,
-                Reg::Rax,
-            );
-            let return_to_stack = store_from_reg(Reg::Rax, dest, stack_lookup);
-            return vec![get_source, return_to_stack];
+            instructions.extend(load_into_reg_arr(Reg::Rax, name, idx, stack_lookup));
+            instructions.push(store_from_reg(Reg::Rax, dest, stack_lookup));
+            instructions
         }
         Instruction::ArrayStore { source, arr, idx } => {
-            let (_, source_offset) = stack_lookup.get(&source).unwrap();
-            let (_, arr_root) = stack_lookup.get(&arr).unwrap();
-
-            let get_source = load_into_reg(Reg::Rax, source, stack_lookup);
-            let return_to_stack = format!(
-                "\tmovq {}, -{}({}) ",
-                Reg::Rax,
-                arr_root + 16 * idx as u64,
-                Reg::Rbp
-            );
-
-            return vec![get_source, return_to_stack];
+            let mut instructions: Vec<String> = vec![];
+            instructions.push(load_into_reg(Reg::Rax, source, stack_lookup));
+            instructions.extend(store_from_reg_arr(Reg::Rax, arr, idx, stack_lookup));
+            instructions
         }
+
         Instruction::Ret(ret_val) => {
             let mut instructions = vec![];
             match ret_val {
@@ -422,10 +521,9 @@ fn asm_instruction(
                 vec![Reg::R9, Reg::R8, Reg::Rcx, Reg::Rdx, Reg::Rsi, Reg::Rdi];
 
             // push arguments into registers and onto stack if needed
-            for (i, arg) in args.iter().enumerate() {
+            for arg in args.iter() {
                 match arg {
                     Arg::VarArg(label) => {
-                        let (_, source_offset) = stack_lookup.get(&label).unwrap();
                         let arg_reg = argument_registers.pop();
                         match arg_reg {
                             Some(reg) => {
@@ -442,12 +540,18 @@ fn asm_instruction(
 
                         match arg_reg {
                             Some(reg) => {
-                                instructions
-                                    .push(format!("\tpushq global_{}(%rip) {}", string, reg));
+                                instructions.push(format!(
+                                    "\tleaq global_str{}(%rip), {}",
+                                    global_strings.get(string).unwrap(),
+                                    reg
+                                ));
                             }
                             None => {
-                                instructions
-                                    .push(format!("\tmovq global_{} {}", string, Reg::Rax,));
+                                instructions.push(format!(
+                                    "\tmovq global_str{}, {}",
+                                    global_strings.get(string).unwrap(),
+                                    Reg::Rax,
+                                ));
                                 instructions.push(format!("\tpushq {}", Reg::Rax));
                             }
                         }
@@ -457,9 +561,14 @@ fn asm_instruction(
 
             // call the function
             if func_name == "printf".to_string() {
-                instructions.push(format!("\txor {}, {}", Reg::Rax, Reg::Rax));
+                instructions.push(format!("\txorq {}, {}", Reg::Rax, Reg::Rax));
             }
-            instructions.push(format!("\tcall {}", func_name));
+
+            if external_funcs.contains(&func_name) && mac {
+                instructions.push(format!("\tcall _{}", func_name));
+            } else {
+                instructions.push(format!("\tcall {}", func_name));
+            }
 
             // store return value into temp
             match ret_dest {

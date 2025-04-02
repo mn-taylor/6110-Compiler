@@ -137,7 +137,7 @@ impl fmt::Display for Jump {
                 false_block,
             } => write!(
                 f,
-                "if {} then goto {} else goto {}",
+                "if t{} then goto {} else goto {}",
                 source, true_block, false_block
             ),
             Jump::Nowhere => write!(f, "nowhere"),
