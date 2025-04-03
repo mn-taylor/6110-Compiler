@@ -135,6 +135,8 @@ fn get_global_strings(p: &CfgProgram) -> HashMap<String, usize> {
 pub fn asm_program(p: &CfgProgram, mac: bool) -> Vec<String> {
     let mut insns: Vec<String> = vec![];
 
+    insns.push(".section .note.GNU-stack,\"\",@progbits".to_string());
+
     let external_funcs = &p.externals;
     let glob_strings = &get_global_strings(p);
     let glob_fields = &p.global_fields;
@@ -422,8 +424,9 @@ fn asm_instruction(
 
             match op {
                 Bop::AddBop(_) | Bop::MulBop(_) => {
-                    let operate = format!("\t{} {}, {}", convert_bop_to_asm(op), Reg::R9, Reg::R10);
-                    let return_to_stack = store_from_reg(Reg::R10, dest, stack_lookup);
+                    // NOTE: R10 (source1) is on lhs, R9 (source2) on rhs.
+                    let operate = format!("\t{} {}, {}", convert_bop_to_asm(op), Reg::R10, Reg::R9);
+                    let return_to_stack = store_from_reg(Reg::R9, dest, stack_lookup);
 
                     return vec![get_source1, get_source2, operate, return_to_stack];
                 }
