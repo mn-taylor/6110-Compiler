@@ -1,9 +1,11 @@
 import printf;
-int a[5];
 
 void main() {
-
-    a[0] = 5;
-    a[0]++;
-    printf("%d\n", a[0]);
+    int i;
+    for (i=0; i<10; i++) {
+        if (i%2==0){
+            continue;
+        }
+        printf("%d\n", i);
+    }
 }

@@ -212,7 +212,9 @@ pub fn lin_method(method: &Method, last_name: VarLabel, scope: &Scope) -> CfgMet
             *ll_name
         })
         .collect::<Vec<_>>();
+
     collapse_jumps(&mut st.all_blocks);
+    // get_parents(&mut st.all_blocks);
     CfgMethod {
         name: method.name.val.to_string(),
         blocks: st.all_blocks,
@@ -381,7 +383,22 @@ fn lin_block(b: &Block, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabe
 
     for s in b.stmts.iter() {
         let (start, end) = lin_stmt(s, st, &block_scope);
-        st.get_block(last).jump_loc = Jump::Uncond(start);
+
+        if end == 4 {
+            println!(
+                "This is what the break block looks like after lin_stmt\n{}",
+                st.get_block(end)
+            );
+        }
+        match st.get_block(end).jump_loc {
+            Jump::Nowhere => st.get_block(last).jump_loc = Jump::Uncond(start),
+            _ => {
+                // if we run into control flow, do not continue handling statements
+                st.get_block(last).jump_loc = Jump::Uncond(start);
+                last = end;
+                break;
+            }
+        }
         last = end;
     }
 
@@ -421,11 +438,23 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             lin_assign_to_loc(&loc.val, assign_expr, st, scope)
         }
         ir::Stmt::Break(_) => match st.break_loc {
-            Some(break_block) => (break_block, break_block),
+            Some(break_block) => {
+                println!(" Break Block {break_block}");
+
+                let start = new_noop(st);
+                st.get_block(start).jump_loc = Jump::Uncond(break_block);
+                (start, start)
+            }
             _ => panic!("should not get here"),
         },
         ir::Stmt::Continue(_) => match st.continue_loc {
-            Some(continue_block) => (continue_block, continue_block),
+            Some(continue_block) => {
+                let start = new_noop(st);
+
+                st.get_block(start).jump_loc = Jump::Uncond(continue_block);
+                println!("continue {}", st.get_block(start));
+                (start, start)
+            }
             _ => panic!("Should not get here"),
         },
         ir::Stmt::Call(id, args) => {
@@ -467,6 +496,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             (start, end)
         }
         ir::Stmt::If(WithLoc { val: expr, loc: _ }, if_block, else_block) => {
+            println!("{:?}", if_block);
             let (if_start, if_end) = lin_block(if_block, st, scope);
             let (else_start, else_end) = match else_block {
                 Some(block) => lin_block(block, st, scope),
@@ -479,9 +509,18 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             let start = lin_branch(if_start, else_start, expr, st, scope);
 
             let end = new_noop(st);
-            st.get_block(if_end).jump_loc = Jump::Uncond(end);
 
-            st.get_block(else_end).jump_loc = Jump::Uncond(end);
+            // Whenever you do lin_block, you must check whether the end of the block was control flow (continue/break)
+            println!("if_end: {}", st.get_block(if_end));
+            match st.get_block(if_end).jump_loc {
+                Jump::Nowhere => st.get_block(if_end).jump_loc = Jump::Uncond(end),
+                _ => {}
+            };
+
+            match st.get_block(else_end).jump_loc {
+                Jump::Nowhere => st.get_block(else_end).jump_loc = Jump::Uncond(end),
+                _ => {}
+            };
 
             (start, end)
         }
@@ -511,7 +550,12 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
 
             st.get_block(continue_target).jump_loc = Jump::Uncond(while_condition);
 
-            st.get_block(while_block_end).jump_loc = Jump::Uncond(while_condition);
+            match st.get_block(while_block_end).jump_loc {
+                Jump::Nowhere => {
+                    st.get_block(while_block_end).jump_loc = Jump::Uncond(while_condition)
+                }
+                _ => {}
+            };
 
             (continue_target, end)
         }
@@ -544,6 +588,8 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             st.break_loc = Some(end);
             st.continue_loc = Some(loop_update);
 
+            println!("end {}", st.get_block(end));
+
             let (body_start, body_end) = lin_block(body, st, scope);
 
             // Restore old break and continue locations
@@ -552,7 +598,10 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
 
             st.get_block(update_loc_end).jump_loc = Jump::Uncond(update_start);
 
-            st.get_block(body_end).jump_loc = Jump::Uncond(loop_update);
+            match st.get_block(body_end).jump_loc {
+                Jump::Nowhere => st.get_block(body_end).jump_loc = Jump::Uncond(loop_update),
+                _ => {}
+            }
 
             let condition_start = lin_branch(body_start, end, &test.val, st, scope);
 
@@ -562,6 +611,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
 
             st.get_block(/*loop_update*/ update_end).jump_loc = Jump::Uncond(condition_start);
 
+            println!("{}", st.get_block(end));
             (loop_start, end)
         }
         ir::Stmt::Return(_, ret_val) => match ret_val {

@@ -55,7 +55,7 @@ impl Arg {
         }
     }
 }
-
+#[derive(Debug)]
 pub enum Stmt {
     AssignStmt(WithLoc<Location>, AssignExpr),
     Call(WithLoc<Ident>, Vec<Arg>),
@@ -134,6 +134,7 @@ impl fmt::Display for Type {
     }
 }
 
+#[derive(Debug)]
 pub struct Block {
     pub fields: Vec<Field>,
     pub stmts: Vec<Stmt>,

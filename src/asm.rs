@@ -135,7 +135,9 @@ fn get_global_strings(p: &CfgProgram) -> HashMap<String, usize> {
 pub fn asm_program(p: &CfgProgram, mac: bool) -> Vec<String> {
     let mut insns: Vec<String> = vec![];
 
-    insns.push(".section .note.GNU-stack,\"\",@progbits".to_string());
+    if !mac {
+        insns.push(".section .note.GNU-stack,\"\",@progbits".to_string());
+    }
 
     let external_funcs = &p.externals;
     let glob_strings = &get_global_strings(p);
@@ -337,26 +339,31 @@ fn load_into_reg_arr(
         Some((_, offset)) => {
             // movl offset(base, index, scale), destination
 
-            instructions.push(format!(
-                "\tmovq -{}({}, {}, $8), {dest}",
-                offset,
-                Reg::Rbp,
-                Reg::R9
-            ))
-            // instructions.push(format!("\tsalq $3, {}", Reg::R9));
-            // instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
-            // instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
-            // instructions.push(format!("\tmovq -{offset}({}), {dest}", Reg::R10));
+            // instructions.push(format!(
+            //     "\tmovq -{}({}, {}, $8), {dest}",
+            //     offset,
+            //     Reg::Rbp,
+            //     Reg::R9
+            // ))
+            instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
+            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tmovq -{offset}({}), {dest}", Reg::R10));
         }
         None => {
-            instructions.push(format!(
-                "\tleaq (global_var{}(%rip), {}, $8), {}",
-                varname,
-                Reg::R9,
-                Reg::R9
-            ));
-            instructions.push(format!("\tmovq 0({}), {}", Reg::R9, dest))
+            // instructions.push(format!(
+            //     "\tleaq (global_var{}(%rip), {}, $8), {}",
+            //     varname,
+            //     Reg::R9,
+            //     Reg::R9
+            // ));
+            // instructions.push(format!("\tmovq 0({}), {}", Reg::R9, dest));
             // instructions.push(format!("\taddq {}, {}", Reg::R10, Reg::R9));
+
+            instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            instructions.push(format!("\tleaq global_var{}(%rip), {}", varname, Reg::R10));
+            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tmovq -0({}), {dest}", Reg::R10));
         }
     }
     instructions
@@ -378,13 +385,18 @@ fn store_from_reg_arr(
             instructions.push(format!("\tmovq {src}, -{offset}({})", Reg::R10));
         }
         None => {
-            instructions.push(format!(
-                "\tleaq (global_var{}(%rip), {}, $16), {}",
-                arrname,
-                Reg::R9,
-                Reg::R9
-            ));
-            instructions.push(format!("\tmovq {src}, 0({})", Reg::R9))
+            // instructions.push(format!(
+            //    "\tleaq (global_var{}(%rip), {}, $16), {}",
+            //    arrname,
+            //    Reg::R9,
+            //    Reg::R9
+            // ));
+            // instructions.push(format!("\tmovq {src}, 0({})", Reg::R9))
+
+            instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
+            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tmovq {src}, -0({}) ", Reg::R10));
             // instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
             // instructions.push(format!("\taddq {}, {}", Reg::R10, Reg::R9));
             // instructions.push(format!("\tmovq {src}, 0({})", Reg::R9))
