@@ -61,6 +61,26 @@ fn convert_bop_to_asm(bop: Bop) -> String {
     .to_string()
 }
 
+fn convert_multipication(mop: MulOp, operand: Reg, optarget: Reg) -> Vec<String> {
+    let mut instructions = vec![];
+    match mop {
+        MulOp::Mul => instructions.push(format!("\timulq {}, {}", operand, optarget)),
+        MulOp::Mod => {
+            instructions.push(format!("\tmovq {}, {}", optarget, Reg::Rax));
+            instructions.push(format!("\tcqto"));
+            instructions.push(format!("\tidivq {}", operand));
+            instructions.push(format!("\tmovq {}, {}", Reg::Rdx, optarget));
+        }
+        MulOp::Div => {
+            instructions.push(format!("\tmovq {}, {}", optarget, Reg::Rax));
+            instructions.push(format!("\tcqto"));
+            instructions.push(format!("\tidivq {}", operand));
+            instructions.push(format!("\tmovq {}, {}", Reg::Rax, optarget));
+        }
+    };
+    instructions
+}
+
 fn convert_rel_op_to_cmov_type(op: Bop) -> String {
     match op {
         Bop::RelBop(rop) => match rop {
@@ -435,7 +455,14 @@ fn asm_instruction(
             let get_source2 = load_into_reg(Reg::R10, source2, stack_lookup);
 
             match op {
-                Bop::AddBop(_) | Bop::MulBop(_) => {
+                Bop::MulBop(mop) => {
+                    let mut instructions = vec![get_source1, get_source2];
+                    instructions.extend(convert_multipication(mop, Reg::R10, Reg::R9));
+                    instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
+                    instructions
+                }
+
+                Bop::AddBop(_) => {
                     // NOTE: R10 (source1) is on lhs, R9 (source2) on rhs.
                     let operate = format!("\t{} {}, {}", convert_bop_to_asm(op), Reg::R10, Reg::R9);
                     let return_to_stack = store_from_reg(Reg::R9, dest, stack_lookup);
