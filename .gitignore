@@ -1,3 +1,4 @@
+# ignore extensionless files
 *
 !/**/
 !*.*
@@ -31,3 +32,4 @@ public-tests/
 output.s
 output.exe
 output.o
+tests/phase3/asm

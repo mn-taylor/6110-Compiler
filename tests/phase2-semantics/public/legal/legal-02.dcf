@@ -1,5 +1,18 @@
 import printf;
+int x;
+
+int bar() {
+     x = 5;
+     printf("%d\n", x);
+     return -1;
+}
+
+void foo() {
+     printf("%d\n", x);
+}
 
 void main ( ) {
-     printf("%d", 1 + (1 + 2) - 1 - 2);
+     int x;
+     for(x = 0; x > bar(); x--) { }
+     // foo();
 }
