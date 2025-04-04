@@ -143,11 +143,11 @@ fn gen_var(
     last_name: &mut VarLabel,
     all_fields: &mut HashMap<VarLabel, (CfgType, String)>,
 ) -> VarLabel {
-    println!("{}, {}", high_name, last_name);
+    // println!("{}, {}", high_name, last_name);
     *last_name += 1;
     let name = *last_name;
     all_fields.insert(name, (t, high_name));
-    println!("{:?}", all_fields);
+    // println!("{:?}", all_fields);
     name
 }
 

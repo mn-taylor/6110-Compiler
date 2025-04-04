@@ -110,7 +110,14 @@ fn build_stack(
     let mut offset: u64 = 8;
     let mut lookup: HashMap<VarLabel, (CfgType, u64)> = HashMap::new();
 
-    for (field, (typ, _)) in all_fields.iter() {
+    let mut fields = all_fields.iter().collect::<Vec<_>>();
+    fields.sort_by(|a, b| {
+        let (i, _) = a;
+        let (j, _) = b;
+        i.cmp(j)
+    });
+
+    for (field, (typ, _)) in fields {
         match typ {
             CfgType::Scalar(_) => {
                 lookup.insert(*field, (typ.clone(), offset.clone()));
@@ -331,6 +338,7 @@ fn asm_block(
         } => {
             let (_, source_offset) = stack_lookup.get(&source).unwrap();
             let get_source = format!("\tmovq -{}({}), {}", source_offset, Reg::Rbp, Reg::R9,);
+
             let compare = format!("\tcmpq $1, {}", Reg::R9);
             let true_jump = format!("\tje {}{}", root, true_block);
             let false_jump = format!("\tjmp {}{}", root, false_block);
@@ -573,7 +581,7 @@ fn asm_instruction(
             let mut argument_registers: Vec<Reg> =
                 vec![Reg::R9, Reg::R8, Reg::Rcx, Reg::Rdx, Reg::Rsi, Reg::Rdi];
 
-            if args.len() % 2 == 1 && args.len() >= 6 {
+            if (args.len() % 2 == 1 && args.len() >= 6) {
                 instructions.push(format!("\tsubq $8, {}", Reg::Rsp));
             }
 
