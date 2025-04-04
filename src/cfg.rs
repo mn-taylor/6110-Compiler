@@ -19,6 +19,7 @@ pub struct CfgMethod {
 impl fmt::Display for CfgMethod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Method: {}", self.name)?;
+        writeln!(f, "Fields: {:?}", self.fields)?;
         for block in self.blocks.values() {
             writeln!(f, "{}", block)?;
         }

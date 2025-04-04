@@ -869,19 +869,17 @@ fn method_scope<'a, 'b>(
         .iter()
         .map(|param| (&param.name.val.name, Type::Prim(param.param_type.clone())));
 
-    let fields = method.fields.iter().map(|field| match field {
-        Field::Scalar(t, id) => (&id.val.name, Type::Prim(t.clone())),
-        Field::Array(t, id, len) => (
-            &id.val.name,
-            Type::Arr(t.clone(), lin_literal(len.val.clone()).1 as i32),
-        ),
-    });
+    let params_scope = params
+        .map(|(id, t)| {
+            let p = type_to_prim(t.clone());
+            let name = gen_var(CfgType::Scalar(p), id.to_string(), last_name, all_fields);
+            (id, (t.clone(), name))
+        })
+        .collect::<Vec<_>>();
 
-    params.chain(fields).map(|(id, t)| {
-        let p = type_to_prim(t.clone());
-        let name = gen_var(CfgType::Scalar(p), id.to_string(), last_name, all_fields);
-        (id, (t.clone(), name))
-    })
+    params_scope
+        .into_iter()
+        .chain(fields_scope(&method.fields, last_name, all_fields))
 }
 
 fn fields_scope<'a, 'b>(

@@ -573,7 +573,7 @@ fn asm_instruction(
             let mut argument_registers: Vec<Reg> =
                 vec![Reg::R9, Reg::R8, Reg::Rcx, Reg::Rdx, Reg::Rsi, Reg::Rdi];
 
-            if (args.len() % 2 == 1 && args.len() >= 6) {
+            if args.len() % 2 == 1 && args.len() >= 6 {
                 instructions.push(format!("\tsubq $8, {}", Reg::Rsp));
             }
 
