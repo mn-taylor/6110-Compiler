@@ -500,6 +500,7 @@ fn asm_instruction(
             match op {
                 UnOp::Not => {
                     instructions.push(format!("\tnot {}", Reg::Rax));
+                    instructions.push(format!("\txor $-2, {}", Reg::Rax));
                 }
                 UnOp::Neg => instructions.push(format!("\tneg {}", Reg::Rax)),
                 UnOp::IntCast => instructions.push(format!("\tcdqe")),

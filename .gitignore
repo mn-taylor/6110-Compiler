@@ -21,3 +21,7 @@ public-tests/
 *.asm
 *.exe
 *.s
+
+# output files
+output.s
+output.exe

@@ -1,64 +1,49 @@
- import printf;
-// test shortcircuit and other stuff
-int field_in_class;
-int test_long_args ( int a, int b, int c, int d, int e, int f ) {
-  printf ( "args: %d+%d+%d+%d+%d\n", a, b, c, d, e);
-  return a+b+c+d+e+f;
-}
-bool test_short_circuit ( bool andy, bool okay ) {
-  if ( okay != true ) {
-    if ( andy != true ) {
-      printf ( "short circuit failed in and\n" );
-    }
-    else {
-      printf ( "short circuit failed in or\n" );
-    }
-  }
-  return true;
+import printf;
+bool fail ( bool b ) {
+  printf ( "INCORRECT - shorcircuiting failed\n" );
+  return b;
 }
 void main ( ) {
-  int field_on_stack;
-  int result;
-  bool a;
-  int x;
-  int i;
-  printf ( "hello world from main\n" );
-  field_in_class = 13;
-  field_on_stack = 14;
-  printf ( "some values (13,14): %d %d\n", field_in_class, field_on_stack );
-  result = test_long_args ( field_in_class, field_in_class, field_in_class, field_on_stack, field_on_stack, field_on_stack );
-  printf ( "returned a variable, value is %d, should be 81\n", result );
-  a = test_short_circuit ( false, true );
-  printf ( "returned a constant, value is %d, should be 1\n", a );
-  a = true;
-  if ( a && test_short_circuit ( true, true ) ) {
-    printf ( "successfully did a short-circuited and.\n" );
+  bool a, b, c;
+  printf ( "should see 6 corrects and no incorrects\n" );
+  a = ( 0 == 0 );
+  b = ( 0 - 3 ) == 1;
+  c = ! a;
+  if ( ! a && fail ( false ) ) {
+    printf ( "1INCORRECT\n" );
   }
   else {
-    printf ( "if failed on a && proc\n" );
+    printf ( "correct\n" );
   }
-  if ( a != true && test_short_circuit ( true, false ) ) {
-    printf ( "if failed on !a && proc\n" );
-  }
-  else {
-    printf ( "successfully did a short-circuited and.\n" );
-  }
-  if ( a || test_short_circuit ( false, false ) ) {
-    printf ( "successfully did a short-circuited or.\n" );
+  if ( ! b || fail ( true ) ) {
+    printf ( "correct\n" );
   }
   else {
-    printf ( "if failed on a || proc\n" );
+    printf ( "2INCORRECT\n" );
   }
-  if ( a != true || test_short_circuit ( false, true ) ) {
-    printf ( "successfully did a short-circuited or.\n" );
+  if ( c ) {
+    printf ( "3INCORRECT\n" );
   }
   else {
-    printf ( "if failed on !a || proc\n" );
+    printf ( "correct\n" );
   }
-  result = 0;
-  field_on_stack = 100;
-  for ( i = 0; i < field_on_stack; i += 1 ) {
-    result = result + i;
+  if ( ! ! c && fail ( false ) ) {
+    printf ( "4INCORRECT\n" );
   }
-  printf ( "sum from 0 to 99 is %d, should be 4950\n", result );
+  else {
+    printf ( "correct\n" );
+  }
+  if ( ! ! ! c ) {
+    printf ( "correct\n" );
+  }
+  else {
+    printf ( "5INCORRECT\n" );
+  }
+  c = ! ! a;
+  if ( ! a != c ) {
+    printf ( "correct\n" );
+  }
+  else {
+    printf ( "6INCORRECT\n" );
+  }
 }
