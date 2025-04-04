@@ -25,3 +25,4 @@ public-tests/
 # output files
 output.s
 output.exe
+output.o
