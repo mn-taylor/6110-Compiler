@@ -367,7 +367,7 @@ fn load_into_reg_arr(
             // ))
             instructions.push(format!("\tsalq $3, {}", Reg::R9));
             instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
-            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\taddq {}, {}", Reg::R9, Reg::R10));
             instructions.push(format!("\tmovq -{offset}({}), {dest}", Reg::R10));
         }
         None => {
@@ -382,7 +382,7 @@ fn load_into_reg_arr(
 
             instructions.push(format!("\tsalq $3, {}", Reg::R9));
             instructions.push(format!("\tleaq global_var{}(%rip), {}", varname, Reg::R10));
-            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\taddq {}, {}", Reg::R9, Reg::R10));
             instructions.push(format!("\tmovq -0({}), {dest}", Reg::R10));
         }
     }
@@ -401,7 +401,7 @@ fn store_from_reg_arr(
         Some((_, offset)) => {
             instructions.push(format!("\tsalq $3, {}", Reg::R9));
             instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
-            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\taddq {}, {}", Reg::R9, Reg::R10));
             instructions.push(format!("\tmovq {src}, -{offset}({})", Reg::R10));
         }
         None => {
@@ -415,7 +415,7 @@ fn store_from_reg_arr(
 
             instructions.push(format!("\tsalq $3, {}", Reg::R9));
             instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
-            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\taddq {}, {}", Reg::R9, Reg::R10));
             instructions.push(format!("\tmovq {src}, -0({}) ", Reg::R10));
             // instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
             // instructions.push(format!("\taddq {}, {}", Reg::R10, Reg::R9));
@@ -494,24 +494,21 @@ fn asm_instruction(
             }
         }
         Instruction::TwoOp { source1, dest, op } => {
-            let get_source1 = load_into_reg(Reg::R9, source1, stack_lookup);
-            let operate = match op {
+            let mut instructions = vec![];
+            instructions.push(load_into_reg(Reg::Rax, source1, stack_lookup));
+            match op {
                 UnOp::Not => {
-                    format!("\tnot {}", Reg::Rax)
+                    instructions.push(format!("\tnot {}", Reg::Rax));
                 }
-                UnOp::Neg => {
-                    format!("\tneg {}", Reg::Rax)
-                }
-                UnOp::IntCast => {
-                    format!("\tmovq eax, rax")
-                }
+                UnOp::Neg => instructions.push(format!("\tneg {}", Reg::Rax)),
+                UnOp::IntCast => instructions.push(format!("\tcdqe")),
                 UnOp::LongCast => {
-                    format!("\tmovq rax, rax")
+                    // format!("\tmovq rax, rax")
                 }
             };
 
-            let return_to_stack = store_from_reg(Reg::Rax, dest, stack_lookup);
-            return vec![get_source1, operate, return_to_stack];
+            instructions.push(store_from_reg(Reg::Rax, dest, stack_lookup));
+            return instructions;
         }
         Instruction::MoveOp { source, dest } => {
             let get_source = load_into_reg(Reg::Rax, source, stack_lookup);

@@ -1,11 +1,15 @@
 import printf;
 
-void main() {
-    int i;
-    for (i=0; i<10; i++) {
-        if (i%2==0){
-            continue;
-        }
-        printf("%d\n", i);
+int base_cases[2];
+
+int recursive (int n) {
+    if (n==0) {
+        return 0;
+    }else {
+        return recursive(n-1);
     }
+}
+
+void main() {
+    recursive(2);
 }
