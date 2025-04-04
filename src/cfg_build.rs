@@ -198,7 +198,7 @@ pub fn lin_method(
         continue_loc: None,
         last_name,
         all_blocks: HashMap::new(),
-        all_fields: all_fields.clone(),
+        all_fields: HashMap::new(),
     };
 
     let fst: usize = new_noop(&mut st);

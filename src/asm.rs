@@ -238,9 +238,16 @@ pub fn asm_method(
             let reg = argument_registers.pop().unwrap();
             instructions.push(store_from_reg(reg, *llname, &offsets));
         } else {
+            break;
+        }
+    }
+
+    // read parameters off of the stack
+    for (i, llname) in method.params.iter().enumerate() {
+        if i >= 6 {
             instructions.push(format!(
                 "\tmovq {}({}), {}",
-                16 + 8 * (i - 6),
+                16 + 8 * (method.params.len() as i32 - 1 - i as i32),
                 Reg::Rbp,
                 Reg::Rax,
             ));
