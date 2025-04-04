@@ -272,6 +272,7 @@ pub fn asm_method(
     // return the stack to original state
     instructions.push(format!("\taddq ${}, {}", total_offset, Reg::Rsp,));
     instructions.push(format!("\tpopq {}", Reg::Rbp));
+    instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::Rsp));
 
     if method.name == "main" {
         instructions.push(format!("\txorq {}, {}", Reg::Rax, Reg::Rax));
