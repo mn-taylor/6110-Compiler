@@ -15,26 +15,26 @@ _main:
 	jmp main0
 main0:
 	movq $1, %rax
-	movq %rax, -16(%rbp)
-
-	movq $1, %rax
 	movq %rax, -8(%rbp)
 
-	movq -16(%rbp), %r9
-	movq -8(%rbp), %r10
+	movq $1, %rax
+	movq %rax, -32(%rbp)
+
+	movq -8(%rbp), %r9
+	movq -32(%rbp), %r10
 	subq %r10, %r9
-	movq %r9, -24(%rbp)
+	movq %r9, -16(%rbp)
 
 	movq $2, %rax
 	movq %rax, -0(%rbp)
 
-	movq -24(%rbp), %r9
+	movq -16(%rbp), %r9
 	movq -0(%rbp), %r10
 	subq %r10, %r9
-	movq %r9, -32(%rbp)
+	movq %r9, -24(%rbp)
 
 	leaq global_str0(%rip), %rdi
-	movq -32(%rbp), %rsi
+	movq -24(%rbp), %rsi
 	xorq %rax, %rax
 	call _printf
 
