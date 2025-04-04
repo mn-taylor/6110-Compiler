@@ -310,7 +310,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                 op: op.clone(),
             }));
             st.get_block(t1end).jump_loc = Jump::Uncond(end);
-            (t1, t1start, end)
+            (t2, t1start, end)
         }
         Expr::Len(id) => match scope.lookup(&id.val) {
             Some((Type::Arr(_, len), _)) => {
