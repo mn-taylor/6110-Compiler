@@ -109,6 +109,7 @@ pub enum Expr {
     Call(WithLoc<Ident>, Vec<Arg>),
 }
 
+#[derive(Debug)]
 pub struct Program {
     pub fields: Vec<Field>,
     pub methods: Vec<Method>,
@@ -140,6 +141,7 @@ pub struct Block {
     pub stmts: Vec<Stmt>,
 }
 
+#[derive(Debug)]
 pub struct Method {
     pub meth_type: Option<Primitive>,
     pub fields: Vec<Field>,

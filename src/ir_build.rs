@@ -96,31 +96,33 @@ impl ToBop for parse::OrOp {
     }
 }
 
+fn to_expr_helper<O: ToBop, A: ToExpr>(
+    lhs: WithLoc<Expr>,
+    lhs_op: Bop,
+    rhs: BinExpr<O, A>,
+) -> WithLoc<Expr> {
+    match rhs {
+        BinExpr::Atomic(a) => WithLoc {
+            loc: lhs.loc,
+            val: Bin(Box::new(lhs), lhs_op, Box::new(A::to_expr(a))),
+        },
+        BinExpr::Bin(a1, o, rhs) => to_expr_helper(
+            WithLoc {
+                loc: lhs.loc,
+                val: Bin(Box::new(lhs), lhs_op, Box::new(A::to_expr(a1))),
+            },
+            O::to_op(o),
+            *rhs,
+        ),
+    }
+}
+
 use parse::BinExpr;
 impl<O: ToBop, A: ToExpr> ToExpr for BinExpr<O, A> {
     fn to_expr(self) -> WithLoc<Expr> {
         match self {
-            BinExpr::Atomic(e) => A::to_expr(e),
-            BinExpr::Bin(a1, o1, rhs1) => {
-                let a1_expr = A::to_expr(a1);
-                match *rhs1 {
-                    BinExpr::Atomic(a2) => WithLoc {
-                        loc: a1_expr.loc,
-                        val: Bin(Box::new(a1_expr), O::to_op(o1), Box::new(A::to_expr(a2))),
-                    },
-                    BinExpr::Bin(a2, o2, rhs2) => WithLoc {
-                        loc: a1_expr.loc,
-                        val: Bin(
-                            Box::new(WithLoc {
-                                loc: a1_expr.loc,
-                                val: Bin(Box::new(a1_expr), O::to_op(o1), Box::new(A::to_expr(a2))),
-                            }),
-                            O::to_op(o2),
-                            Box::new(Self::to_expr(*rhs2)),
-                        ),
-                    },
-                }
-            }
+            BinExpr::Atomic(a) => A::to_expr(a),
+            BinExpr::Bin(a1, o, rhs) => to_expr_helper(A::to_expr(a1), O::to_op(o), *rhs),
         }
     }
 }
