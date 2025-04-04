@@ -107,7 +107,7 @@ fn round_up(a: u64, factor: u64) -> u64 {
 fn build_stack(
     all_fields: HashMap<VarLabel, (CfgType, String)>,
 ) -> (HashMap<VarLabel, (CfgType, u64)>, u64) {
-    let mut offset: u64 = 0;
+    let mut offset: u64 = 8;
     let mut lookup: HashMap<VarLabel, (CfgType, u64)> = HashMap::new();
 
     for (field, (typ, _)) in all_fields.iter() {
@@ -239,7 +239,7 @@ pub fn asm_method(
             instructions.push(store_from_reg(reg, *llname, &offsets));
         } else {
             instructions.push(format!(
-                "\tmovq {}({}), {}, ",
+                "\tmovq {}({}), {}",
                 16 + 8 * (i - 6),
                 Reg::Rbp,
                 Reg::Rax,
@@ -557,6 +557,7 @@ fn asm_instruction(
         }
         Instruction::Call(func_name, args, ret_dest) => {
             let mut instructions: Vec<String> = vec![];
+            let mut pop_instrs: Option<u32> = None;
             let mut argument_registers: Vec<Reg> =
                 vec![Reg::R9, Reg::R8, Reg::Rcx, Reg::Rdx, Reg::Rsi, Reg::Rdi];
 
@@ -572,6 +573,12 @@ fn asm_instruction(
                             None => {
                                 instructions.push(load_into_reg(Reg::Rax, *label, stack_lookup));
                                 instructions.push(format!("\tpushq {}", Reg::Rax));
+
+                                if pop_instrs.is_none() {
+                                    pop_instrs = Some(0);
+                                }
+
+                                pop_instrs = Some(pop_instrs.unwrap() + 1);
                             }
                         }
                     }
@@ -620,6 +627,15 @@ fn asm_instruction(
                         dest_offset,
                         Reg::Rbp
                     ));
+                }
+                None => {}
+            }
+
+            match pop_instrs {
+                Some(v) => {
+                    if v % 2 == 1 {
+                        instructions.push(format!("\taddq $8, {}", Reg::Rsp));
+                    }
                 }
                 None => {}
             }
