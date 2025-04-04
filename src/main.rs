@@ -149,6 +149,9 @@ fn main() {
             println!("***********************************************************");
 
             let prog = ir_build::build_program(ast);
+            if args.debug {
+                println!("{:?}", prog);
+            }
             let checked_prog = semantics::check_program(&prog);
             // just marking the start and end of the error msgs bc it looks ugly in the terminal
             println!("\n****************** semantic error messages: ******************");
