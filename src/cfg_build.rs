@@ -19,6 +19,7 @@ struct State {
     last_name: VarLabel,
     all_blocks: HashMap<BlockLabel, BasicBlock>,
     all_fields: HashMap<VarLabel, (CfgType, String /*high-level name*/)>,
+    global_fields: HashMap<VarLabel, (CfgType, String /*high-level name*/)>,
 }
 
 impl State {
@@ -40,8 +41,15 @@ impl State {
             Some((CfgType::Scalar(t), _)) => t.clone(),
             Some((CfgType::Array(_, _), _)) => panic!(),
             None => {
-                println!("{:?}", self.all_fields);
-                panic!("Couldn't find low-level variable {}", v)
+                match &self.global_fields.get(&v) {
+                    Some((CfgType::Scalar(t), _)) => t.clone(),
+                    Some((CfgType::Array(_, _), _)) => panic!(),
+                    None => {
+                        panic!("Couldn't find low-level variable {}", v)
+                    }
+                }
+                // println!("{:?}", self.all_fields);
+                //  panic!("Couldn't find low-level variable {}", v)
             }
         }
     }
@@ -191,7 +199,7 @@ pub fn lin_method(
     method: &Method,
     last_name: VarLabel,
     scope: &Scope,
-    all_fields: &mut HashMap<VarLabel, (CfgType, String)>,
+    global_fields: &mut HashMap<VarLabel, (CfgType, String)>,
 ) -> CfgMethod {
     let mut st: State = State {
         break_loc: None,
@@ -199,6 +207,7 @@ pub fn lin_method(
         last_name,
         all_blocks: HashMap::new(),
         all_fields: HashMap::new(),
+        global_fields: global_fields.clone(),
     };
 
     let fst: usize = new_noop(&mut st);
