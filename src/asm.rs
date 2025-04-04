@@ -422,7 +422,7 @@ fn store_from_reg_arr(
         Some((_, offset)) => {
             instructions.push(format!("\tsalq $3, {}", Reg::R9));
             instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
-            instructions.push(format!("\taddq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
             instructions.push(format!("\tmovq {src}, -{offset}({})", Reg::R10));
         }
         None => {
