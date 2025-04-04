@@ -174,30 +174,12 @@ pub fn asm_program(p: &CfgProgram, mac: bool) -> Vec<String> {
     }
 
     // I think we drop newlines when there is only one string
-    if glob_strings.len() == 1 {
-        for (strin, label) in glob_strings {
-            if strin.chars().nth(strin.len() - 1) == Some('\n') {
-                insns.push(format!(
-                    "global_str{}:\n\t.string \"{}\"",
-                    label,
-                    format_str_for_output(&strin[0..strin.len() - 1].to_string())
-                ));
-            } else {
-                insns.push(format!(
-                    "global_str{}:\n\t.string \"{}\"",
-                    label,
-                    format_str_for_output(strin)
-                ));
-            }
-        }
-    } else {
-        for (strin, label) in glob_strings {
-            insns.push(format!(
-                "global_str{}:\n\t.string \"{}\"",
-                label,
-                format_str_for_output(strin)
-            ));
-        }
+    for (strin, label) in glob_strings {
+        insns.push(format!(
+            "global_str{}:\n\t.string \"{}\"",
+            label,
+            format_str_for_output(strin)
+        ));
     }
 
     insns.push(".text".to_string());
