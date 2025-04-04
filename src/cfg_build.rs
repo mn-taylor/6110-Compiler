@@ -39,7 +39,10 @@ impl State {
         match &self.all_fields.get(&v) {
             Some((CfgType::Scalar(t), _)) => t.clone(),
             Some((CfgType::Array(_, _), _)) => panic!(),
-            None => panic!("Couldn't find low-level variable {}", v),
+            None => {
+                println!("{:?}", self.all_fields);
+                panic!("Couldn't find low-level variable {}", v)
+            }
         }
     }
 
@@ -132,9 +135,11 @@ fn gen_var(
     last_name: &mut VarLabel,
     all_fields: &mut HashMap<VarLabel, (CfgType, String)>,
 ) -> VarLabel {
+    println!("{}, {}", high_name, last_name);
     *last_name += 1;
     let name = *last_name;
     all_fields.insert(name, (t, high_name));
+    println!("{:?}", all_fields);
     name
 }
 
@@ -159,7 +164,7 @@ pub fn lin_program(program: &Program) -> CfgProgram {
     let methods = program
         .methods
         .iter()
-        .map(|method| lin_method(method, last_name, &scope))
+        .map(|method| lin_method(method, last_name, &scope, &mut global_fields))
         .collect();
 
     CfgProgram {
@@ -182,13 +187,18 @@ fn block_with_instr(instr: Instruction) -> BasicBlock {
     }
 }
 
-pub fn lin_method(method: &Method, last_name: VarLabel, scope: &Scope) -> CfgMethod {
+pub fn lin_method(
+    method: &Method,
+    last_name: VarLabel,
+    scope: &Scope,
+    all_fields: &mut HashMap<VarLabel, (CfgType, String)>,
+) -> CfgMethod {
     let mut st: State = State {
         break_loc: None,
         continue_loc: None,
         last_name,
         all_blocks: HashMap::new(),
-        all_fields: HashMap::new(),
+        all_fields: all_fields.clone(),
     };
 
     let fst: usize = new_noop(&mut st);
@@ -773,7 +783,10 @@ fn lin_location(
                 (*id, blk, blk)
             }
             Some(_) => panic!("location should have primitive type"),
-            None => panic!("location not found"),
+            None => {
+                println!("actually didn't find it");
+                panic!("location not found")
+            }
         },
         Location::ArrayIndex(name, idx) => match scope.lookup(&name) {
             Some((Type::Arr(typ, _), id)) => {
