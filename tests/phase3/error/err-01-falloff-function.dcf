@@ -1,0 +1,14 @@
+import printf;
+
+int get_5() {
+    return 5;
+}
+
+int get_3() {}
+
+void main() {
+    int a;
+    // Should produce runtime error
+    a = get_5() + get_3();
+    printf("%d\n", a);
+}

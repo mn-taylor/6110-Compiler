@@ -1,0 +1,489 @@
+./tests/phase3/asm/fibonacci-hardcoded.S:1:11: error: unknown token in expression
+base_cases, 0
+          ^
+./tests/phase3/asm/fibonacci-hardcoded.S:2:2: error: Unexpected token after '{'
+{1: (Array(IntType, 2), "base_cases")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:3:12: error: unknown token in expression
+memoization, 1
+           ^
+./tests/phase3/asm/fibonacci-hardcoded.S:4:2: error: Unexpected token after '{'
+{2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:5:12: error: unknown token in expression
+is_memoized, 2
+           ^
+./tests/phase3/asm/fibonacci-hardcoded.S:6:2: error: Unexpected token after '{'
+{2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:7:2: error: unknown token in expression
+n, 3
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:8:2: error: Unexpected token after '{'
+{2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:9:9: error: unknown token in expression
+Block { fields: [], stmts: [Return(ErrLoc { line: 13, col: 5 }, Some(WithLoc { val: Loc(WithLoc { val: ArrayIndex(Ident { name: "base_cases" }, WithLoc { val: Loc(WithLoc { val: Var(Ident { name: "n" }), loc: ErrLoc { line: 13, col: 23 } }), loc: ErrLoc { line: 13, col: 23 } }), loc: ErrLoc { line: 13, col: 12 } }), loc: ErrLoc { line: 13, col: 12 } }))] }
+        ^
+./tests/phase3/asm/fibonacci-hardcoded.S:10:5: error: unknown token in expression
+temp, 4
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:11:2: error: Unexpected token after '{'
+{5: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:12:2: error: unknown token in expression
+l, 5
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:13:2: error: Unexpected token after '{'
+{5: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:14:2: error: unknown token in expression
+r, 6
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:15:2: error: Unexpected token after '{'
+{5: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 7: (Scalar(IntType), "r"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:16:5: error: unknown token in expression
+temp, 7
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:17:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 8: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "r")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:18:5: error: unknown token in expression
+temp, 8
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:19:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "r")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:20:5: error: unknown token in expression
+temp, 9
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:21:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 10: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "r")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:22:5: error: unknown token in expression
+temp, 10
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:23:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 10: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "r")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:24:5: error: unknown token in expression
+temp, 11
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:25:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 10: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "r")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:26:5: error: unknown token in expression
+temp, 12
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:27:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "r")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:28:5: error: unknown token in expression
+temp, 13
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:29:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 14: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "r")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:30:5: error: unknown token in expression
+temp, 14
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:31:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "r"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:32:5: error: unknown token in expression
+temp, 15
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:33:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 16: (Scalar(BoolType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "r"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:34:5: error: unknown token in expression
+temp, 16
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:35:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 16: (Scalar(BoolType), "temp"), 17: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "r"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:36:5: error: unknown token in expression
+temp, 17
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:37:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 18: (Scalar(BoolType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "l"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 16: (Scalar(BoolType), "temp"), 17: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "r"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:38:9: error: unexpected token at start of statement
+if_end: -------------------------
+        ^
+./tests/phase3/asm/fibonacci-hardcoded.S:39:1: error: invalid instruction mnemonic 'basicblock'
+BasicBlock 3
+^~~~~~~~~~
+./tests/phase3/asm/fibonacci-hardcoded.S:40:12: error: unexpected token at start of statement
+  Parents: []
+           ^
+./tests/phase3/asm/fibonacci-hardcoded.S:41:1: error: unexpected token at start of statement
+| t5 <- t1[t4] |
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:42:1: error: unexpected token at start of statement
+| return t5 |
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:43:1: error: unexpected token at start of statement
+| nowhere |
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:44:1: error: unexpected token at start of statement
+-------------------------
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:46:2: error: unknown token in expression
+n, 3
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:47:2: error: Unexpected token after '{'
+{2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:48:9: error: unknown token in expression
+Block { fields: [], stmts: [Return(ErrLoc { line: 24, col: 5 }, Some(WithLoc { val: Loc(WithLoc { val: ArrayIndex(Ident { name: "memoization" }, WithLoc { val: Loc(WithLoc { val: Var(Ident { name: "n" }), loc: ErrLoc { line: 24, col: 24 } }), loc: ErrLoc { line: 24, col: 24 } }), loc: ErrLoc { line: 24, col: 12 } }), loc: ErrLoc { line: 24, col: 12 } }))] }
+        ^
+./tests/phase3/asm/fibonacci-hardcoded.S:49:5: error: unknown token in expression
+temp, 4
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:50:2: error: Unexpected token after '{'
+{5: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:51:4: error: unknown token in expression
+res, 5
+   ^
+./tests/phase3/asm/fibonacci-hardcoded.S:52:2: error: Unexpected token after '{'
+{5: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:53:9: error: unknown token in expression
+Block { fields: [], stmts: [AssignStmt(WithLoc { val: Var(Ident { name: "res" }), loc: ErrLoc { line: 28, col: 7 } }, RegularAssign(WithLoc { val: Eq, loc: ErrLoc { line: 28, col: 11 } }, WithLoc { val: Loc(WithLoc { val: Var(Ident { name: "n" }), loc: ErrLoc { line: 28, col: 13 } }), loc: ErrLoc { line: 28, col: 13 } }))] }
+        ^
+./tests/phase3/asm/fibonacci-hardcoded.S:54:2: error: unknown token in expression
+l, 6
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:55:2: error: Unexpected token after '{'
+{5: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 7: (Scalar(IntType), "l"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:56:2: error: unknown token in expression
+r, 7
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:57:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 8: (Scalar(IntType), "r"), 6: (Scalar(IntType), "res"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "l")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:58:5: error: unknown token in expression
+temp, 8
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:59:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "l")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:60:5: error: unknown token in expression
+temp, 9
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:61:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 10: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "l")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:62:5: error: unknown token in expression
+temp, 10
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:63:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 10: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "l")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:64:5: error: unknown token in expression
+temp, 11
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:65:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 10: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "l")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:66:5: error: unknown token in expression
+temp, 12
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:67:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "l")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:68:5: error: unknown token in expression
+temp, 13
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:69:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 14: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "l")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:70:5: error: unknown token in expression
+temp, 14
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:71:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "l"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:72:5: error: unknown token in expression
+temp, 15
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:73:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 16: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "l"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:74:5: error: unknown token in expression
+temp, 16
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:75:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 16: (Scalar(IntType), "temp"), 17: (Scalar(BoolType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "l"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:76:5: error: unknown token in expression
+temp, 17
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:77:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 18: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 16: (Scalar(IntType), "temp"), 17: (Scalar(BoolType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "l"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:78:5: error: unknown token in expression
+temp, 18
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:79:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 18: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 19: (Scalar(BoolType), "temp"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 16: (Scalar(IntType), "temp"), 17: (Scalar(BoolType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "l"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+/var/folders/ht/jnxvy36s1bd9pynh50ntv_cw0000gn/T/fibonacci-hardcoded-636a5c.s:87:1: error: symbol 'if_end' is already defined
+if_end: -------------------------
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:80:9: error: unexpected token at start of statement
+if_end: -------------------------
+        ^
+./tests/phase3/asm/fibonacci-hardcoded.S:81:1: error: invalid instruction mnemonic 'basicblock'
+BasicBlock 7
+^~~~~~~~~~
+/var/folders/ht/jnxvy36s1bd9pynh50ntv_cw0000gn/T/fibonacci-hardcoded-636a5c.s:89:3: error: symbol 'Parents' is already defined
+  Parents: []
+  ^
+./tests/phase3/asm/fibonacci-hardcoded.S:82:12: error: unexpected token at start of statement
+  Parents: []
+           ^
+./tests/phase3/asm/fibonacci-hardcoded.S:83:1: error: unexpected token at start of statement
+| t6 <- t4 |
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:84:1: error: unexpected token at start of statement
+| nowhere |
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:85:1: error: unexpected token at start of statement
+-------------------------
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:87:5: error: unknown token in expression
+temp, 19
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:88:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 18: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 19: (Scalar(BoolType), "temp"), 10: (Scalar(IntType), "temp"), 20: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 16: (Scalar(IntType), "temp"), 17: (Scalar(BoolType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "l"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:89:5: error: unknown token in expression
+temp, 20
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:90:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 18: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 19: (Scalar(BoolType), "temp"), 10: (Scalar(IntType), "temp"), 20: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 16: (Scalar(IntType), "temp"), 21: (Scalar(BoolType), "temp"), 17: (Scalar(BoolType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "l"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:91:5: error: unknown token in expression
+temp, 21
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:92:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 18: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 19: (Scalar(BoolType), "temp"), 10: (Scalar(IntType), "temp"), 20: (Scalar(IntType), "temp"), 22: (Scalar(BoolType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 16: (Scalar(IntType), "temp"), 21: (Scalar(BoolType), "temp"), 17: (Scalar(BoolType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "l"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:93:5: error: unknown token in expression
+temp, 22
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:94:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 18: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "r"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "res"), 19: (Scalar(BoolType), "temp"), 10: (Scalar(IntType), "temp"), 20: (Scalar(IntType), "temp"), 22: (Scalar(BoolType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "temp"), 16: (Scalar(IntType), "temp"), 21: (Scalar(BoolType), "temp"), 17: (Scalar(BoolType), "temp"), 23: (Scalar(BoolType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "l"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+/var/folders/ht/jnxvy36s1bd9pynh50ntv_cw0000gn/T/fibonacci-hardcoded-636a5c.s:102:1: error: symbol 'if_end' is already defined
+if_end: -------------------------
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:95:9: error: unexpected token at start of statement
+if_end: -------------------------
+        ^
+./tests/phase3/asm/fibonacci-hardcoded.S:96:1: error: invalid instruction mnemonic 'basicblock'
+BasicBlock 3
+^~~~~~~~~~
+/var/folders/ht/jnxvy36s1bd9pynh50ntv_cw0000gn/T/fibonacci-hardcoded-636a5c.s:104:3: error: symbol 'Parents' is already defined
+  Parents: []
+  ^
+./tests/phase3/asm/fibonacci-hardcoded.S:97:12: error: unexpected token at start of statement
+  Parents: []
+           ^
+./tests/phase3/asm/fibonacci-hardcoded.S:98:1: error: unexpected token at start of statement
+| t5 <- t2[t4] |
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:99:1: error: unexpected token at start of statement
+| return t5 |
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:100:1: error: unexpected token at start of statement
+| nowhere |
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:101:1: error: unexpected token at start of statement
+-------------------------
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:103:2: error: unknown token in expression
+n, 3
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:104:2: error: Unexpected token after '{'
+{2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:105:2: error: unknown token in expression
+a, 4
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:106:2: error: Unexpected token after '{'
+{5: (Scalar(IntType), "a"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:107:2: error: unknown token in expression
+b, 5
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:108:2: error: Unexpected token after '{'
+{5: (Scalar(IntType), "a"), 6: (Scalar(IntType), "b"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:109:2: error: unknown token in expression
+i, 6
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:110:2: error: Unexpected token after '{'
+{5: (Scalar(IntType), "a"), 6: (Scalar(IntType), "b"), 7: (Scalar(IntType), "i"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:111:5: error: unknown token in expression
+temp, 7
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:112:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 8: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "b"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "a"), 7: (Scalar(IntType), "i")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:113:5: error: unknown token in expression
+temp, 8
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:114:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "b"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "a"), 7: (Scalar(IntType), "i")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:115:5: error: unknown token in expression
+temp, 9
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:116:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "b"), 10: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "a"), 7: (Scalar(IntType), "i")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:117:5: error: unknown token in expression
+temp, 10
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:118:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "b"), 10: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "a"), 7: (Scalar(IntType), "i")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:119:30: error: unknown token in expression
+end -------------------------
+                             ^
+./tests/phase3/asm/fibonacci-hardcoded.S:120:1: error: invalid instruction mnemonic 'basicblock'
+BasicBlock 8
+^~~~~~~~~~
+/var/folders/ht/jnxvy36s1bd9pynh50ntv_cw0000gn/T/fibonacci-hardcoded-636a5c.s:128:3: error: symbol 'Parents' is already defined
+  Parents: []
+  ^
+./tests/phase3/asm/fibonacci-hardcoded.S:121:12: error: unexpected token at start of statement
+  Parents: []
+           ^
+./tests/phase3/asm/fibonacci-hardcoded.S:122:1: error: unexpected token at start of statement
+| nowhere |
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:123:1: error: unexpected token at start of statement
+-------------------------
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:125:2: error: unknown token in expression
+c, 11
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:126:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "c"), 6: (Scalar(IntType), "b"), 10: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "a"), 7: (Scalar(IntType), "i")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:127:5: error: unknown token in expression
+temp, 12
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:128:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "c"), 6: (Scalar(IntType), "b"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "a"), 7: (Scalar(IntType), "i")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:129:5: error: unknown token in expression
+temp, 13
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:130:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "c"), 6: (Scalar(IntType), "b"), 14: (Scalar(BoolType), "temp"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "a"), 7: (Scalar(IntType), "i")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:131:1: error: unexpected token at start of statement
+-------------------------
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:132:1: error: invalid instruction mnemonic 'basicblock'
+BasicBlock 8
+^~~~~~~~~~
+/var/folders/ht/jnxvy36s1bd9pynh50ntv_cw0000gn/T/fibonacci-hardcoded-636a5c.s:140:3: error: symbol 'Parents' is already defined
+  Parents: []
+  ^
+./tests/phase3/asm/fibonacci-hardcoded.S:133:12: error: unexpected token at start of statement
+  Parents: []
+           ^
+./tests/phase3/asm/fibonacci-hardcoded.S:134:1: error: unexpected token at start of statement
+| nowhere |
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:135:1: error: unexpected token at start of statement
+-------------------------
+^
+./tests/phase3/asm/fibonacci-hardcoded.S:137:2: error: unknown token in expression
+n, 3
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:138:2: error: Unexpected token after '{'
+{2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:139:4: error: unknown token in expression
+res, 4
+   ^
+./tests/phase3/asm/fibonacci-hardcoded.S:140:2: error: Unexpected token after '{'
+{5: (Scalar(IntType), "res"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:141:5: error: unknown token in expression
+temp, 5
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:142:2: error: Unexpected token after '{'
+{5: (Scalar(IntType), "res"), 6: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:143:5: error: unknown token in expression
+temp, 6
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:144:2: error: Unexpected token after '{'
+{5: (Scalar(IntType), "res"), 6: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:145:5: error: unknown token in expression
+temp, 7
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:146:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 8: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "res"), 7: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:147:5: error: unknown token in expression
+temp, 8
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:148:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "res"), 7: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:149:5: error: unknown token in expression
+temp, 9
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:150:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "res"), 7: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:151:5: error: unknown token in expression
+temp, 10
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:152:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "res"), 7: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:153:5: error: unknown token in expression
+temp, 11
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:154:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "res"), 7: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:155:5: error: unknown token in expression
+temp, 12
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:156:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "res"), 7: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:157:5: error: unknown token in expression
+temp, 13
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:158:2: error: Unexpected token after '{'
+{4: (Scalar(IntType), "n"), 3: (Array(BoolType, 100), "is_memoized"), 11: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 5: (Scalar(IntType), "res"), 7: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:159:5: error: unknown token in expression
+temp, 14
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:160:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "res"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "temp"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^
+./tests/phase3/asm/fibonacci-hardcoded.S:161:5: error: unknown token in expression
+temp, 15
+    ^
+./tests/phase3/asm/fibonacci-hardcoded.S:162:2: error: Unexpected token after '{'
+{11: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "n"), 5: (Scalar(IntType), "res"), 16: (Scalar(IntType), "temp"), 2: (Array(IntType, 100), "memoization"), 1: (Array(IntType, 2), "base_cases"), 7: (Scalar(IntType), "temp"), 3: (Array(BoolType, 100), "is_memoized")}
+ ^

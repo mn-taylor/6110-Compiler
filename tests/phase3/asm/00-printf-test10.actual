@@ -1,0 +1,96 @@
+./tests/phase3/asm/00-printf-test10.S:1:2: error: unknown token in expression
+a, 0
+ ^
+./tests/phase3/asm/00-printf-test10.S:2:2: error: Unexpected token after '{'
+{1: (Scalar(IntType), "a")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:3:5: error: unknown token in expression
+temp, 1
+    ^
+./tests/phase3/asm/00-printf-test10.S:4:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:5:5: error: unknown token in expression
+temp, 2
+    ^
+./tests/phase3/asm/00-printf-test10.S:6:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 3: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:7:5: error: unknown token in expression
+temp, 3
+    ^
+./tests/phase3/asm/00-printf-test10.S:8:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 3: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:9:5: error: unknown token in expression
+temp, 4
+    ^
+./tests/phase3/asm/00-printf-test10.S:10:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 3: (Scalar(IntType), "temp"), 5: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:11:5: error: unknown token in expression
+temp, 5
+    ^
+./tests/phase3/asm/00-printf-test10.S:12:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 3: (Scalar(IntType), "temp"), 5: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:13:5: error: unknown token in expression
+temp, 6
+    ^
+./tests/phase3/asm/00-printf-test10.S:14:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 3: (Scalar(IntType), "temp"), 5: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:15:5: error: unknown token in expression
+temp, 7
+    ^
+./tests/phase3/asm/00-printf-test10.S:16:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a"), 3: (Scalar(IntType), "temp"), 5: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:17:5: error: unknown token in expression
+temp, 8
+    ^
+./tests/phase3/asm/00-printf-test10.S:18:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a"), 3: (Scalar(IntType), "temp"), 5: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:19:5: error: unknown token in expression
+temp, 9
+    ^
+./tests/phase3/asm/00-printf-test10.S:20:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a"), 3: (Scalar(IntType), "temp"), 5: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:21:5: error: unknown token in expression
+temp, 10
+    ^
+./tests/phase3/asm/00-printf-test10.S:22:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a"), 3: (Scalar(IntType), "temp"), 11: (Scalar(IntType), "temp"), 5: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:23:5: error: unknown token in expression
+temp, 11
+    ^
+./tests/phase3/asm/00-printf-test10.S:24:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a"), 3: (Scalar(IntType), "temp"), 11: (Scalar(IntType), "temp"), 5: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:25:5: error: unknown token in expression
+temp, 12
+    ^
+./tests/phase3/asm/00-printf-test10.S:26:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a"), 3: (Scalar(IntType), "temp"), 11: (Scalar(IntType), "temp"), 5: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:27:5: error: unknown token in expression
+temp, 13
+    ^
+./tests/phase3/asm/00-printf-test10.S:28:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a"), 3: (Scalar(IntType), "temp"), 11: (Scalar(IntType), "temp"), 5: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:29:5: error: unknown token in expression
+temp, 14
+    ^
+./tests/phase3/asm/00-printf-test10.S:30:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 3: (Scalar(IntType), "temp"), 11: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a"), 5: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "temp")}
+ ^
+./tests/phase3/asm/00-printf-test10.S:31:5: error: unknown token in expression
+temp, 15
+    ^
+./tests/phase3/asm/00-printf-test10.S:32:2: error: Unexpected token after '{'
+{2: (Scalar(IntType), "temp"), 13: (Scalar(IntType), "temp"), 6: (Scalar(IntType), "temp"), 10: (Scalar(IntType), "temp"), 15: (Scalar(IntType), "temp"), 3: (Scalar(IntType), "temp"), 11: (Scalar(IntType), "temp"), 14: (Scalar(IntType), "temp"), 12: (Scalar(IntType), "temp"), 8: (Scalar(IntType), "temp"), 9: (Scalar(IntType), "temp"), 16: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a"), 5: (Scalar(IntType), "temp"), 4: (Scalar(IntType), "temp"), 7: (Scalar(IntType), "temp")}
+ ^

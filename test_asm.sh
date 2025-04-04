@@ -1,0 +1,66 @@
+#!/bin/bash
+
+MAC=0
+if [[ "$1" == "-m" ]]; then
+    MAC=1
+fi
+
+./build.sh
+
+for category in "input"; do
+    INPUT_DIR="./tests/phase3/$category"
+    ASM_DIR="./tests/phase3/asm"
+    OBJ_DIR="./tests/phase3/obj"
+    mkdir -p "$ASM_DIR"
+
+    for file in "$INPUT_DIR"/*.dcf; do
+        if [ -f "$file" ]; then
+            BASENAME=$(basename "$file" .dcf)
+            ASM_FILE="$ASM_DIR/$BASENAME.S"
+            EXE_FILE="$ASM_DIR/$BASENAME"
+            OUTPUT_FILE="$ASM_DIR/$BASENAME.actual"
+            EXPECTED_FILE="$INPUT_DIR/$BASENAME.out"
+
+            > "$OUTPUT_FILE"
+
+            # assemble
+            if [[ $MAC -eq 1 ]]; then
+                ./run.sh -t assembly -m "$file" > "$ASM_FILE" 2>>"$OUTPUT_FILE" 
+            else
+                ./run.sh -t assembly "$file" > "$ASM_FILE" 2>>"$OUTPUT_FILE"
+            fi
+
+            # move error msgs
+            # head -n 9 "$ASM_FILE" >> "$OUTPUT_FILE"
+            if [[ $MAC -eq 1 ]]; then
+                sed -i '' '1,9d' "$ASM_FILE"
+            else
+                sed -i '1,9d' "$ASM_FILE"
+            fi
+
+            if [ $? -eq 0 ]; then
+
+                # compile
+                if [[ $MAC -eq 1 ]]; then
+                    gcc -O0 -arch x86_64 "$ASM_FILE" -o "$EXE_FILE" 2>>"$OUTPUT_FILE"
+                else
+                    gcc -O0 -m64 "$ASM_FILE" -o "$EXE_FILE" 2>>"$OUTPUT_FILE"
+                fi
+
+                if [ -x "$EXE_FILE" ]; then
+                    "$EXE_FILE" > "$OUTPUT_FILE" 2>>"$OUTPUT_FILE"
+
+                    if cmp -s "$OUTPUT_FILE" "$EXPECTED_FILE"; then
+                        echo "$file: ✅ Output matches"
+                    else
+                        echo "$file: ❌ Output mismatch"
+                    fi
+                else
+                    echo "$file: ❌ Executable not created (see .actual)" 
+                fi
+            else
+                echo "$file: ❌ Assembly generation failed (see .actual) (don't forget to use -m)"
+            fi
+        fi
+    done
+done
