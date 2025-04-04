@@ -1,12 +1,1 @@
-./tests/phase3/asm/00-printf-test2.S:1:2: error: unknown token in expression
-a, 0
- ^
-./tests/phase3/asm/00-printf-test2.S:2:2: error: Unexpected token after '{'
-{1: (Scalar(IntType), "a")}
- ^
-./tests/phase3/asm/00-printf-test2.S:3:5: error: unknown token in expression
-temp, 1
-    ^
-./tests/phase3/asm/00-printf-test2.S:4:2: error: Unexpected token after '{'
-{2: (Scalar(IntType), "temp"), 1: (Scalar(IntType), "a")}
- ^
+Hello Decaf
