@@ -379,7 +379,7 @@ fn load_into_reg_arr(
             // ))
             instructions.push(format!("\tsalq $3, {}", Reg::R9));
             instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
-            instructions.push(format!("\taddq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
             instructions.push(format!("\tmovq -{offset}({}), {dest}", Reg::R10));
         }
         None => {
