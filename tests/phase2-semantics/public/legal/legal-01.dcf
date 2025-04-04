@@ -1,33 +1,45 @@
 import printf;
-int a, b, c;
 
-void func1 ( ) {
-  int A[10];
-  int i,sum;
-  sum = 0;
- 
-  for (i = 0; i <10; i++){
-    A[i] = i+1;
-    // printf("%d, %d, %d\n", sum, i, A[i]);
-  }
+int c, d, e;
 
-  for (i=0; i<10; i+=1){
-    // sum = sum + A[i];
-    printf("%d %d\n",i,  A[i]);
-    //printf("%d\n", sum);
-  }
+int foo() {
+  c += 1;
+  printf("Invoked foo %lld times!\n", c);
+  return c;
+}
 
+int bar() {
+  d += 1;
+  printf("Invoked bar %lld times!\n", d);
+  return d;
+}
 
-  c = sum;
+int baz() {
+  e += 1;
+  printf("Invoked baz %lld times!\n", e);
+  return e;
 }
 
 
-void main ( ) {
-  a = 0;
-  b = 0;
-  c = 0;
+void main() {
+  int i;
   
-  func1 ( );  
-  // c = c + 1;
-  printf ( "result should be 55: %d\n", c );
+  printf("foo, bar, and baz should be invoked 6, 5, and 14 times respectively\n");
+  
+  for (i = 0; i < foo(); i ++) {
+    if (i == 5) {
+      break;
+    }
+  }
+  
+  for (i = 0; i != bar(); i ++) {
+    if (i == 4) {
+      break;
+    }
+  }
+  
+  for (i = 0; i < 100; i += baz()) {
+    
+  }
+
 }

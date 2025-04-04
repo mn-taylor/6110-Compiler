@@ -337,14 +337,13 @@ fn asm_block(
             true_block,
             false_block,
         } => {
-            let (_, source_offset) = stack_lookup.get(&source).unwrap();
-            let get_source = format!("\tmovq -{}({}), {}", source_offset, Reg::Rbp, Reg::R9,);
+            instructions.push(load_into_reg(Reg::R9, source, stack_lookup));
 
             let compare = format!("\tcmpq $1, {}", Reg::R9);
             let true_jump = format!("\tje {}{}", root, true_block);
             let false_jump = format!("\tjmp {}{}", root, false_block);
 
-            instructions.extend([get_source, compare, true_jump, false_jump]);
+            instructions.extend([compare, true_jump, false_jump]);
         }
         Jump::Nowhere => {
             if return_type.is_some() {
@@ -562,13 +561,14 @@ fn asm_instruction(
             let mut instructions = vec![];
             match ret_val {
                 Some(var) => {
-                    let (_, var_offset) = stack_lookup.get(&var).unwrap();
-                    instructions.push(format!(
-                        "\tmovq -{}({}), {}",
-                        var_offset,
-                        Reg::Rbp,
-                        Reg::Rax
-                    ));
+                    instructions.push(load_into_reg(Reg::Rax, var, stack_lookup));
+                    // let (_, var_offset) = stack_lookup.get(&var).unwrap();
+                    // instructions.push(format!(
+                    //     "\tmovq -{}({}), {}",
+                    //    var_offset,
+                    //   Reg::Rbp,
+                    //     Reg::Rax
+                    // ));
                 }
                 None => {}
             }
@@ -578,7 +578,6 @@ fn asm_instruction(
         }
         Instruction::Call(func_name, args, ret_dest) => {
             let mut instructions: Vec<String> = vec![];
-            let mut pop_instrs: Option<u32> = None;
             let mut argument_registers: Vec<Reg> =
                 vec![Reg::R9, Reg::R8, Reg::Rcx, Reg::Rdx, Reg::Rsi, Reg::Rdi];
 
@@ -598,12 +597,6 @@ fn asm_instruction(
                             None => {
                                 instructions.push(load_into_reg(Reg::Rax, *label, stack_lookup));
                                 instructions.push(format!("\tpushq {}", Reg::Rax));
-
-                                if pop_instrs.is_none() {
-                                    pop_instrs = Some(0);
-                                }
-
-                                pop_instrs = Some(pop_instrs.unwrap() + 1);
                             }
                         }
                     }
@@ -644,24 +637,7 @@ fn asm_instruction(
 
             // store return value into temp
             match ret_dest {
-                Some(dest) => {
-                    let (_, dest_offset) = stack_lookup.get(&dest).unwrap();
-                    instructions.push(format!(
-                        "\tmovq {}, -{}({})",
-                        Reg::Rax,
-                        dest_offset,
-                        Reg::Rbp
-                    ));
-                }
-                None => {}
-            }
-
-            match pop_instrs {
-                Some(v) => {
-                    if v % 2 == 1 {
-                        instructions.push(format!("\taddq $8, {}", Reg::Rsp));
-                    }
-                }
+                Some(dest) => instructions.push(store_from_reg(Reg::Rax, dest, stack_lookup)),
                 None => {}
             }
 
