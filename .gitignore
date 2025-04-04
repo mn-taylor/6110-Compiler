@@ -21,6 +21,10 @@ public-tests/
 *.asm
 *.exe
 *.s
+*.S
+*
+!/**/
+!*.*
 
 # output files
 output.s
