@@ -85,7 +85,7 @@ fn convert_rel_op_to_cmov_type(op: Bop) -> String {
     match op {
         Bop::RelBop(rop) => match rop {
             RelOp::Lt => "cmovl".to_string(),
-            RelOp::Le => "cmovl".to_string(),
+            RelOp::Le => "cmovle".to_string(),
             RelOp::Gt => "cmovg".to_string(),
             RelOp::Ge => "cmovge".to_string(),
         },
