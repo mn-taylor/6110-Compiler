@@ -1,0 +1,16 @@
+import printf;
+int count;
+
+int func() {
+    count = count - 1;
+    return count;
+}
+
+void main() {
+    int i;
+    count = 3;
+    for (i = 0; func() >= 0; i++) { // side effect in loop condition
+        printf("%d ", i);
+    }
+    printf("\n");
+}

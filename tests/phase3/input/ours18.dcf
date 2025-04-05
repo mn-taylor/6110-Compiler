@@ -1,0 +1,14 @@
+import printf;
+
+void main() {
+    int i;
+    int j;
+
+    j = 10;
+    for (i = 0; i < 5; j--) {  // 'j--' is a valid assign_expr
+        printf("i: %d, j: %d\n", i, j);
+        i++;
+    }
+
+    printf("Final i: %d, Final j: %d\n", i, j);
+}

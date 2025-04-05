@@ -1,0 +1,17 @@
+import printf;
+
+int global_var;
+
+void main() {
+    int i;
+    global_var = 10;
+    for (i = 0; i < 5; i++) {
+        int i;  // Shadowing the loop variable
+        i = global_var - 1;
+        printf("%d ", i);
+        global_var = global_var - 2;
+    }
+    printf("\n");
+    printf("Global: %d\n", global_var);
+    printf("Loop var: %d\n", i); //prints the outer i
+}
