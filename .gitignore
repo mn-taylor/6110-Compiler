@@ -27,6 +27,7 @@ public-tests/
 *.exe
 *.s
 *.S
+*~
 
 # output files
 output.s

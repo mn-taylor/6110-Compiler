@@ -400,18 +400,21 @@ fn check_stmt(
                     format!("could not find identifier {}", var_to_set.val),
                 )),
                 Some(Type::Prim(Primitive::IntType)) => (),
+                Some(Type::Prim(Primitive::LongType)) => (),
                 Some(x) => errors.push((
                     var_to_set.loc,
-                    format!("loop variable must be int, not {}", x),
+                    format!("loop variable must be int or long, not {}", x),
                 )),
             }
             // initial_val is int
-            check_types(
-                &[&Primitive::IntType],
-                &check_expr(initial_val, errors, scope),
-                initial_val.loc,
-                errors,
-            );
+            if let Some(Type::Prim(t)) = var_to_set_type {
+                check_types(
+                    &[t],
+                    &check_expr(initial_val, errors, scope),
+                    initial_val.loc,
+                    errors,
+                );
+            }
 
             // test is bool
             let cond_type = check_expr(test, errors, scope);
