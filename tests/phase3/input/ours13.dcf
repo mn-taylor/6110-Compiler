@@ -1,0 +1,12 @@
+import printf;
+
+void main() {
+    int i;
+    for (i = 10; i >= 0; i--) {
+        if (i == 5) {
+            break;
+        }
+        printf("%d ", i);
+    }
+    printf("\n");
+}

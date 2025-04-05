@@ -1,0 +1,9 @@
+import printf;
+
+void main() {
+    int i;
+    for (i = 20; i >= 10; i -= 2) { // Decrementing by a value other than 1
+        printf("%d ", i);
+    }
+    printf("\n");
+}
