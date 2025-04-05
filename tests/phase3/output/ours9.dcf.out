@@ -1,0 +1,12 @@
+weird = 1
+local globalX = 123
+global bigCounter = 32
+sum = 8
+longArray[0] = 1000000000
+longArray[1] = 1000000042
+longArray[2] = 2000000084
+data[0] = 0
+data[1] = -1
+data[2] = 4
+data[3] = -3
+data[4] = 8

@@ -1,0 +1,13 @@
+import printf;
+
+void main() {
+    int i;
+    long j;
+    for (i = 10; i >= 0; i--) {
+        printf("%d\n", i);
+    }
+
+    for (j = 5L; j >= 0L; j--) {
+        printf("%ld\n", j);
+    }
+}

@@ -1,0 +1,23 @@
+import printf;
+
+int gcd(int a, int b) {
+  while (b != 0) {
+    int temp;
+    temp = b;
+    b = a % b;
+    a = temp;
+  }
+  return a;
+}
+
+void main() {
+  int a;
+  int b;
+  int result;
+
+  a = 48;
+  b = 18;
+  result = gcd(a, b);
+
+  printf("GCD of %d and %d is %d\n", a, b, result);
+}

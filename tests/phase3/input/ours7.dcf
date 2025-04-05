@@ -1,0 +1,74 @@
+import printf;
+
+// Global array and size
+int data[8];
+int size;
+
+// Swap elements in global array
+void swap(int i, int j) {
+  int temp;
+  temp = data[i];
+  data[i] = data[j];
+  data[j] = temp;
+}
+
+// Partition using global array
+int partition(int low, int high) {
+  int pivot;
+  int i;
+  int j;
+
+  pivot = data[high];
+  i = low - 1;
+
+  for (j = low; j < high; j = j + 1) {
+    if (data[j] <= pivot) {
+      i = i + 1;
+      swap(i, j);
+    }
+  }
+
+  swap(i + 1, high);
+  return i + 1;
+}
+
+// Recursive quicksort using global array
+void quicksort(int low, int high) {
+  int pi;
+  if (low < high) {
+    pi = partition(low, high);
+    quicksort(low, pi - 1);
+    quicksort(pi + 1, high);
+  }
+}
+
+// Print global array
+void printArray() {
+  int i;
+  for (i = 0; i < size; i = i + 1) {
+    printf("%d ", data[i]);
+  }
+  printf("\n");
+}
+
+// Main function
+void main() {
+  size = 8;
+
+  data[0] = 33;
+  data[1] = 10;
+  data[2] = 55;
+  data[3] = 71;
+  data[4] = 29;
+  data[5] = 3;
+  data[6] = 40;
+  data[7] = 18;
+
+  printf("Before sorting:\n");
+  printArray();
+
+  quicksort(0, size - 1);
+
+  printf("After sorting:\n");
+  printArray();
+}

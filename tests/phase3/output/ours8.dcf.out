@@ -1,0 +1,11 @@
+Innermost i = 0
+Innermost i = 0
+Innermost i = 0
+Innermost i = 0
+x = 1 (expect 1)
+k = 1
+k = 3
+data[0] = 10
+data[1] = 20
+data[2] = 30
+data[3] = 40
