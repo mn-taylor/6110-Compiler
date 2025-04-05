@@ -1,0 +1,67 @@
+--- Arithmetic Operators ---
+a + b = 13
+a - b = 7
+a * b = 30
+a / b = 3
+a % b = 1
+la + lb = 25
+la - lb = 15
+la * lb = 100
+la / lb = 4
+la % lb = 0
+
+--- Relational Operators ---
+a < b = 0
+a > b = 1
+a <= b = 0
+a >= b = 1
+la < lb = 0
+la > lb = 1
+la <= lb = 0
+la >= lb = 1
+
+--- Equality Operators ---
+a == b = 0
+a != b = 1
+la == lb = 0
+la != lb = 1
+1 == 1 = 1
+1 != 1 = 0
+
+--- Conditional Operators ---
+t && f = 0
+t || f = 1
+f && t = 0
+f || t = 1
+
+--- Unary Operator ---
+-a = -10
+!t = 0
+!f = 1
+-la = -20
+
+--- Increment/Decrement ---
+a++ = 11
+a-- = 10
+++a = 11
+--a = 10
+la++ = 21
+la-- = 20
+++la = 21
+--la = 20
+
+--- Assignment Operators ---
+a += b = 13
+a -= b = 10
+a *= b = 30
+a /= b = 10
+a %= b = 1
+la += lb = 25
+la -= lb = 20
+la *= lb = 100
+la /= lb = 20
+la %= lb = 0
+
+--- Cast Operators ---
+int(la) = 0
+long(a) = 1

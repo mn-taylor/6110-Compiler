@@ -1,0 +1,112 @@
+import printf;
+
+void main() {
+    // Arithmetic Operators
+    int a;
+    int b;
+    long la;
+    long lb;
+        bool t;
+    bool f;
+
+
+    a = 10;
+    b = 3;
+    la = 20L;
+    lb = 5L;
+
+    printf("--- Arithmetic Operators ---\n");
+    printf("a + b = %d\n", a + b); // 13
+    printf("a - b = %d\n", a - b); // 7
+    printf("a * b = %d\n", a * b); // 30
+    printf("a / b = %d\n", a / b); // 3
+    printf("a %% b = %d\n", a % b); // 1
+    printf("la + lb = %ld\n", la + lb); // 25
+    printf("la - lb = %ld\n", la - lb); // 15
+    printf("la * lb = %ld\n", la * lb); // 100
+    printf("la / lb = %ld\n", la / lb); // 4
+    printf("la %% lb = %ld\n", la % lb); // 0
+
+    // Relational Operators
+    printf("\n--- Relational Operators ---\n");
+    printf("a < b = %d\n", a < b); // 0 (false)
+    printf("a > b = %d\n", a > b); // 1 (true)
+    printf("a <= b = %d\n", a <= b); // 0 (false)
+    printf("a >= b = %d\n", a >= b); // 1 (true)
+    printf("la < lb = %d\n", la < lb); // 0 (false)
+    printf("la > lb = %d\n", la > lb); // 1 (true)
+    printf("la <= lb = %d\n", la <= lb); // 0 (false)
+    printf("la >= lb = %d\n", la >= lb); // 1 (true)
+
+    // Equality Operators
+    printf("\n--- Equality Operators ---\n");
+    printf("a == b = %d\n", a == b); // 0 (false)
+    printf("a != b = %d\n", a != b); // 1 (true)
+    printf("la == lb = %d\n", la == lb); // 0 (false)
+    printf("la != lb = %d\n", la != lb); // 1 (true)
+    printf("1 == 1 = %d\n", 1 == 1); // 1 (true)
+    printf("1 != 1 = %d\n", 1 != 1); // 0 (false)
+
+    // Conditional Operators
+    printf("\n--- Conditional Operators ---\n");
+    t = true;
+    f = false;
+    printf("t && f = %d\n", t && f); // 0 (false)
+    printf("t || f = %d\n", t || f); // 1 (true)
+    printf("f && t = %d\n", f && t); // 0 (false)
+    printf("f || t = %d\n", f || t); // 1 (true)
+
+    // Unary Operator
+    printf("\n--- Unary Operator ---\n");
+    printf("-a = %d\n", -a);   // -10
+    printf("!t = %d\n", !t);   // 0 (false)
+    printf("!f = %d\n", !f);   // 1 (true)
+    printf("-la = %ld\n", -la); // -20
+
+    // Increment/Decrement
+    printf("\n--- Increment/Decrement ---\n");
+    a++;
+    printf("a++ = %d\n", a);   // 11
+    a--;
+    printf("a-- = %d\n", a);   // 10
+    a++;
+    printf("++a = %d\n", a);   // 11
+    a--;
+    printf("--a = %d\n", a);   // 10
+    la++;
+    printf("la++ = %ld\n", la); // 21
+    la--;
+    printf("la-- = %ld\n", la); // 20
+    la++;
+    printf("++la = %ld\n", la); // 21
+    la--;
+    printf("--la = %ld\n", la); // 20
+
+    // Assignment Operators
+    printf("\n--- Assignment Operators ---\n");
+    a += b;
+    printf("a += b = %d\n", a); // 13
+    a -= b;
+    printf("a -= b = %d\n", a); // 10
+    a *= b;
+    printf("a *= b = %d\n", a); // 30
+    a /= b;
+    printf("a /= b = %d\n", a); // 10
+    a %= b;
+    printf("a %%= b = %d\n", a); // 1
+    la += lb;
+    printf("la += lb = %ld\n", la); // 25
+    la -= lb;
+    printf("la -= lb = %ld\n", la); // 20
+    la *= lb;
+    printf("la *= lb = %ld\n", la); // 100
+    la /= lb;
+    printf("la /= lb = %ld\n", la); // 20
+    la %= lb;
+    printf("la %%= lb = %ld\n", la); // 0
+
+    // Cast Operators
+    printf("\n--- Cast Operators ---\n");
+    printf("int(la) = %d\n", int(la));   // 20
+    printf("long(a) = %ld\n", long(a)); // 1
+}
