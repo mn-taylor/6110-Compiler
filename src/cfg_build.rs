@@ -216,9 +216,7 @@ pub fn lin_method(
 
     for s in method.stmts.iter() {
         let (start, end) = lin_stmt(s, &mut st, &method_scope);
-
         st.get_block(last).jump_loc = Jump::Uncond(start);
-
         last = end;
     }
 
@@ -402,22 +400,7 @@ fn lin_block(b: &Block, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabe
 
     for s in b.stmts.iter() {
         let (start, end) = lin_stmt(s, st, &block_scope);
-
-        if end == 4 {
-            println!(
-                "This is what the break block looks like after lin_stmt\n{}",
-                st.get_block(end)
-            );
-        }
-        match st.get_block(end).jump_loc {
-            Jump::Nowhere => st.get_block(last).jump_loc = Jump::Uncond(start),
-            _ => {
-                // if we run into control flow, do not continue handling statements
-                st.get_block(last).jump_loc = Jump::Uncond(start);
-                last = end;
-                break;
-            }
-        }
+        st.get_block(last).jump_loc = Jump::Uncond(start);
         last = end;
     }
 
@@ -458,21 +441,17 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
         }
         ir::Stmt::Break(_) => match st.break_loc {
             Some(break_block) => {
-                println!(" Break Block {break_block}");
-
                 let start = new_noop(st);
                 st.get_block(start).jump_loc = Jump::Uncond(break_block);
-                (start, start)
+                (start, new_noop(st))
             }
             _ => panic!("should not get here"),
         },
         ir::Stmt::Continue(_) => match st.continue_loc {
             Some(continue_block) => {
                 let start = new_noop(st);
-
                 st.get_block(start).jump_loc = Jump::Uncond(continue_block);
-                println!("continue {}", st.get_block(start));
-                (start, start)
+                (start, new_noop(st))
             }
             _ => panic!("Should not get here"),
         },
@@ -511,11 +490,9 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             let call_instr = Instruction::Call(func_name, temp_args, ret_val);
             let end = st.add_block(block_with_instr(call_instr));
             st.get_block(prev_block).jump_loc = Jump::Uncond(end);
-
             (start, end)
         }
         ir::Stmt::If(WithLoc { val: expr, loc: _ }, if_block, else_block) => {
-            println!("{:?}", if_block);
             let (if_start, if_end) = lin_block(if_block, st, scope);
             let (else_start, else_end) = match else_block {
                 Some(block) => lin_block(block, st, scope),
@@ -524,23 +501,10 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
                     (noop, noop)
                 }
             };
-
             let start = lin_branch(if_start, else_start, expr, st, scope);
-
             let end = new_noop(st);
-
-            // Whenever you do lin_block, you must check whether the end of the block was control flow (continue/break)
-            println!("if_end: {}", st.get_block(if_end));
-            match st.get_block(if_end).jump_loc {
-                Jump::Nowhere => st.get_block(if_end).jump_loc = Jump::Uncond(end),
-                _ => {}
-            };
-
-            match st.get_block(else_end).jump_loc {
-                Jump::Nowhere => st.get_block(else_end).jump_loc = Jump::Uncond(end),
-                _ => {}
-            };
-
+            st.get_block(if_end).jump_loc = Jump::Uncond(end);
+            st.get_block(else_end).jump_loc = Jump::Uncond(end);
             (start, end)
         }
         ir::Stmt::While(
@@ -566,16 +530,8 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             st.continue_loc = old_continue_loc;
 
             let while_condition = lin_branch(while_block_start, end, condition, st, scope);
-
             st.get_block(continue_target).jump_loc = Jump::Uncond(while_condition);
-
-            match st.get_block(while_block_end).jump_loc {
-                Jump::Nowhere => {
-                    st.get_block(while_block_end).jump_loc = Jump::Uncond(while_condition)
-                }
-                _ => {}
-            };
-
+            st.get_block(while_block_end).jump_loc = Jump::Uncond(while_condition);
             (continue_target, end)
         }
         ir::Stmt::For {
@@ -617,18 +573,13 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             st.break_loc = old_break_loc;
             st.continue_loc = old_continue_loc;
 
-            match st.get_block(body_end).jump_loc {
-                Jump::Nowhere => st.get_block(body_end).jump_loc = Jump::Uncond(loop_update),
-                _ => {}
-            }
+            st.get_block(body_end).jump_loc = Jump::Uncond(loop_update);
 
             let condition_start = lin_branch(body_start, end, &test.val, st, scope);
 
             st.get_block(loop_init_end).jump_loc = Jump::Uncond(condition_start);
-
             st.get_block(update_end).jump_loc = Jump::Uncond(condition_start);
 
-            println!("{}", st.get_block(end));
             (loop_start, end)
         }
         ir::Stmt::Return(_, ret_val) => match ret_val {
@@ -671,7 +622,6 @@ fn lin_reg_assign(
     st: &mut State,
     scope: &Scope,
 ) -> (BlockLabel, BlockLabel) {
-    // t1end being unused is surely a bug
     let (t1, t1start, t1end) = lin_expr(rhs, st, scope);
 
     let op_ = convert_assign_op(op);
@@ -711,14 +661,14 @@ fn lin_assign_to_loc(
             let load_block = st.add_block(block_with_instr(Instruction::ArrayAccess {
                 dest: temp,
                 name: *ll_arr_name,
-                idx: idx,
+                idx,
             }));
             // what are these naming conventions????!
             let (ass_start, ass_end) = lin_assign_expr(temp, val_to_assign, st, scope);
             let store_block = st.add_block(block_with_instr(Instruction::ArrayStore {
                 source: temp,
                 arr: *ll_arr_name,
-                idx: idx,
+                idx,
             }));
             let (start, end) = link(idx_start, idx_end, load_block, load_block, st);
             let (start, end) = link(start, end, ass_start, ass_end, st);
