@@ -601,6 +601,8 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
                 lin_location(&var_to_update.val, st, scope);
             let (update_start, update_end) = lin_assign_expr(update_var, update_val, st, scope);
 
+            st.get_block(update_loc_end).jump_loc = Jump::Uncond(update_start);
+
             // update break and continue locations
             let old_break_loc = st.break_loc;
             let old_continue_loc = st.continue_loc;
@@ -615,8 +617,6 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             st.break_loc = old_break_loc;
             st.continue_loc = old_continue_loc;
 
-            st.get_block(update_loc_end).jump_loc = Jump::Uncond(update_start);
-
             match st.get_block(body_end).jump_loc {
                 Jump::Nowhere => st.get_block(body_end).jump_loc = Jump::Uncond(loop_update),
                 _ => {}
@@ -624,11 +624,9 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
 
             let condition_start = lin_branch(body_start, end, &test.val, st, scope);
 
-            // st.get_block(continue_target).jump_loc = Jump::Uncond(loop_update);
-
             st.get_block(loop_init_end).jump_loc = Jump::Uncond(condition_start);
 
-            st.get_block(/*loop_update*/ update_end).jump_loc = Jump::Uncond(condition_start);
+            st.get_block(update_end).jump_loc = Jump::Uncond(condition_start);
 
             println!("{}", st.get_block(end));
             (loop_start, end)
