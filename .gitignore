@@ -33,4 +33,5 @@ public-tests/
 output.s
 output.exe
 output.o
+bad_test.s
 tests/phase3/asm

@@ -573,7 +573,6 @@ fn asm_instruction(
                 None => {}
             }
             instructions.push(format!("jmp {}end", root));
-            // instructions.push("RET".to_string());
             instructions
         }
         Instruction::Call(func_name, args, ret_dest) => {
