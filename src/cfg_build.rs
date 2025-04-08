@@ -10,12 +10,12 @@ use parse::{Field, Literal, Primitive, WithLoc};
 use scan::{AddOp, AssignOp, MulOp};
 
 type Scope<'a> = ir::Scope<'a, (Type, u32)>;
-type VarLabel = u32;
-type BasicBlock = cfg::BasicBlock<VarLabel>;
-type Arg = cfg::Arg<VarLabel>;
-type Instruction = cfg::Instruction<VarLabel>;
-type CfgMethod = cfg::CfgMethod<VarLabel>;
-type CfgProgram = cfg::CfgProgram<VarLabel>;
+pub type VarLabel = u32;
+pub type BasicBlock = cfg::BasicBlock<VarLabel>;
+pub type Arg = cfg::Arg<VarLabel>;
+pub type Instruction = cfg::Instruction<VarLabel>;
+pub type CfgMethod = cfg::CfgMethod<VarLabel>;
+pub type CfgProgram = cfg::CfgProgram<VarLabel>;
 
 struct State {
     break_loc: Option<BlockLabel>,

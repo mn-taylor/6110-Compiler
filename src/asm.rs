@@ -1,4 +1,5 @@
-use crate::cfg::{Arg, BasicBlock, CfgMethod, CfgProgram, CfgType, Instruction, Jump, VarLabel};
+use crate::cfg::{CfgType, Jump};
+use crate::cfg_build::{Arg, BasicBlock, CfgMethod, CfgProgram, Instruction, VarLabel};
 use crate::ir::{Bop, UnOp};
 use crate::parse::Primitive;
 use crate::scan::{format_str_for_output, AddOp, EqOp, MulOp, RelOp};
@@ -465,6 +466,7 @@ fn asm_instruction(
     global_strings: &HashMap<String, usize>,
 ) -> Vec<String> {
     match instr {
+        Instruction::PhiExpr { .. } => panic!(),
         Instruction::ThreeOp {
             source1,
             source2,
