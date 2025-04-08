@@ -5,6 +5,12 @@ use std::collections::HashSet;
 
 fn var_to_def_locs(m: CfgMethod) -> HashMap<VarLabel, HashSet<BlockLabel>> {}
 
+fn dominator_sets(start_node: BlockLabel, g: HashMap<BlockLabel, HashSet<BlockLabel>>) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
+    let mut dom_sets = HashMap::new();
+    for (x, 
+    dom_sets
+}
+
 fn dominator_tree(m: CfgMethod) -> HashMap<BlockLabel, HashSet<BlockLabel>> {}
 
 fn dominance_frontiers(
