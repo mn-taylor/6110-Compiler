@@ -15,7 +15,7 @@ pub struct CfgMethod<VarLabel> {
     pub return_type: Option<Primitive>,
 }
 
-impl<VarLabel: fmt::Debug> fmt::Display for CfgMethod<VarLabel> {
+impl<VarLabel: fmt::Debug + fmt::Display> fmt::Display for CfgMethod<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Method: {}", self.name)?;
         writeln!(f, "Fields: {:?}", self.fields)?;
@@ -32,7 +32,7 @@ pub struct CfgProgram<VarLabel> {
     pub global_fields: HashMap<VarLabel, (CfgType, String)>,
 }
 
-impl<VarLabel: fmt::Display> fmt::Display for CfgProgram<VarLabel> {
+impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for CfgProgram<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "Global fields:")?;
         for (lbl, (t, name)) in self.global_fields.iter() {
@@ -55,7 +55,7 @@ pub struct BasicBlock<VarLabel> {
     pub jump_loc: Jump<VarLabel>,
 }
 
-impl<VarLabel: fmt::Debug> fmt::Display for BasicBlock<VarLabel> {
+impl<VarLabel: fmt::Debug + fmt::Display> fmt::Display for BasicBlock<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "------------------------- \n")?;
         write!(f, "BasicBlock {} \n", &self.block_id)?;
@@ -79,7 +79,7 @@ pub enum Jump<VarLabel> {
     Nowhere,
 }
 
-impl fmt::Display for Jump {
+impl<VarLabel: fmt::Display> fmt::Display for Jump<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Jump::Uncond(block) => write!(f, "goto {}", block),
@@ -133,7 +133,7 @@ pub enum Instruction<VarLabel> {
         idx: VarLabel,
     },
     Ret(Option<VarLabel>),
-    Call(String, Vec<Arg>, Option<VarLabel>),
+    Call(String, Vec<Arg<VarLabel>>, Option<VarLabel>),
 }
 
 impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel> {

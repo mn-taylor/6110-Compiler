@@ -4,7 +4,7 @@ use crate::{
     parse,
     scan::{self, IncrOp},
 };
-use cfg::{Arg, BlockLabel, CfgMethod, CfgProgram, CfgType, Instruction, Jump, Type};
+use cfg::{BlockLabel, CfgType, Jump, Type};
 use ir::{AssignExpr, Block, Bop, Expr, Location, Method, Stmt, UnOp};
 use parse::{Field, Literal, Primitive, WithLoc};
 use scan::{AddOp, AssignOp, MulOp};
@@ -12,6 +12,10 @@ use scan::{AddOp, AssignOp, MulOp};
 type Scope<'a> = ir::Scope<'a, (Type, u32)>;
 type VarLabel = u32;
 type BasicBlock = cfg::BasicBlock<VarLabel>;
+type Arg = cfg::Arg<VarLabel>;
+type Instruction = cfg::Instruction<VarLabel>;
+type CfgMethod = cfg::CfgMethod<VarLabel>;
+type CfgProgram = cfg::CfgProgram<VarLabel>;
 
 struct State {
     break_loc: Option<BlockLabel>,
