@@ -1,9 +1,53 @@
-use crate::cfg::BlockLabel;
+use crate::cfg::{BlockLabel, Instruction};
 use crate::cfg_build::{CfgMethod, VarLabel};
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-fn var_to_def_locs(m: CfgMethod) -> HashMap<VarLabel, HashSet<BlockLabel>> {}
+fn add_block_to_var_def(
+    def: &mut HashMap<VarLabel, HashSet<BlockLabel>>,
+    var: &VarLabel,
+    block_id: BlockLabel,
+) {
+    match def.get_mut(&var) {
+        Some(t) => {
+            t.insert(block_id);
+        }
+        None => {
+            let mut set = HashSet::new();
+            set.insert(block_id);
+            def.insert(var.clone(), set);
+        }
+    }
+}
+
+fn var_to_def_locs(m: CfgMethod) -> HashMap<VarLabel, HashSet<BlockLabel>> {
+    let mut def: HashMap<VarLabel, HashSet<BlockLabel>> = HashMap::new();
+
+    for (label, block) in m.blocks {
+        for instr in block.body {
+            match instr {
+                Instruction::ThreeOp {
+                    source1,
+                    source2,
+                    dest,
+                    op,
+                } => add_block_to_var_def(&mut def, &dest, label),
+                Instruction::Constant { dest, constant } => {
+                    add_block_to_var_def(&mut def, &dest, label)
+                }
+                Instruction::MoveOp { source, dest } => {
+                    add_block_to_var_def(&mut def, &dest, label)
+                }
+                Instruction::TwoOp { source1, dest, op } => {
+                    add_block_to_var_def(&mut def, &dest, label)
+                }
+                _ => (),
+            }
+        }
+    }
+
+    def
+}
 
 fn dominator_sets(start_node: BlockLabel, g: HashMap<BlockLabel, HashSet<BlockLabel>>) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut dom_sets = HashMap::new();
