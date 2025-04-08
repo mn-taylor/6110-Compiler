@@ -6,3 +6,4 @@ pub mod ir_build;
 pub mod parse;
 pub mod scan;
 pub mod semantics;
+pub mod ssa_construct;
