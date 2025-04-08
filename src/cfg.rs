@@ -6,17 +6,16 @@ use std::collections::HashMap;
 use std::fmt;
 
 pub type BlockLabel = usize;
-pub type VarLabel = u32;
 
-pub struct CfgMethod {
+pub struct CfgMethod<VarLabel> {
     pub name: String,
-    pub params: Vec<u32>,
-    pub blocks: HashMap<BlockLabel, BasicBlock>,
+    pub params: Vec<VarLabel>,
+    pub blocks: HashMap<BlockLabel, BasicBlock<VarLabel>>,
     pub fields: HashMap<VarLabel, (CfgType, String)>,
     pub return_type: Option<Primitive>,
 }
 
-impl fmt::Display for CfgMethod {
+impl<VarLabel: fmt::Debug> fmt::Display for CfgMethod<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Method: {}", self.name)?;
         writeln!(f, "Fields: {:?}", self.fields)?;
@@ -27,13 +26,13 @@ impl fmt::Display for CfgMethod {
     }
 }
 
-pub struct CfgProgram {
+pub struct CfgProgram<VarLabel> {
     pub externals: Vec<String>,
-    pub methods: Vec<CfgMethod>,
+    pub methods: Vec<CfgMethod<VarLabel>>,
     pub global_fields: HashMap<VarLabel, (CfgType, String)>,
 }
 
-impl fmt::Display for CfgProgram {
+impl<VarLabel: fmt::Display> fmt::Display for CfgProgram<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "Global fields:")?;
         for (lbl, (t, name)) in self.global_fields.iter() {
@@ -49,14 +48,14 @@ impl fmt::Display for CfgProgram {
 }
 
 #[derive(Clone)]
-pub struct BasicBlock {
+pub struct BasicBlock<VarLabel> {
     pub parents: Vec<usize>,
     pub block_id: BlockLabel,
-    pub body: Vec<Instruction>,
-    pub jump_loc: Jump,
+    pub body: Vec<Instruction<VarLabel>>,
+    pub jump_loc: Jump<VarLabel>,
 }
 
-impl fmt::Display for BasicBlock {
+impl<VarLabel: fmt::Debug> fmt::Display for BasicBlock<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "------------------------- \n")?;
         write!(f, "BasicBlock {} \n", &self.block_id)?;
@@ -70,7 +69,7 @@ impl fmt::Display for BasicBlock {
 }
 
 #[derive(Clone)]
-pub enum Jump {
+pub enum Jump<VarLabel> {
     Uncond(BlockLabel),
     Cond {
         source: VarLabel,
@@ -78,54 +77,6 @@ pub enum Jump {
         false_block: BlockLabel,
     },
     Nowhere,
-}
-
-#[derive(Clone, Copy)]
-pub enum CmpType {
-    Equal,
-    NotEqual,
-    Greater,
-    Less,
-    GreaterEqual,
-    LessEqual,
-}
-impl fmt::Display for CmpType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            CmpType::Equal => "eq",
-            CmpType::NotEqual => "ne",
-            CmpType::Greater => "gt",
-            CmpType::Less => "lt",
-            CmpType::GreaterEqual => "ge",
-            CmpType::LessEqual => "le",
-        };
-        write!(f, "{}", s)
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum Cmp {
-    VarVar {
-        source1: VarLabel,
-        source2: VarLabel,
-    },
-    VarImmediate {
-        source: VarLabel,
-        imm: i32,
-    },
-}
-
-impl fmt::Display for Cmp {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Cmp::VarVar { source1, source2 } => {
-                write!(f, "Comp t{}, t{}", source1, source2)
-            }
-            Cmp::VarImmediate { source, imm } => {
-                write!(f, "Comp t{}, {}", source, imm)
-            }
-        }
-    }
 }
 
 impl fmt::Display for Jump {
@@ -147,7 +98,11 @@ impl fmt::Display for Jump {
 }
 
 #[derive(Clone)]
-pub enum Instruction {
+pub enum Instruction<VarLabel> {
+    PhiExpr {
+        dest: VarLabel,
+        sources: Vec<(BlockLabel, VarLabel)>,
+    },
     ThreeOp {
         source1: VarLabel,
         source2: VarLabel,
@@ -181,9 +136,10 @@ pub enum Instruction {
     Call(String, Vec<Arg>, Option<VarLabel>),
 }
 
-impl fmt::Display for Instruction {
+impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Instruction::PhiExpr { dest, sources } => write!(f, "{dest} = phi({:?})", sources),
             Instruction::ThreeOp {
                 source1,
                 source2,
@@ -227,12 +183,12 @@ impl fmt::Display for Instruction {
 }
 
 #[derive(Debug, Clone)]
-pub enum Arg {
+pub enum Arg<VarLabel> {
     VarArg(VarLabel),
     StrArg(String),
 }
 
-impl fmt::Display for Arg {
+impl<VarLabel: fmt::Display> fmt::Display for Arg<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Arg::VarArg(var) => write!(f, "{}", var),
@@ -253,10 +209,4 @@ pub enum Type {
 pub enum CfgType {
     Scalar(Primitive),
     Array(Primitive, i32),
-}
-
-#[derive(Debug, Clone)]
-pub enum Var {
-    Scalar { id: VarLabel },
-    ArrIdx { arrname: VarLabel, idx: VarLabel },
 }
