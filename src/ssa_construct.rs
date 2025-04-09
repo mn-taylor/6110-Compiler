@@ -111,37 +111,40 @@ fn dominator_tree(
     m: CfgMethod,
     dom_sets: HashMap<BlockLabel, HashSet<BlockLabel>>,
 ) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
-    let dom_tree: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
-    for (label, block) in m.blocks {
+    let mut dom_tree: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
+    let blocks = m.blocks.iter();
+    for (label, block) in blocks {
         // compute the immediate dominator of the block
-        let agenda = block.parents.clone();
-        let seen: HashSet<BlockLabel> = HashSet::new();
-        seen.insert(&label);
+        let mut agenda = block.parents.clone();
+        let mut seen: HashSet<BlockLabel> = HashSet::new();
+        seen.insert(*label);
         while agenda.len() > 0 {
             let curr = agenda.pop().unwrap();
             if seen.contains(&curr) {
                 continue;
             }; // cycle
 
-            let dom_set = dom_tree.get(&curr).unwrap();
+            let mut dom_set = dom_sets.get(&curr).unwrap();
             if dom_set.contains(&label) {
                 // found immediate dominator
-                match dom_tree.get(&curr) {
+                match dom_tree.get_mut(&curr) {
                     None => {
-                        let new_set = HashSet::new();
-                        new_set.insert(label);
+                        let mut new_set = HashSet::new();
+                        new_set.insert(*label);
 
-                        dom_tree.insert(curr, &new_set);
+                        dom_tree.insert(curr, new_set);
                     }
                     Some(s) => {
-                        s.insert(label);
+                        s.insert(*label);
                     }
                 }
                 break;
             }
 
-            seen.insert(&curr);
-            agenda.push(m.blocks.get(&curr).unwrap().parents)
+            seen.insert(curr);
+
+            // add the new parents
+            agenda.extend(m.blocks.get(&curr).unwrap().parents.clone())
         }
     }
 
