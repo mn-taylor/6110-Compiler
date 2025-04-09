@@ -49,9 +49,61 @@ fn var_to_def_locs(m: CfgMethod) -> HashMap<VarLabel, HashSet<BlockLabel>> {
     def
 }
 
-fn dominator_sets(start_node: BlockLabel, g: HashMap<BlockLabel, HashSet<BlockLabel>>) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
-    let mut dom_sets = HashMap::new();
-    for (x, 
+fn intersect_all<'a>(
+    vals: &mut impl Iterator<Item = &'a HashSet<BlockLabel>>,
+) -> HashSet<BlockLabel> {
+    let mut int: HashSet<BlockLabel> = vals.next().unwrap().clone();
+    for val in vals {
+        int = int.intersection(&val).map(|x| *x).collect();
+    }
+    int
+}
+
+// from https://en.wikipedia.org/wiki/Dominator_(graph_theory)
+fn dominator_sets(
+    start_node: BlockLabel,
+    g: HashMap<BlockLabel, HashSet<BlockLabel>>,
+) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
+    let mut dom_sets: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
+    let all_keys: HashSet<BlockLabel> = g.keys().map(|x| *x).collect::<HashSet<_>>();
+    let mut pred = HashMap::new();
+    // dominator of the start node is the start itself
+    // for all other nodes, set all nodes as the dominators
+    for x in g.keys() {
+        if *x == start_node {
+            dom_sets.insert(*x, vec![*x].into_iter().collect::<HashSet<BlockLabel>>());
+        } else {
+            dom_sets.insert(*x, all_keys.clone());
+        }
+        pred.insert(*x, HashSet::new());
+    }
+
+    // compute predecessors
+    for (x, ys) in g.iter() {
+        for y in ys {
+            pred.get_mut(&y).unwrap().insert(x);
+        }
+    }
+
+    let mut changes = true;
+    while changes {
+        changes = false;
+        for (n, preds) in pred.iter() {
+            if *n != start_node {
+                // Dom(n) = {n} union with intersection over Dom(p) for all p in pred(n)
+                let mut new_dom_n: HashSet<BlockLabel> =
+                    intersect_all(&mut preds.iter().map(|p| dom_sets.get(&p).unwrap()));
+                new_dom_n.insert(*n);
+
+                let dom_n = dom_sets.get(n).unwrap();
+                if *dom_n != new_dom_n {
+                    changes = true;
+                    dom_sets.insert(*n, new_dom_n);
+                }
+            }
+        }
+    }
+
     dom_sets
 }
 
@@ -59,6 +111,7 @@ fn dominator_tree(m: CfgMethod) -> HashMap<BlockLabel, HashSet<BlockLabel>> {}
 
 fn dominance_frontiers(
     g: HashMap<BlockLabel, HashSet<BlockLabel>>,
+    dominance_sets: HashMap<BlockLabel, HashSet<BlockLabel>>,
     dominance_tree: HashMap<BlockLabel, HashSet<BlockLabel>>,
 ) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut df = HashMap::new();
@@ -73,8 +126,9 @@ fn dominance_frontiers(
     for (a, children) in g {
         for b in children {
             let mut x = a;
-            // while x does not strictly dominate child
-            while !dominance_tree.get(&x).unwrap().contains(&b) {
+            let x_dom_b = dominance_sets.get(&x).unwrap().contains(&b);
+            // while x does not strictly dominate b
+            while !(x_dom_b && x != b) {
                 df.get_mut(&x).unwrap().insert(b);
                 x = *idom.get(&x).unwrap();
             }
