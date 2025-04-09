@@ -1,4 +1,4 @@
-use crate::cfg::{BlockLabel, Instruction};
+use crate::cfg::{BlockLabel, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -107,7 +107,68 @@ fn dominator_sets(
     dom_sets
 }
 
-fn dominator_tree(m: CfgMethod) -> HashMap<BlockLabel, HashSet<BlockLabel>> {}
+fn dominator_tree(m: CfgMethod, dom_sets: HashMap<BlockLabel, HashSet<BlockLabel>>) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
+    let dom_tree:HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
+    for (label, block) in m.blocks {
+        // compute the immediate dominator of the block
+        let agenda =  block.parents.clone();
+        let seen: HashSet<BlockLabel> = HashSet::new();
+        seen.insert(&label);
+        while agenda.len()>0 {
+            let curr = agenda.pop().unwrap();
+            if seen.contains(&curr) {continue}; // cycle
+
+            let dom_set = dom_tree.get(&curr).unwrap();
+            if dom_set.contains(&label) { // found immediate dominator
+                match dom_tree.get(&curr) {
+                    None =>  {
+                        let new_set = HashSet::new();
+                        new_set.insert(label);
+
+                        dom_tree.insert(curr, &new_set);
+                    }
+                    Some(s) => {
+                        s.insert(label);
+                    }
+                }
+                break;
+            }
+
+            seen.insert(&curr);
+            agenda.push(m.blocks.get(&curr).unwrap().parents)
+        }
+    }
+
+
+    for (label, block) in m.blocks {
+
+        let mut root_dom = dom_sets.get(&label).unwrap();
+        let mut union_of_dom_children: HashSet<BlockLabel> = HashSet::new();
+
+        // get children
+        let children: Vec<BlockLabel> = vec![];
+        match block.jump_loc {
+            Jump::Uncond(label) =>  children.push(label),
+            Jump::Cond { source: _, true_block: t, false_block:  f} => {
+                children.extend(vec![t, f]);
+            }
+            Jump::Nowhere => ()
+        }
+
+        // get children's children
+        for child_node in children { 
+            let root = HashSet::new();
+            root.insert(child_node);
+            union_of_child_children.intersect(dom_sets.get(&child_node).difference(root));
+        }
+
+        // compare nodes dominated by root to those dominated by the children
+        let tree_children: HashSet<BlockLabel> = root_dom.difference(&union_of_dom_children);
+        dom_tree.insert(label, tree_children);
+    }
+
+    dom_tree
+}
 
 fn dominance_frontiers(
     g: HashMap<BlockLabel, HashSet<BlockLabel>>,
