@@ -2,6 +2,7 @@ use crate::cfg::{BlockLabel, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::env::var;
 
 fn add_block_to_var_def(
     def: &mut HashMap<VarLabel, HashSet<BlockLabel>>,
@@ -179,4 +180,7 @@ fn dominance_frontiers(
     df
 }
 
-fn insert_phis(m: &mut CfgMethod) {}
+fn insert_phis(m: &mut CfgMethod) {
+    let var_defs = var_to_def_locs(m);
+    let dom_sets = dominator_sets(start_node, g)
+}
