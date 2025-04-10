@@ -21,26 +21,26 @@ fn add_block_to_var_def(
     }
 }
 
-fn var_to_def_locs(m: CfgMethod) -> HashMap<VarLabel, HashSet<BlockLabel>> {
+fn var_to_def_locs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<BlockLabel>> {
     let mut def: HashMap<VarLabel, HashSet<BlockLabel>> = HashMap::new();
 
-    for (label, block) in m.blocks {
-        for instr in block.body {
+    for (label, block) in m.blocks.iter() {
+        for instr in block.body.clone() {
             match instr {
                 Instruction::ThreeOp {
                     source1,
                     source2,
                     dest,
                     op,
-                } => add_block_to_var_def(&mut def, &dest, label),
+                } => add_block_to_var_def(&mut def, &dest, *label),
                 Instruction::Constant { dest, constant } => {
-                    add_block_to_var_def(&mut def, &dest, label)
+                    add_block_to_var_def(&mut def, &dest, *label)
                 }
                 Instruction::MoveOp { source, dest } => {
-                    add_block_to_var_def(&mut def, &dest, label)
+                    add_block_to_var_def(&mut def, &dest, *label)
                 }
                 Instruction::TwoOp { source1, dest, op } => {
-                    add_block_to_var_def(&mut def, &dest, label)
+                    add_block_to_var_def(&mut def, &dest, *label)
                 }
                 _ => (),
             }
@@ -63,7 +63,7 @@ fn intersect_all<'a>(
 // from https://en.wikipedia.org/wiki/Dominator_(graph_theory)
 fn dominator_sets(
     start_node: BlockLabel,
-    g: HashMap<BlockLabel, HashSet<BlockLabel>>,
+    g: &HashMap<BlockLabel, HashSet<BlockLabel>>,
 ) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut dom_sets: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
     let all_keys: HashSet<BlockLabel> = g.keys().map(|x| *x).collect::<HashSet<_>>();
@@ -109,8 +109,8 @@ fn dominator_sets(
 }
 
 fn dominator_tree(
-    m: CfgMethod,
-    dom_sets: HashMap<BlockLabel, HashSet<BlockLabel>>,
+    m: &CfgMethod,
+    dom_sets: &HashMap<BlockLabel, HashSet<BlockLabel>>,
 ) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut dom_tree: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
     let blocks = m.blocks.iter();
@@ -180,7 +180,59 @@ fn dominance_frontiers(
     df
 }
 
+fn get_graph(m: &mut CfgMethod) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
+    let mut g: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
+
+    for (label, block) in m.blocks.iter() {
+        let mut edges: HashSet<BlockLabel> = HashSet::new();
+        match block.jump_loc {
+            Jump::Uncond(b) => {
+                edges.insert(b);
+            }
+            Jump::Cond {
+                source: _,
+                true_block: b1,
+                false_block: b2,
+            } => {
+                edges.insert(b1);
+                edges.insert(b2);
+            }
+            Jump::Nowhere => {}
+        }
+
+        g.insert(*label, edges);
+    }
+
+    g
+}
+
 fn insert_phis(m: &mut CfgMethod) {
     let var_defs = var_to_def_locs(m);
-    let dom_sets = dominator_sets(start_node, g)
+    let g = get_graph(m);
+    let dom_sets: HashMap<usize, HashSet<usize>> = dominator_sets(0, &g);
+    let dom_tree = dominator_tree(m, &dom_sets);
+    let dom_frontier = dominance_frontiers(g, dom_sets, dom_tree);
+
+    // Algorithm 3.1 in SSA-Based Compiler Design
+    for (var, defs) in var_defs {
+        let mut F: HashSet<BlockLabel> = HashSet::new();
+        let mut W: Vec<BlockLabel> = vec![];
+
+        for def in defs {
+            W.push(def);
+        }
+
+        while W.len() != 0 {
+            let X = W.pop().unwrap();
+            for Y in dom_frontier.get(&X).unwrap() {
+                if F.contains(Y) {
+                    let block = m.blocks.get(Y).unwrap();
+                    block.body.insert(Instruction::PhiExpr {
+                        dest: var,
+                        sources: vec![],
+                    })
+                }
+            }
+        }
+    }
 }
