@@ -1,5 +1,7 @@
 use crate::cfg::{BlockLabel, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
+use crate::ir::Block;
+use std::arch::aarch64::int16x8_t;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env::var;
@@ -53,15 +55,21 @@ fn var_to_def_locs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<BlockLabel>> {
 fn intersect_all<'a>(
     vals: &mut impl Iterator<Item = &'a HashSet<BlockLabel>>,
 ) -> HashSet<BlockLabel> {
-    let mut int: HashSet<BlockLabel> = vals.next().unwrap().clone();
+    let mut int: HashSet<BlockLabel>;
+    if let Some(set) = vals.next() {
+        int = set.clone();
+    } else {
+        int = HashSet::new();
+    }
+
     for val in vals {
         int = int.intersection(&val).map(|x| *x).collect();
     }
     int
 }
-
+// n -> set of blocks that dominate n
 // from https://en.wikipedia.org/wiki/Dominator_(graph_theory)
-fn dominator_sets(
+pub fn dominator_sets(
     start_node: BlockLabel,
     g: &HashMap<BlockLabel, HashSet<BlockLabel>>,
 ) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
@@ -108,15 +116,27 @@ fn dominator_sets(
     dom_sets
 }
 
-fn dominator_tree(
+pub fn dominator_tree(
     m: &CfgMethod,
     dom_sets: &HashMap<BlockLabel, HashSet<BlockLabel>>,
-) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
-    let mut dom_tree: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
+) -> HashMap<BlockLabel, BlockLabel> {
+    let mut dom_tree: HashMap<BlockLabel, BlockLabel> = HashMap::new();
     let blocks = m.blocks.iter();
     for (label, block) in blocks {
         // compute the immediate dominator of the block
-        let mut agenda = block.parents.clone();
+
+        let mut agenda = vec![];
+        for parent in block.parents.iter() {
+            if dom_sets.contains_key(&parent) {
+                agenda.push(*parent);
+            }
+        }
+
+        if agenda.len() == 0 {
+            continue;
+        };
+
+        let target_dom_set = dom_sets.get(label).unwrap();
         let mut seen: HashSet<BlockLabel> = HashSet::new();
         seen.insert(*label);
         while agenda.len() > 0 {
@@ -125,28 +145,27 @@ fn dominator_tree(
                 continue;
             }; // cycle
 
-            let mut dom_set = dom_sets.get(&curr).unwrap();
-            if dom_set.contains(&label) {
+            if target_dom_set.contains(&curr) {
                 // found immediate dominator
-                match dom_tree.get_mut(&curr) {
-                    None => {
-                        let mut new_set = HashSet::new();
-                        new_set.insert(*label);
-
-                        dom_tree.insert(curr, new_set);
-                    }
-                    Some(s) => {
-                        s.insert(*label);
-                    }
-                }
+                dom_tree.insert(*label, curr);
                 break;
             }
 
             seen.insert(curr);
 
             // add the new parents
-            agenda.extend(m.blocks.get(&curr).unwrap().parents.clone())
+            for parent in m.blocks.get(&curr).unwrap().parents.iter() {
+                if dom_sets.contains_key(&parent) {
+                    agenda.push(*parent);
+                }
+            }
         }
+
+        println!(
+            "Immediate dominator of {} is {:?}",
+            label,
+            dom_tree.get(label)
+        );
     }
 
     dom_tree
@@ -180,10 +199,15 @@ fn dominance_frontiers(
     df
 }
 
-fn get_graph(m: &mut CfgMethod) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
+pub fn get_graph(m: &mut CfgMethod) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut g: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
 
     for (label, block) in m.blocks.iter() {
+        if (block.parents.len() == 0 && *label != 0) {
+            // these nodes are never accessed by the program and confuse the computation of dominance sets
+            continue;
+        }
+
         let mut edges: HashSet<BlockLabel> = HashSet::new();
         match block.jump_loc {
             Jump::Uncond(b) => {
@@ -206,33 +230,45 @@ fn get_graph(m: &mut CfgMethod) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     g
 }
 
-fn insert_phis(m: &mut CfgMethod) {
+pub fn insert_phis(m: &mut CfgMethod) -> &CfgMethod {
     let var_defs = var_to_def_locs(m);
     let g = get_graph(m);
     let dom_sets: HashMap<usize, HashSet<usize>> = dominator_sets(0, &g);
     let dom_tree = dominator_tree(m, &dom_sets);
-    let dom_frontier = dominance_frontiers(g, dom_sets, dom_tree);
+    // let dom_frontier = dominance_frontiers(g, dom_sets, dom_tree);
 
     // Algorithm 3.1 in SSA-Based Compiler Design
-    for (var, defs) in var_defs {
+    for (var, defs) in var_defs.iter() {
         let mut F: HashSet<BlockLabel> = HashSet::new();
         let mut W: Vec<BlockLabel> = vec![];
 
         for def in defs {
-            W.push(def);
+            W.push(*def);
         }
 
         while W.len() != 0 {
             let X = W.pop().unwrap();
-            for Y in dom_frontier.get(&X).unwrap() {
-                if F.contains(Y) {
-                    let block = m.blocks.get(Y).unwrap();
-                    block.body.insert(Instruction::PhiExpr {
-                        dest: var,
-                        sources: vec![],
-                    })
+            for Y in dom_sets.get(&X).unwrap() {
+                // change
+                if !F.contains(Y) {
+                    let block = m.blocks.get_mut(Y).unwrap();
+                    block.body.insert(
+                        0,
+                        Instruction::PhiExpr {
+                            dest: *var,
+                            sources: vec![],
+                        },
+                    );
+
+                    F.insert(*Y);
+
+                    if !defs.contains(Y) {
+                        W.push(*Y);
+                    }
                 }
             }
         }
     }
+
+    return m;
 }

@@ -236,7 +236,7 @@ pub fn asm_method(
     instructions.push(format!("\tmovq {}, {}", Reg::Rsp, Reg::Rbp));
 
     let (offsets, total_offset) = build_stack(method.fields.clone());
-    println!("offsets: {:?}", offsets);
+    // println!("offsets: {:?}", offsets);
 
     // allocate space enough space on the stack
     instructions.push(format!("\tsubq ${}, {}", total_offset, Reg::Rsp,));

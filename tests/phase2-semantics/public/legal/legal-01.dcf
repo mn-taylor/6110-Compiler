@@ -1,44 +1,24 @@
-import printf;
-
-int verify_in_loop(int p1, int p2, int p3, int p4, int p5, int p6,
-                     int p7_index, int p8_value) {
-   // Expected value calculation (example: value should be index * 10)
-   int expected_value;
-   expected_value = p7_index * 10;
-
-   printf("  verify_in_loop(idx=%d, val=%d)\n", p7_index, p8_value);
-
-   // Check the received stack parameters (will likely be wrong due to bug)
-   if (p8_value != expected_value) {
-     printf("    FAIL: Value mismatch! Expected %d for index %d, Got %d\n",
-            expected_value, p7_index, p8_value);
-     return -1; // Indicate failure
-   }
-   if (p7_index < 0 || p7_index > 9) { // Basic sanity check
-      printf("    FAIL: Index %d out of expected range!\n", p7_index);
-      return -1;
-   }
-   return 0; // Indicate success for this iteration
-}
-
 void main() {
-   int a[10];
-   int i;
-   int status;
+   int x;
+   int y;
+   int temp;
 
-   printf("Running decrement loop and calling verify_in_loop...\n");
-   for (i = 9; i >= 0; i -= 2) { // Step by 2 for variety
-      a[i] = i * 10; // Simple value based on index
-      printf("Iter: i=%d, setting a[%d]=%d. Calling verify...\n", i, i, a[i]);
-
-      // Call function passing index and value as stack parameters 7 and 8
-      status = verify_in_loop(1, 2, 3, 4, 5, 6, i, a[i]);
-
-      if (status != 0) {
-         printf("Verification failed for i = %d. Exiting.\n", i);
+   while (x > 0) {
+      if (x == y) {
+         y = 0;
+         x = 0;
+      } else {
+         temp = x;
+         x = y;
+         y = temp;
+         if (false) {
+            break;
+         }
       }
+
+      x = x + y;
+
    }
-   printf("Loop finished. Final i = %d.\n", i); // Should be -1 or -2 depending on exact check
-   printf("Overall result: OK\n");
-   
+
+   return;
 }

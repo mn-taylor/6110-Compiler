@@ -5,6 +5,7 @@ use decaf_skeleton_rust::ir_build;
 use decaf_skeleton_rust::parse;
 use decaf_skeleton_rust::scan;
 use decaf_skeleton_rust::semantics;
+use decaf_skeleton_rust::ssa_construct;
 
 fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
     match output {
@@ -162,12 +163,19 @@ fn main() {
             if !checked_prog.is_empty() {
                 panic!("your program has semantic errors");
             }
-            let p = cfg_build::lin_program(&prog);
+            let mut p = cfg_build::lin_program(&prog);
             if args.debug {
                 println!("{}", p);
             }
             for l in asm::asm_program(&p, args.mac) {
                 writeln!(writer, "{}", l).unwrap();
+            }
+
+            for method in p.methods.iter_mut() {
+                let g = ssa_construct::get_graph(method);
+                let dom_sets = ssa_construct::dominator_sets(0, &g);
+                let dom_tree = ssa_construct::dominator_tree(method, &dom_sets);
+                println!("{:?}", dom_tree);
             }
         }
     }

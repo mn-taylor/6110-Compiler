@@ -569,8 +569,6 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
             st.break_loc = Some(end);
             st.continue_loc = Some(loop_update);
 
-            println!("end {}", st.get_block(end));
-
             let (body_start, body_end) = lin_block(body, st, scope);
 
             // Restore old break and continue locations

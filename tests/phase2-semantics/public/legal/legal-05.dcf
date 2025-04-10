@@ -1,13 +1,12 @@
-import printf;// test for nested scope look up
-int a;
+void main() {
+    int x;
+    x = 1;
 
-void foo () {
-    if (true) {
-        a = 5;
-        printf("%d", a);
+    if(x==1){
+        x = 5;
+    }else{
+        x = 6;
     }
-}
 
-void main(){
-    foo();
+    x = 1;
 }
