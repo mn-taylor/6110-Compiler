@@ -175,7 +175,9 @@ fn main() {
                 let g = ssa_construct::get_graph(method);
                 let dom_sets = ssa_construct::dominator_sets(0, &g);
                 let dom_tree = ssa_construct::dominator_tree(method, &dom_sets);
-                println!("{:?}", dom_tree);
+                let dom_frontiers =
+                    ssa_construct::dominance_frontiers(g, dom_sets, dom_tree.clone());
+                println!("{:?}", dom_frontiers);
             }
         }
     }

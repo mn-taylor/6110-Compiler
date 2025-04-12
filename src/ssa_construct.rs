@@ -119,9 +119,10 @@ pub fn dominator_sets(
 pub fn dominator_tree(
     m: &CfgMethod,
     dom_sets: &HashMap<BlockLabel, HashSet<BlockLabel>>,
-) -> HashMap<BlockLabel, BlockLabel> {
-    let mut dom_tree: HashMap<BlockLabel, BlockLabel> = HashMap::new();
+) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
+    let mut dom_tree: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
     let blocks = m.blocks.iter();
+
     for (label, block) in blocks {
         // compute the immediate dominator of the block
 
@@ -147,7 +148,14 @@ pub fn dominator_tree(
 
             if target_dom_set.contains(&curr) {
                 // found immediate dominator
-                dom_tree.insert(*label, curr);
+                let mut new_set: HashSet<BlockLabel> = match dom_tree.get(&curr) {
+                    Some(set) => set.clone(),
+                    None => HashSet::new(),
+                };
+
+                new_set.insert(*label);
+
+                dom_tree.insert(curr, new_set.clone());
                 break;
             }
 
@@ -160,18 +168,12 @@ pub fn dominator_tree(
                 }
             }
         }
-
-        println!(
-            "Immediate dominator of {} is {:?}",
-            label,
-            dom_tree.get(label)
-        );
     }
 
     dom_tree
 }
 
-fn dominance_frontiers(
+pub fn dominance_frontiers(
     g: HashMap<BlockLabel, HashSet<BlockLabel>>,
     dominance_sets: HashMap<BlockLabel, HashSet<BlockLabel>>,
     dominance_tree: HashMap<BlockLabel, HashSet<BlockLabel>>,
@@ -179,20 +181,31 @@ fn dominance_frontiers(
     let mut df = HashMap::new();
     let mut idom = HashMap::new();
     for (p, children) in dominance_tree.iter() {
+        df.insert(*p, HashSet::new());
         for c in children {
             idom.insert(c, *p);
             df.insert(*c, HashSet::new());
         }
     }
+
+    println!("Initial dominance frontier{:?}", df);
+    println!("g : {:?}", g);
     // Algorithm 3.2 in SSA book
     for (a, children) in g {
         for b in children {
             let mut x = a;
-            let x_dom_b = dominance_sets.get(&x).unwrap().contains(&b);
+            let mut x_dom_b = dominance_sets.get(&b).unwrap().contains(&x);
+
             // while x does not strictly dominate b
             while !(x_dom_b && x != b) {
+                println!("{} dominates {}", x, b);
                 df.get_mut(&x).unwrap().insert(b);
-                x = *idom.get(&x).unwrap();
+                if idom.get(&x).is_some() {
+                    x = *idom.get(&x).unwrap();
+                    x_dom_b = dominance_sets.get(&b).unwrap().contains(&x);
+                } else {
+                    break;
+                }
             }
         }
     }
