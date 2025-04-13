@@ -118,8 +118,8 @@ pub fn dominator_sets(
     dom_sets
 }
 
-pub fn dominator_tree(
-    m: &CfgMethod,
+pub fn dominator_tree<T>(
+    m: &cfg::CfgMethod<T>,
     dom_sets: &HashMap<BlockLabel, HashSet<BlockLabel>>,
 ) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut dom_tree: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
@@ -211,7 +211,7 @@ pub fn dominance_frontiers(
     df
 }
 
-pub fn get_graph(m: &mut CfgMethod) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
+pub fn get_graph<T>(m: &mut cfg::CfgMethod<T>) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut g: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
 
     for (label, block) in m.blocks.iter() {
