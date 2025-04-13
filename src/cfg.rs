@@ -9,9 +9,9 @@ pub type BlockLabel = usize;
 
 pub struct CfgMethod<VarLabel> {
     pub name: String,
-    pub params: Vec<VarLabel>,
+    pub params: Vec<u32>, // was var label but that was unnecessary
     pub blocks: HashMap<BlockLabel, BasicBlock<VarLabel>>,
-    pub fields: HashMap<VarLabel, (CfgType, String)>,
+    pub fields: HashMap<u32, (CfgType, String)>, // ws var label but that was unnecessary
     pub return_type: Option<Primitive>,
 }
 
@@ -139,7 +139,7 @@ pub enum Instruction<VarLabel> {
 impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Instruction::PhiExpr { dest, sources } => write!(f, "{dest} = phi({:?})", sources),
+            Instruction::PhiExpr { dest, sources } => write!(f, "t{dest} = phi({:?})", sources),
             Instruction::ThreeOp {
                 source1,
                 source2,

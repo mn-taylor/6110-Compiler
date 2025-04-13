@@ -1,4 +1,6 @@
 mod utils;
+use std::collections::HashSet;
+
 use decaf_skeleton_rust::asm;
 use decaf_skeleton_rust::cfg_build;
 use decaf_skeleton_rust::ir_build;
@@ -176,8 +178,19 @@ fn main() {
                 let dom_sets = ssa_construct::dominator_sets(0, &g);
                 let dom_tree = ssa_construct::dominator_tree(method, &dom_sets);
                 let dom_frontiers =
-                    ssa_construct::dominance_frontiers(g, dom_sets, dom_tree.clone());
-                println!("{:?}", dom_frontiers);
+                    ssa_construct::dominance_frontiers(g, &dom_sets, &dom_tree.clone());
+
+                let phied_method = ssa_construct::insert_phis(method);
+
+                let all_fields: HashSet<u32> = method
+                    .fields
+                    .keys()
+                    .collect::<Vec<_>>() // probably a better way to remove the references
+                    .iter()
+                    .map(|c| **c)
+                    .collect::<HashSet<_>>();
+                let ssa_method = ssa_construct::rename_variables(method, &dom_tree, all_fields);
+                println!("{}", ssa_method);
             }
         }
     }
