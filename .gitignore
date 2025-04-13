@@ -28,6 +28,7 @@ public-tests/
 *.s
 *.S
 *~
+**.DS_Store
 
 # output files
 output.s
