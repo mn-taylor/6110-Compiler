@@ -1,14 +1,9 @@
 use crate::cfg;
-use crate::cfg::{Arg, BasicBlock, BlockLabel, CfgType, Instruction, Jump};
+use crate::cfg::{Arg, BasicBlock, CfgType, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
-use crate::ir::Block;
 use crate::ssa_construct::SSAVarLabel;
-use enum_iterator::all;
-use std::arch::aarch64::int16x8_t;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::env::var;
-use std::fmt;
 
 // fn get_phi_webs
 fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarLabel>> {

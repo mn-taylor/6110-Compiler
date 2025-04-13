@@ -1,14 +1,7 @@
 use crate::cfg;
-use crate::cfg::{Arg, BasicBlock, BlockLabel, CfgType, Instruction, Jump};
-use crate::cfg_build::{CfgMethod, VarLabel};
-use crate::ir::Block;
+use crate::cfg::{Arg, BasicBlock, Instruction};
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
-use enum_iterator::all;
-use std::arch::aarch64::int16x8_t;
 use std::collections::HashMap;
-use std::collections::HashSet;
-use std::env::var;
-use std::fmt;
 
 // find first variable not in coppy lookup
 fn check_copy(var: SSAVarLabel, copy_lookup: &HashMap<SSAVarLabel, SSAVarLabel>) -> SSAVarLabel {

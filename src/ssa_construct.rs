@@ -1,11 +1,8 @@
 use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, BlockLabel, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
-use crate::ir::Block;
-use std::arch::aarch64::int16x8_t;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::env::var;
 use std::fmt;
 
 fn add_block_to_var_def(
