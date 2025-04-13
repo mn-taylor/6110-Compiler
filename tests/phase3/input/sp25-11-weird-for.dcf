@@ -1,0 +1,45 @@
+import printf;
+
+int get_int(int num) {
+    printf("%d\n", num);
+    return num;
+}
+bool get_bool(bool bool_in, int num_2) {
+    int num;
+    if (bool_in) {
+        num = 1;
+    } else {
+        num = 2;
+    }
+    printf("%d\n", num);
+    return bool_in;
+}
+
+long get_long(long num) {
+    printf("%ld\n", num);
+    return num;
+}
+
+void main () {
+    long a[3];
+    int i;
+
+    a[0] = 7L;
+    a[1] = 150L;
+
+    for (i = 0; a[1] > 5L; a[2] = get_long(long(i))) {
+        printf("%d\n", i, a[0], a[1], a[2]);
+
+        if (i % 2 == 0) {
+            i += 1;
+            continue;
+        }
+
+        if (i % 2 == 1) {
+            if (i == 15) {
+                break;
+            }
+            i += 1;
+        }
+    }
+}

@@ -1,0 +1,41 @@
+import printf;
+
+int get_int(int num) {
+    printf("%d\n", num);
+    return num;
+}
+bool get_bool(bool bool_in, int num_2) {
+    int num;
+    if (bool_in) {
+        num = 1;
+    } else {
+        num = 2;
+    }
+    printf("%d\n", num);
+    return bool_in;
+}
+
+long get_long(long num) {
+    printf("%ld\n", num);
+    return num;
+}
+
+long recursive(long in) {
+    long i[15];
+    long x;
+
+    for (x = 0L; x < long(len(i)); x++) {
+        i[int(x)] = ((in + x) * 7L);
+    }
+
+    if (in == 0L) {
+        return 0L;
+    } else {
+        printf("%ld\n", i[int(in % 15L)]);
+        return recursive(in - 1L) + i[int(in % 15L)];
+    }
+}
+
+void main () {
+    recursive(100L);
+}

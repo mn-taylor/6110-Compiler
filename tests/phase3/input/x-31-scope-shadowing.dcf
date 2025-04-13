@@ -1,0 +1,28 @@
+import printf;
+
+int x;
+void main() {
+  bool y;
+  x = 7;
+  y = true;
+  if (y) {
+    int x;
+    x = 0;
+    printf("x should be 0; x = %d\n", x);
+  }
+  if (y) {
+    int y;
+    y = 3;
+    printf("Sum should be 10; x + y = %d\n", x + y);
+  }
+  if (y) {
+    bool y;
+    y = false;
+
+    if (y) {
+      printf("This shouldnt print\n");
+    } else {
+      printf("We have mastered shadowing\n");
+    }
+  }
+}

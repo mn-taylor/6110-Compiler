@@ -1,0 +1,49 @@
+import printf;
+
+int get_int(int num) {
+    printf("%d\n", num);
+    return num;
+}
+bool get_bool(bool bool_in) {
+    int num;
+    if (bool_in) {
+        num = 1;
+    } else {
+        num = 2;
+    }
+    return bool_in;
+}
+
+long get_long(long num) {
+    printf("%ld\n", num);
+    return num;
+}
+void main () {
+    int i;
+
+    for (i = get_int(0); i < get_int(15); i++) {
+        while (get_bool(true)) {
+            if (get_bool(true)) {
+                if (get_bool(true)) {
+                    get_int(100);
+                    break;
+                } else {
+                    get_int(-777);
+                    // Should never get here
+                    continue;
+                }
+            } else {
+                get_int(-888);
+                // Should never get here
+                continue;
+            }
+            get_int(-555);
+        }
+        get_int(i);
+        if (i < get_int(15)) {
+            continue;
+            get_int(-999);
+        }
+        get_int(-666);
+    }
+}

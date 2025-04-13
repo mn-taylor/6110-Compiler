@@ -1,0 +1,23 @@
+import printf;
+
+// Make sure this doesn't get optimized away
+long get_long(long num) {
+    return num;
+}
+
+int get_int(int num) {
+    return num;
+}
+
+void main() {
+    long i;
+    int j;
+
+    j = get_int(11);
+
+    for (i = get_long(0L); i < long(j); i++) {
+         printf("%d\n", i);
+    }
+}
+
+

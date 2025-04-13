@@ -1,0 +1,38 @@
+import printf;
+
+int get_int(int num) {
+    printf("%d\n", num);
+    return num;
+}
+bool get_bool(bool bool_in) {
+    int num;
+    if (bool_in) {
+        num = 1;
+    } else {
+        num = 2;
+    }
+    printf("%d\n", num);
+    return bool_in;
+}
+
+long get_long(long num) {
+    printf("%ld\n", num);
+    return num;
+}
+
+void main () {
+    int a;
+    int b;
+    int c;
+    int d;
+    int e;
+
+    // Testing associtvity of arithmetic operations
+    a = get_int(1) + get_int(2) + get_int(3);
+    b = get_int(4) - get_int(5) - get_int(6);
+    c = get_int(7) * get_int(8) * get_int(9);
+    d = get_int(20) / get_int(2) / get_int(5);
+    e = get_int(21) % get_int(8) % get_int(4);
+
+    printf("%d, %d, %d, %d, %d\n", a, b, c, d, e);
+}

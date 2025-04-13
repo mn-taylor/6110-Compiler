@@ -1,0 +1,68 @@
+import printf;
+
+int get_int(int num) {
+    printf("%d\n", num);
+    return num;
+}
+
+int get_char(int num) {
+    if (num % 7 == 0) {
+        printf("%d, A\n", num);
+        return 'A' + num % 7;
+    } else {
+        if (num % 7 == 1) {
+            printf("%d, B\n", num);
+            return 'B' - num % 7;
+        } else {
+            if (num % 7 == 2) {
+                printf("%d, C\n", num);
+                return 'C' + num % 7;
+            } else {
+                if (num % 7 == 3) {
+                    printf("%d, D\n", num);
+                    return 'D' - num % 7;
+                } else {
+                    if (num % 7 == 4) {
+                    printf("%d, E\n", num);
+                        return 'E'+ num % 7;
+                    } else {
+                        if (num % 7 == 5) {
+                            printf("%d, F\n", num);
+                            return 'F' + num % 7;
+                        } else {
+                            printf("%d, G\n", num);
+                            return 'G' - num % 7;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void main () {
+    int c[8];
+    int sum;
+    int i;
+
+    sum = 0;
+    c[0] = 'C';
+    c[1] = 'O';
+    c[2] = 'M';
+    c[3] = 'P';
+    c[4] = 'I';
+    c[5] = 'L';
+    c[6] = 'E';
+    c[7] = 'R';
+
+    for (i = 0; i < 8; i++) {
+        sum += get_int(c[i]) + get_char(c[i]);
+        get_int(sum);
+    }
+
+    for (i = 0; i < 8; i++) {
+        // Make sure the array is still intact
+        get_int(c[i]);
+    }
+    get_int(sum);
+}

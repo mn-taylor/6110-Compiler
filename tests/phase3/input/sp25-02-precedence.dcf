@@ -1,0 +1,32 @@
+import printf;
+
+int get_int(int num) { return num; }
+bool get_bool(bool bool_in) { return bool_in; }
+long get_long(long num) { return num; }
+
+void main () {
+    int x;
+    bool y;
+    bool z;
+    long a;
+
+    int correct;
+    int correct2;
+
+    correct = 0;
+    correct2 = 0;
+
+    x = get_int(1) + get_int(1) * get_int(3);
+    y = get_int(3) < get_int(4) == get_bool(true);
+    z = get_int(3) > get_int(4) == get_bool(false);
+    a = get_long(1L) + get_long(1L) * long(get_int(3));
+
+    if (y == true) {
+        correct = 1;
+    }
+    if (z == true) {
+        correct2 = 1;
+    }
+
+    printf("%d, %d, %d, %d\n", x, correct, correct2, int(a));
+}

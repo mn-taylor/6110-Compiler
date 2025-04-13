@@ -1,0 +1,40 @@
+import printf;
+
+int get_int(int num) { return num; }
+bool get_bool(bool bool_in) { return bool_in; }
+long get_long(long num) { return num; }
+
+void main () {
+    int a;
+    long b;
+    int c;
+
+    int d;
+    long e;
+    int f;
+
+    long g;
+    int h;
+
+    long i;
+    int j;
+
+
+    // Since this is all within bounds, it must not be corrupted
+    a = get_int(100);
+    b = long(a);
+    c = int(b);
+
+    d = get_int(-200);
+    e = long(a);
+    f = int(b);
+
+    // Same with long -> int
+    g = get_long(300L);
+    h = int(g);
+
+    i = get_long(-400L);
+    j = int(i);
+
+    printf("%d, %d, %d, %d\n", c, f, h, j);
+}

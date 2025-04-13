@@ -1,0 +1,36 @@
+import printf;
+
+int get_int(int num) {
+    printf("%d\n", num);
+    return num;
+}
+bool get_bool(bool bool_in, int num_2) {
+    int num;
+    if (bool_in) {
+        num = 1;
+    } else {
+        num = 2;
+    }
+    printf("%d\n", num);
+    return bool_in;
+}
+
+long get_long(long num) {
+    printf("%ld\n", num);
+    return num;
+}
+
+void main () {
+    bool a;
+    bool b;
+
+    // Testing associativity of and/or
+    // We told the students they did not have to short circuit inside expressions
+    // but this test works regardless of if they short circuit
+    a = get_bool(true, get_int(1)) && get_bool(true, get_int(2)) && get_bool(true, get_int(3));
+    b = get_bool(false, get_int(4)) || get_bool(false, get_int(5)) || get_bool(false, get_int(6));
+
+    // Call the get_bool function to print
+    get_bool(a, 7);
+    get_bool(b, 8);
+}

@@ -1,0 +1,40 @@
+import printf;
+
+int get_int(int num) {
+    printf("%d\n", num);
+    return num;
+}
+bool get_bool(bool bool_in, int num_2) {
+    int num;
+    if (bool_in) {
+        num = 1;
+    } else {
+        num = 2;
+    }
+    printf("%d\n", num);
+    return bool_in;
+}
+
+long get_long(long num) {
+    printf("%ld\n", num);
+    return num;
+}
+
+void main () {
+    int a;
+    int b;
+    int c;
+
+    // Go to the edge of INT.MAX_VALUE
+    a = get_int(2147483647);
+    // Now, go to the smallest value by subtracting
+    b = int(long(get_int(a)) + get_long(-4294967295L));
+    // This must be uncorrupted and the value of INT.MIN_VALUE
+    c = get_int(b);
+
+    // Now in reverse
+    a = get_int(-2147483648);
+    b = int(long(get_int(a)) + get_long(4294967295L));
+    // This must be uncorrupted and the value of INT.MAX_VALUE
+    c = get_int(b);
+}
