@@ -1,12 +1,21 @@
+import printf;
+
 void main() {
-    int x;
-    x = 1;
+    int a;
+    long b;
+    int c;
+    long d;
+    int e;
+    long f;
 
-    if(x==1){
-        x = 5;
-    }else{
-        x = 6;
-    }
+    a = 5;
+    b = 15L;
+    c = int(25L);
+    d = long(35);
 
-    x = 1;
+    c = int(c);
+    d = long(d);
+    e = int(d);
+
+    printf("%d %ld %d %ld\n", a, b, c, d, e);
 }

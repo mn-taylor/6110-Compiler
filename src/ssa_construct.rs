@@ -25,7 +25,7 @@ fn add_block_to_var_def(
     }
 }
 
-fn var_to_def_locs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<BlockLabel>> {
+pub fn var_to_def_locs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<BlockLabel>> {
     let mut def: HashMap<VarLabel, HashSet<BlockLabel>> = HashMap::new();
 
     for (label, block) in m.blocks.iter() {
@@ -260,6 +260,10 @@ pub fn insert_phis(m: &mut CfgMethod) -> &CfgMethod {
 
         while W.len() != 0 {
             let X = W.pop().unwrap();
+            if dom_frontier.get(&X).is_none() {
+                continue;
+            }
+
             for Y in dom_frontier.get(&X).unwrap() {
                 if !F.contains(Y) {
                     let block = m.blocks.get_mut(Y).unwrap();
@@ -284,7 +288,7 @@ pub fn insert_phis(m: &mut CfgMethod) -> &CfgMethod {
     return m;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct SSAVarLabel {
     pub name: u32,
     pub version: u32,
@@ -513,8 +517,9 @@ fn rewrite_instr(
 pub fn rename_variables(
     method: &CfgMethod,
     dominance_tree: &HashMap<BlockLabel, HashSet<BlockLabel>>,
-    all_fields: HashSet<VarLabel>,
 ) -> cfg::CfgMethod<SSAVarLabel> {
+    let all_fields: HashSet<u32> = method.fields.keys().map(|c| (*c).clone()).collect();
+
     // initalize latest names
     let mut latest_defs: HashMap<u32, u32> = HashMap::new();
     for name in all_fields.iter() {
@@ -546,8 +551,6 @@ pub fn rename_variables(
             },
         );
     }
-
-    println!("{:?}", reaching_defs.get(&0));
 
     let mut agenda: Vec<usize> = vec![0];
     while agenda.len() != 0 {
@@ -588,8 +591,6 @@ pub fn rename_variables(
         }
     }
 
-    println!("{:?}", reaching_defs.get(&0));
-
     // after the loop, we must still indicate the sources for each of the phi nodes.
     for block in ssa_method.blocks.values_mut() {
         for instruction in block.body.iter_mut() {
@@ -600,6 +601,7 @@ pub fn rename_variables(
                         .iter()
                         .map(|parent| {
                             // println!("{}, {}, {:?}", parent, dest, reaching_defs.get(parent));
+
                             (
                                 *parent,
                                 reaching_defs
@@ -619,4 +621,17 @@ pub fn rename_variables(
     }
 
     ssa_method
+}
+
+pub fn construct(m: &mut CfgMethod) -> cfg::CfgMethod<SSAVarLabel> {
+    // build useful data structures
+    let g = get_graph(m);
+    let dominance_sets = dominator_sets(0, &g);
+    let dominance_tree = dominator_tree(m, &dominance_sets);
+
+    // Insert Phis
+    insert_phis(m);
+
+    // Rename Variable
+    rename_variables(m, &dominance_tree)
 }

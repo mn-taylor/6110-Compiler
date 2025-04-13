@@ -8,6 +8,7 @@ use decaf_skeleton_rust::parse;
 use decaf_skeleton_rust::scan;
 use decaf_skeleton_rust::semantics;
 use decaf_skeleton_rust::ssa_construct;
+use decaf_skeleton_rust::ssa_destruct;
 
 fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
     match output {
@@ -166,31 +167,23 @@ fn main() {
                 panic!("your program has semantic errors");
             }
             let mut p = cfg_build::lin_program(&prog);
+
+            // test ssa construction and destruction
+            p.methods = p
+                .methods
+                .iter_mut()
+                .map(|c| {
+                    let mut ssa_method = ssa_construct::construct(c);
+                    let result = ssa_destruct::destruct(&mut ssa_method);
+                    result
+                })
+                .collect::<Vec<_>>();
+
             if args.debug {
                 println!("{}", p);
             }
             for l in asm::asm_program(&p, args.mac) {
                 writeln!(writer, "{}", l).unwrap();
-            }
-
-            for method in p.methods.iter_mut() {
-                let g = ssa_construct::get_graph(method);
-                let dom_sets = ssa_construct::dominator_sets(0, &g);
-                let dom_tree = ssa_construct::dominator_tree(method, &dom_sets);
-                let dom_frontiers =
-                    ssa_construct::dominance_frontiers(g, &dom_sets, &dom_tree.clone());
-
-                let phied_method = ssa_construct::insert_phis(method);
-
-                let all_fields: HashSet<u32> = method
-                    .fields
-                    .keys()
-                    .collect::<Vec<_>>() // probably a better way to remove the references
-                    .iter()
-                    .map(|c| **c)
-                    .collect::<HashSet<_>>();
-                let ssa_method = ssa_construct::rename_variables(method, &dom_tree, all_fields);
-                println!("{}", ssa_method);
             }
         }
     }
