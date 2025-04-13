@@ -139,7 +139,16 @@ pub enum Instruction<VarLabel> {
 impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Instruction::PhiExpr { dest, sources } => write!(f, "t{dest} = phi({:?})", sources),
+            Instruction::PhiExpr { dest, sources } => {
+                let sources_str = sources
+                    .iter()
+                    .map(|(block, var)| format!("({},  t{})", block, var))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                // Final print: "dest = phi [block -> var, block -> var, ...]"
+                write!(f, "t{} = phi ({})", dest, sources_str)
+            }
             Instruction::ThreeOp {
                 source1,
                 source2,
