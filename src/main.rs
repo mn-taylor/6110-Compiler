@@ -167,8 +167,6 @@ fn main() {
             }
             let mut p = cfg_build::lin_program(&prog);
 
-            /**
-
             // test ssa construction and destruction
             p.methods = p
                 .methods
@@ -189,7 +187,7 @@ fn main() {
                     result
                 })
                 .collect::<Vec<_>>();
-                */
+
             // if args.debug {
             //     println!("{}", p);
             // }

@@ -234,6 +234,11 @@ pub fn insert_phis(m: &mut CfgMethod) -> &CfgMethod {
 
     // Algorithm 3.1 in SSA-Based Compiler Design
     for (var, defs) in var_defs.iter() {
+        if !m.fields.contains_key(var) {
+            // no need to insert phi functions for global variables.
+            continue;
+        }
+
         let mut f: HashSet<BlockLabel> = HashSet::new();
         let mut w: Vec<BlockLabel> = vec![];
 
@@ -325,8 +330,6 @@ fn rewrite_dest(
         };
 
         latest_defs.insert(dest, curr_version + 1);
-        let block_vars = reaching_defs.get_mut(&block_id).unwrap();
-        block_vars.insert(dest, new_dest.clone());
     } else {
         // global variable
         new_dest = SSAVarLabel {
@@ -334,6 +337,9 @@ fn rewrite_dest(
             version: 0,
         };
     }
+
+    let block_vars = reaching_defs.get_mut(&block_id).unwrap();
+    block_vars.insert(dest, new_dest.clone());
 
     new_dest
 }
@@ -582,8 +588,6 @@ pub fn rename_variables(
                         .parents
                         .iter()
                         .map(|parent| {
-                            // println!("{}, {}, {:?}", parent, dest, reaching_defs.get(parent));
-
                             (
                                 *parent,
                                 reaching_defs

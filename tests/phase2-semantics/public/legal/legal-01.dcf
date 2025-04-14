@@ -1,24 +1,69 @@
+import printf;
+
+// Global variables
+bool globalFlag;
+int globalX;
+long bigCounter;
+int data[5];
+
 void main() {
-   int x;
-   int y;
-   int temp;
+  // Local declarations at start
+  int i;
+  int j;
+  bool localFlag;
+  long sum;
+  int globalX;     // Shadows global 'globalX'
+  long longArray[3];
+  bool weird;
 
-   while (x > 0) {
-      if (x == y) {
-         y = 0;
-         x = 0;
-      } else {
-         temp = x;
-         x = y;
-         y = temp;
-         if (false) {
-            break;
-         }
-      }
+  // Boolean and long interactions
+  globalFlag = true;
+  localFlag = false;
+  weird = globalFlag && !localFlag || false && true; // Should be: true && true || false = true
 
-      x = x + y;
+  // Initialize long array
+  longArray[0] = 1000000000L;
+  longArray[1] = longArray[0] + 42L;
+  longArray[2] = longArray[1] * 2L;
 
-   }
+  // Modify shadowed and global vars
+  globalX = 123;         // Local one
+  bigCounter = 1L;
 
-   return;
+  // Empty loop with bool condition
+  for (i = 0; i < 0 && false; i = i + 1) {
+    // Nothing
+  }
+
+  // Fill data with conditional logic based on index
+  for (i = 0; i < 5; i = i + 1) {
+    if (i % 2 == 0) {
+      data[i] = i * 2;
+    } else {
+      data[i] = -i;
+    }
+  }
+
+  // Use a long accumulator
+  sum = 0L;
+  for (j = 0; j < 5; j = j + 1) {
+    sum = sum + long(data[j]);
+    bigCounter = bigCounter * 2L;
+  }
+
+  // Output section
+  printf("weird = %d\n", weird);        // Should be 1 (true)
+  printf("local globalX = %d\n", globalX); // 123
+  printf("global bigCounter = %ld\n", bigCounter); // 2^5 = 32
+  printf("sum = %ld\n", sum);           // Depends on data array
+
+  // Print long array
+  for (i = 0; i < 3; i = i + 1) {
+    printf("longArray[%d] = %ld\n", i, longArray[i]);
+  }
+
+  // Print int array
+  for (i = 0; i < 5; i = i + 1) {
+    printf("data[%d] = %d\n", i, data[i]);
+  }
 }
