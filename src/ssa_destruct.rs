@@ -132,7 +132,14 @@ fn destruct_instruction(
     all_fields: &mut HashMap<u32, (CfgType, String)>,
 ) -> Instruction<VarLabel> {
     match instr {
-        Instruction::ParMov(_) => panic!("these should not be here yet"),
+        Instruction::ParMov(movs) => Instruction::ParMov(
+            movs.iter()
+                .map(|mov| cfg::OneMove {
+                    dest: convert_name(&mov.dest, coallesced_name, lookup, all_fields),
+                    src: convert_name(&mov.dest, coallesced_name, lookup, all_fields),
+                })
+                .collect(),
+        ),
         Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             name: convert_name(&name, coallesced_name, lookup, all_fields),
