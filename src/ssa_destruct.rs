@@ -81,7 +81,7 @@ fn convert_name(
     match lookup.get(&name) {
         Some(flat_name) => *flat_name,
         None => {
-            let new_name = all_fields.len() + 1;
+            let new_name = *all_fields.keys().max().unwrap() as usize + 1;
             lookup.insert(name.clone(), new_name as u32);
 
             // println!(
@@ -89,6 +89,10 @@ fn convert_name(
             //     all_fields.len(),
             //     new_name
             // );
+
+            println!("original name {}, lookup: {:?}", name.name, lookup.keys());
+
+            // println!("coalesced: {:?}", coallesced_name.keys());
 
             // update all_fields
             let original_var = lookup
