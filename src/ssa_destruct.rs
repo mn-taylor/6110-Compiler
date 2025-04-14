@@ -76,11 +76,19 @@ fn convert_name(
         None => var,
     };
 
+    // println!("all fields keys: {:?}", all_fields.keys());
+
     match lookup.get(&name) {
         Some(flat_name) => *flat_name,
         None => {
-            let new_name = all_fields.len();
+            let new_name = all_fields.len() + 1;
             lookup.insert(name.clone(), new_name as u32);
+
+            // println!(
+            //     "BEFORE field len: {}, coallesced name: {}",
+            //     all_fields.len(),
+            //     new_name
+            // );
 
             // update all_fields
             let original_var = lookup
@@ -93,6 +101,12 @@ fn convert_name(
                 new_name as u32,
                 all_fields.get(original_var).unwrap().clone(),
             );
+
+            // println!(
+            //     "AFTER field len: {}, coallesced name: {}",
+            //     all_fields.len(),
+            //     new_name
+            // );
 
             new_name as u32
         }
