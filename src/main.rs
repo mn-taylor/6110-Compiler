@@ -169,15 +169,15 @@ fn main() {
             let mut p = cfg_build::lin_program(&prog);
 
             // test ssa construction and destruction
-            // p.methods = p
-            //     .methods
-            //     .iter_mut()
-            //     .map(|c| {
-            //         let mut ssa_method = ssa_construct::construct(c);
-            //         let result = ssa_destruct::destruct(&mut ssa_method);
-            //         result
-            //     })
-            //     .collect::<Vec<_>>();
+            p.methods = p
+                .methods
+                .iter_mut()
+                .map(|c| {
+                    let mut ssa_method = ssa_construct::construct(c);
+                    let result = ssa_destruct::destruct(&mut ssa_method);
+                    result
+                })
+                .collect::<Vec<_>>();
 
             if args.debug {
                 println!("{}", p);
