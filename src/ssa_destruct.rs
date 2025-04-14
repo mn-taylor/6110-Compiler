@@ -5,6 +5,37 @@ use crate::ssa_construct::SSAVarLabel;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+fn union(
+    a: SSAVarLabel,
+    b: SSAVarLabel,
+    sets: Vec<HashSet<SSAVarLabel>>,
+) -> Vec<HashSet<SSAVarLabel>> {
+    let mut a_set = None;
+    let mut b_set = None;
+    let mut new_sets = Vec::new();
+    for set in sets {
+        if set.contains(&a) {
+            a_set = Some(set);
+        } else if set.contains(&b) {
+            b_set = Some(set);
+        } else {
+            new_sets.push(set);
+        }
+    }
+    let a_set = match a_set {
+        Some(a_set) => a_set,
+        None => HashSet::from_iter(vec![a].into_iter()),
+    };
+    let b_set = match b_set {
+        Some(b_set) => b_set,
+        None => HashSet::from_iter(vec![b].into_iter()),
+    };
+
+    let new_set: HashSet<_> = a_set.union(&b_set).map(|x| x.clone()).collect();
+    new_sets.push(new_set);
+    new_sets
+}
+
 // fn get_phi_webs
 fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarLabel>> {
     let mut phi_web: HashMap<SSAVarLabel, HashSet<SSAVarLabel>> = HashMap::new();
@@ -229,10 +260,9 @@ pub fn destruct(ssa_method: &mut cfg::CfgMethod<SSAVarLabel>) -> CfgMethod {
     // collapse all var labels in the web into the same name
     for web in webs {
         let new_name = web.iter().min_by_key(|c| c.version).unwrap();
-        let _ = web
-            .iter()
-            .map(|var| coallesced_name.insert(var.clone(), new_name.clone()))
-            .collect::<Vec<_>>();
+        for var in web.iter() {
+            coallesced_name.insert(var.clone(), new_name.clone());
+        }
     }
 
     println!("new_names {:?}\n\n", coallesced_name);
