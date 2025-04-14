@@ -180,6 +180,10 @@ fn main() {
                     if args.debug {
                         println!("method after ssa construction: \n{}", ssa_method);
                     }
+                    ssa_destruct::split_crit_edges(&mut ssa_method);
+                    if args.debug {
+                        println!("method after splitting edges: \n{ssa_method}");
+                    }
                     let result = ssa_destruct::destruct(&mut ssa_method);
                     if args.debug {
                         println!("method after ssa destruction: \n{}", result);

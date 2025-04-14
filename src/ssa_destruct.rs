@@ -319,7 +319,7 @@ fn change_parent<T>(old: BlockLabel, new: BlockLabel, blk_insns: &mut Vec<Instru
 }
 
 // algorithm 3.5 of SSA book
-fn split_crit_edges(method: &mut cfg::CfgMethod<SSAVarLabel>) {
+pub fn split_crit_edges(method: &mut cfg::CfgMethod<SSAVarLabel>) {
     let cfg = &mut method.blocks;
     cfg_build::get_parents(cfg);
     let all_lbls: HashSet<BlockLabel> = cfg.keys().map(|x| *x).collect();
