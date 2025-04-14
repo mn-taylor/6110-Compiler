@@ -39,24 +39,17 @@ fn union(
 
 // fn get_phi_webs
 fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarLabel>> {
-    let mut phi_web: HashMap<SSAVarLabel, HashSet<SSAVarLabel>> = HashMap::new();
+    let mut phi_web: Vec<HashSet<SSAVarLabel>> = vec![];
 
     // initalize each phi web
     for block in ssa_method.blocks.values() {
         for instruction in block.body.iter() {
             match instruction {
                 Instruction::PhiExpr { dest, sources } => {
-                    phi_web.insert(
-                        dest.clone(),
-                        [dest].iter().map(|c| (*c).clone()).collect::<HashSet<_>>(),
-                    );
-                    let _ = sources
+                    phi_web.push(hashset! {dest.clone()});
+                    sources
                         .iter()
-                        .map(|(_, var)| {
-                            phi_web
-                                .insert(var.clone(), [var].iter().map(|c| (*c).clone()).collect())
-                        })
-                        .collect::<Vec<_>>();
+                        .for_each(|(_, var)| phi_web.push(hashset!(var.clone())));
                 }
                 _ => break,
             }
@@ -67,19 +60,8 @@ fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarL
         for instruction in block.body.iter() {
             match instruction {
                 Instruction::PhiExpr { dest, sources } => {
-                    let new_web: HashSet<SSAVarLabel> = sources
-                        .iter()
-                        .fold(HashSet::new(), |accum, (_, var)| {
-                            accum.union(phi_web.get(var).unwrap()).cloned().collect()
-                        })
-                        .union(&hashset! {dest.clone()})
-                        .cloned()
-                        .collect();
-
-                    // insert set new web for each phi related node
-                    phi_web.insert(dest.clone(), new_web.clone());
-                    let _ = sources.iter().for_each(|(_, var)| {
-                        phi_web.insert(var.clone(), new_web.clone());
+                    sources.iter().for_each(|(_, var)| {
+                        phi_web = union(dest.clone(), var.clone(), phi_web.clone());
                     });
                 }
                 _ => break,
@@ -87,18 +69,7 @@ fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarL
         }
     }
 
-    let mut webs: Vec<HashSet<SSAVarLabel>> = vec![];
-    // get rid of redundant webs
-    while phi_web.len() != 0 {
-        let (_, set) = phi_web.iter_mut().next().unwrap();
-        webs.push(set.clone());
-
-        for ssa_var in set.clone().iter() {
-            phi_web.remove(ssa_var);
-        }
-    }
-
-    return webs;
+    return phi_web;
 }
 
 fn convert_name(
