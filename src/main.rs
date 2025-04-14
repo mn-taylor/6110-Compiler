@@ -172,15 +172,25 @@ fn main() {
                 .methods
                 .iter_mut()
                 .map(|c| {
+                    if args.debug {
+                        println!("looking at method {}", c.name);
+                        println!("method before ssa: \n{}", c);
+                    }
                     let mut ssa_method = ssa_construct::construct(c);
+                    if args.debug {
+                        println!("method after ssa construction: \n{}", ssa_method);
+                    }
                     let result = ssa_destruct::destruct(&mut ssa_method);
+                    if args.debug {
+                        println!("method after ssa destruction: \n{}", result);
+                    }
                     result
                 })
                 .collect::<Vec<_>>();
 
-            if args.debug {
-                println!("{}", p);
-            }
+            // if args.debug {
+            //     println!("{}", p);
+            // }
             for l in asm::asm_program(&p, args.mac) {
                 writeln!(writer, "{}", l).unwrap();
             }
