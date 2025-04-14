@@ -123,6 +123,9 @@ fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>, prune: bool) {
         }
     }
     blks.retain(|b, _| visited.contains(b));
+
+    // fix screwed-up parents
+    get_parents(blks);
 }
 
 // might be prettier to have parents separate from cfg.  fewer things to worry about.  debatable.
