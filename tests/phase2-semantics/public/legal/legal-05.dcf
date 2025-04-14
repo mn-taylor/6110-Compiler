@@ -1,21 +1,11 @@
 import printf;
-
-void main() {
-    int a;
-    long b;
-    int c;
-    long d;
-    int e;
-    long f;
-
-    a = 5;
-    b = 15L;
-    c = int(25L);
-    d = long(35);
-
-    c = int(c);
-    d = long(d);
-    e = int(d);
-
-    printf("%d %ld %d %ld\n", a, b, c, d, e);
+void main ( ) {
+  int i;
+  for ( i = 1; i < 10; i += 1 ) {
+    if ( i == 7 ) {
+      break;
+    }
+    printf ( "%d ", i );
+  }
+  printf ( "\n" );
 }

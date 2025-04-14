@@ -66,17 +66,20 @@ fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarL
 }
 
 fn convert_name(
-    var: SSAVarLabel,
+    var: &SSAVarLabel,
     coallesced_name: &HashMap<SSAVarLabel, SSAVarLabel>,
     lookup: &mut HashMap<SSAVarLabel, VarLabel>,
     all_fields: &mut HashMap<u32, (CfgType, String)>,
 ) -> VarLabel {
     let name = match coallesced_name.get(&var) {
         Some(new_name) => new_name.clone(),
-        None => var,
+        None => var.clone(),
     };
 
-    // println!("all fields keys: {:?}", all_fields.keys());
+    // check if this is a global variable
+    if !all_fields.contains_key(&var.name) {
+        return var.name;
+    }
 
     match lookup.get(&name) {
         Some(flat_name) => *flat_name,
@@ -125,14 +128,14 @@ fn destruct_instruction(
 ) -> Instruction<VarLabel> {
     match instr {
         Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
-            dest: convert_name(dest, coallesced_name, lookup, all_fields),
-            name: convert_name(name, coallesced_name, lookup, all_fields),
-            idx: convert_name(idx, coallesced_name, lookup, all_fields),
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
+            name: convert_name(&name, coallesced_name, lookup, all_fields),
+            idx: convert_name(&idx, coallesced_name, lookup, all_fields),
         },
         Instruction::ArrayStore { source, arr, idx } => Instruction::ArrayStore {
-            source: convert_name(source, coallesced_name, lookup, all_fields),
-            arr: convert_name(arr, coallesced_name, lookup, all_fields),
-            idx: convert_name(idx, coallesced_name, lookup, all_fields),
+            source: convert_name(&source, coallesced_name, lookup, all_fields),
+            arr: convert_name(&arr, coallesced_name, lookup, all_fields),
+            idx: convert_name(&idx, coallesced_name, lookup, all_fields),
         },
         Instruction::Call(string, args, opt_ret_val) => {
             let new_args = args
@@ -140,7 +143,7 @@ fn destruct_instruction(
                 .map(|arg| match arg {
                     Arg::StrArg(string) => Arg::StrArg(string.to_string()),
                     Arg::VarArg(var) => Arg::VarArg(convert_name(
-                        var.clone(),
+                        &var.clone(),
                         coallesced_name,
                         lookup,
                         all_fields,
@@ -148,18 +151,18 @@ fn destruct_instruction(
                 })
                 .collect::<Vec<_>>();
             let new_ret_val = match opt_ret_val {
-                Some(ret_var) => Some(convert_name(ret_var, coallesced_name, lookup, all_fields)),
+                Some(ret_var) => Some(convert_name(&ret_var, coallesced_name, lookup, all_fields)),
                 None => None,
             };
             Instruction::Call(string, new_args, new_ret_val)
         }
         Instruction::Constant { dest, constant } => Instruction::Constant {
-            dest: convert_name(dest, coallesced_name, lookup, all_fields),
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             constant: constant,
         },
         Instruction::MoveOp { source, dest } => Instruction::MoveOp {
-            source: convert_name(source, coallesced_name, lookup, all_fields),
-            dest: convert_name(dest, coallesced_name, lookup, all_fields),
+            source: convert_name(&source, coallesced_name, lookup, all_fields),
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
         },
         Instruction::ThreeOp {
             source1,
@@ -167,24 +170,27 @@ fn destruct_instruction(
             dest,
             op,
         } => Instruction::ThreeOp {
-            source1: convert_name(source1, coallesced_name, lookup, all_fields),
-            source2: convert_name(source2, coallesced_name, lookup, all_fields),
-            dest: convert_name(dest, coallesced_name, lookup, all_fields),
+            source1: convert_name(&source1, coallesced_name, lookup, all_fields),
+            source2: convert_name(&source2, coallesced_name, lookup, all_fields),
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             op: op.clone(),
         },
         Instruction::TwoOp { source1, dest, op } => Instruction::TwoOp {
-            source1: convert_name(source1, coallesced_name, lookup, all_fields),
-            dest: convert_name(dest, coallesced_name, lookup, all_fields),
+            source1: convert_name(&source1, coallesced_name, lookup, all_fields),
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             op: op.clone(),
         },
         Instruction::PhiExpr { dest, .. } => Instruction::PhiExpr {
-            dest: convert_name(dest, coallesced_name, lookup, all_fields),
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             sources: vec![], // don't care about these anymore
         },
         Instruction::Ret(opt_ret_val) => match opt_ret_val {
-            Some(var) => {
-                Instruction::Ret(Some(convert_name(var, coallesced_name, lookup, all_fields)))
-            }
+            Some(var) => Instruction::Ret(Some(convert_name(
+                &var,
+                coallesced_name,
+                lookup,
+                all_fields,
+            ))),
             None => Instruction::Ret(None),
         },
     }
@@ -204,7 +210,7 @@ pub fn destruct_jump(
             true_block,
             false_block,
         } => Jump::Cond {
-            source: convert_name(source, coallesced_name, lookup, all_fields),
+            source: convert_name(&source, coallesced_name, lookup, all_fields),
             true_block: true_block,
             false_block: false_block,
         },

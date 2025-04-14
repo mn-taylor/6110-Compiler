@@ -63,7 +63,7 @@ impl State {
     }
 }
 
-fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>) {
+fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>, prune: bool) {
     get_parents(blks);
     let mut lbls_set: HashSet<BlockLabel> = blks.keys().map(|x| *x).collect();
     // for each parent, see if we can glue parent with its child
@@ -72,6 +72,14 @@ fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>) {
     while let Some(parent_lbl) = lbls_set.iter().next() {
         let parent_lbl = *parent_lbl;
         let parent = blks.get(&parent_lbl).unwrap().clone();
+
+        if prune {
+            if parent.parents.len() == 0 && parent_lbl != 0 {
+                blks.remove(&parent_lbl);
+                lbls_set.remove(&parent_lbl);
+            }
+        }
+
         match parent.jump_loc {
             Jump::Uncond(child_lbl) => {
                 let child = blks.get_mut(&child_lbl).unwrap();
@@ -234,7 +242,7 @@ pub fn lin_method(
         })
         .collect::<Vec<_>>();
 
-    collapse_jumps(&mut st.all_blocks);
+    collapse_jumps(&mut st.all_blocks, false);
     // get_parents(&mut st.all_blocks);
     CfgMethod {
         name: method.name.val.to_string(),

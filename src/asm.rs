@@ -633,7 +633,11 @@ fn asm_instruction(
             if external_funcs.contains(&func_name) && mac {
                 instructions.push(format!("\tcall _{}", func_name));
             } else {
-                instructions.push(format!("\tcall {}", func_name));
+                if func_name == "main".to_string() && mac {
+                    instructions.push(format!("\tcall _{}", func_name));
+                } else {
+                    instructions.push(format!("\tcall {}", func_name));
+                }
             }
 
             // store return value into temp
