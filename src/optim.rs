@@ -97,7 +97,9 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
     let copy_lookup: &mut HashMap<SSAVarLabel, SSAVarLabel> = &mut HashMap::new();
     let mut agenda: Vec<usize> = vec![0];
 
-    while agenda.len() != 0 {
+    let mut num_iters = 0;
+
+    while agenda.len() != 0 && num_iters < 2 {
         let curr = agenda.pop().unwrap();
         let curr_block = method.blocks.get(&curr).unwrap();
 
@@ -109,7 +111,15 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
             // check for new copies and update table
             match new_instr {
                 Instruction::MoveOp { source, dest } => {
-                    copy_lookup.insert(dest, source);
+                    match method.fields.get(&source.name.clone()) {
+                        Some(_) => {
+                            copy_lookup.insert(dest, source);
+                        }
+                        None => new_instructions.push(Instruction::MoveOp {
+                            source: source,
+                            dest: dest,
+                        }),
+                    }
                 }
                 _ => {
                     new_instructions.push(new_instr); // We can get rid of all copy instructions!! I think
@@ -130,6 +140,11 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
         match dom_tree.get(&curr) {
             Some(children) => agenda.extend(children.iter().collect::<Vec<_>>()),
             None => {}
+        }
+
+        if agenda.len() == 0 {
+            num_iters += 1;
+            agenda.push(0);
         }
     }
 

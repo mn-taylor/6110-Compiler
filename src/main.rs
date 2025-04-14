@@ -9,6 +9,8 @@ use decaf_skeleton_rust::semantics;
 use decaf_skeleton_rust::ssa_construct;
 use decaf_skeleton_rust::ssa_destruct;
 
+use decaf_skeleton_rust::optim;
+
 fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
     match output {
         Some(path) => Box::new(std::fs::File::create(path.as_path()).unwrap()),
@@ -180,6 +182,12 @@ fn main() {
                     if args.debug {
                         println!("method after ssa construction: \n{}", ssa_method);
                     }
+                    let mut optimized_method = optim::copy_propagation(&mut ssa_method);
+                    if args.debug {
+                        println!("method after constant propagation: \n{}", optimized_method);
+                    }
+
+                    let result = ssa_destruct::destruct(&mut optimized_method);
                     ssa_destruct::split_crit_edges(&mut ssa_method);
                     if args.debug {
                         println!("method after splitting edges: \n{ssa_method}");

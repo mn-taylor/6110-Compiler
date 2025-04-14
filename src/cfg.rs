@@ -190,7 +190,7 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
                 "call {}({})",
                 name,
                 args.iter()
-                    .map(|arg| arg.to_string())
+                    .map(|arg| format!("t{}", arg))
                     .collect::<Vec<_>>()
                     .join(", ")
             ),

@@ -130,26 +130,59 @@ fn destruct_instruction(
     coallesced_name: &HashMap<SSAVarLabel, SSAVarLabel>,
     lookup: &mut HashMap<SSAVarLabel, VarLabel>,
     all_fields: &mut HashMap<u32, (CfgType, String)>,
-) -> Instruction<VarLabel> {
+) -> Vec<Instruction<VarLabel>> {
     match instr {
-        Instruction::ParMov(movs) => Instruction::ParMov(
-            movs.iter()
-                .map(|mov| cfg::OneMove {
-                    dest: convert_name(&mov.dest, coallesced_name, lookup, all_fields),
-                    src: convert_name(&mov.dest, coallesced_name, lookup, all_fields),
-                })
-                .collect(),
-        ),
-        Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
+        Instruction::ParMov(copies) => {
+            // algorithm 3.6 in SSA-Based Compiler Design
+            let mut all_srcs: HashSet<SSAVarLabel> = hashset! {};
+            let mut instructions: Vec<Instruction<VarLabel>> = vec![];
+            let _ = copies.iter().for_each(|om| {
+                all_srcs.insert(om.src.clone());
+            });
+
+            copies.iter().for_each(|om| {
+                if all_srcs.contains(&om.dest) {
+                    let source = convert_name(&om.src, coallesced_name, lookup, all_fields);
+
+                    // create new variable and add it to lookup and translations
+                    let inter_name = (*all_fields.keys().max().unwrap() as usize + 1) as u32;
+                    let inter_ssa_name = SSAVarLabel {
+                        name: inter_name,
+                        version: 1,
+                    };
+                    lookup.insert(inter_ssa_name, inter_name);
+                    all_fields.insert(inter_name, (*all_fields.get(&source).unwrap()).clone());
+
+                    let dest = convert_name(&om.dest, coallesced_name, lookup, all_fields);
+
+                    instructions.push(Instruction::MoveOp {
+                        source: source,
+                        dest: inter_name,
+                    });
+                    instructions.push(Instruction::MoveOp {
+                        source: inter_name,
+                        dest: dest,
+                    });
+                } else {
+                    instructions.push(Instruction::MoveOp {
+                        source: convert_name(&om.src, coallesced_name, lookup, all_fields),
+                        dest: convert_name(&om.dest, coallesced_name, lookup, all_fields),
+                    })
+                }
+            });
+
+            return instructions;
+        }
+        Instruction::ArrayAccess { dest, name, idx } => vec![Instruction::ArrayAccess {
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             name: convert_name(&name, coallesced_name, lookup, all_fields),
             idx: convert_name(&idx, coallesced_name, lookup, all_fields),
-        },
-        Instruction::ArrayStore { source, arr, idx } => Instruction::ArrayStore {
+        }],
+        Instruction::ArrayStore { source, arr, idx } => vec![Instruction::ArrayStore {
             source: convert_name(&source, coallesced_name, lookup, all_fields),
             arr: convert_name(&arr, coallesced_name, lookup, all_fields),
             idx: convert_name(&idx, coallesced_name, lookup, all_fields),
-        },
+        }],
         Instruction::Call(string, args, opt_ret_val) => {
             let new_args = args
                 .iter()
@@ -167,44 +200,44 @@ fn destruct_instruction(
                 Some(ret_var) => Some(convert_name(&ret_var, coallesced_name, lookup, all_fields)),
                 None => None,
             };
-            Instruction::Call(string, new_args, new_ret_val)
+            vec![Instruction::Call(string, new_args, new_ret_val)]
         }
-        Instruction::Constant { dest, constant } => Instruction::Constant {
+        Instruction::Constant { dest, constant } => vec![Instruction::Constant {
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             constant: constant,
-        },
-        Instruction::MoveOp { source, dest } => Instruction::MoveOp {
+        }],
+        Instruction::MoveOp { source, dest } => vec![Instruction::MoveOp {
             source: convert_name(&source, coallesced_name, lookup, all_fields),
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
-        },
+        }],
         Instruction::ThreeOp {
             source1,
             source2,
             dest,
             op,
-        } => Instruction::ThreeOp {
+        } => vec![Instruction::ThreeOp {
             source1: convert_name(&source1, coallesced_name, lookup, all_fields),
             source2: convert_name(&source2, coallesced_name, lookup, all_fields),
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             op: op.clone(),
-        },
-        Instruction::TwoOp { source1, dest, op } => Instruction::TwoOp {
+        }],
+        Instruction::TwoOp { source1, dest, op } => vec![Instruction::TwoOp {
             source1: convert_name(&source1, coallesced_name, lookup, all_fields),
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             op: op.clone(),
-        },
-        Instruction::PhiExpr { dest, .. } => Instruction::PhiExpr {
+        }],
+        Instruction::PhiExpr { dest, .. } => vec![Instruction::PhiExpr {
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             sources: vec![], // don't care about these anymore
-        },
+        }],
         Instruction::Ret(opt_ret_val) => match opt_ret_val {
-            Some(var) => Instruction::Ret(Some(convert_name(
+            Some(var) => vec![Instruction::Ret(Some(convert_name(
                 &var,
                 coallesced_name,
                 lookup,
                 all_fields,
-            ))),
-            None => Instruction::Ret(None),
+            )))],
+            None => vec![Instruction::Ret(None)],
         },
     }
 }
@@ -279,7 +312,7 @@ pub fn destruct(ssa_method: &mut cfg::CfgMethod<SSAVarLabel>) -> CfgMethod {
         for instruction in block.body.iter() {
             match instruction {
                 Instruction::PhiExpr { .. } => (),
-                _ => new_instructions.push(destruct_instruction(
+                _ => new_instructions.extend(destruct_instruction(
                     instruction.clone(),
                     &coallesced_name,
                     &mut flat_name_lookup,
