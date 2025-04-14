@@ -93,7 +93,7 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
     let dom_tree = dominator_tree(method, &dom_sets);
 
     // Iterate through cfg in pre-order traversal. Should maximize ability to place copies, i think!!
-    let mut copy_lookup: &mut HashMap<SSAVarLabel, SSAVarLabel> = &mut HashMap::new();
+    let copy_lookup: &mut HashMap<SSAVarLabel, SSAVarLabel> = &mut HashMap::new();
     let mut agenda: Vec<usize> = vec![0];
 
     while agenda.len() != 0 {
@@ -117,7 +117,7 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
         }
 
         // make new block and add it to new_method
-        let mut new_block: BasicBlock<SSAVarLabel> = cfg::BasicBlock {
+        let new_block: BasicBlock<SSAVarLabel> = cfg::BasicBlock {
             parents: curr_block.parents.clone(),
             block_id: curr_block.block_id.clone(),
             body: new_instructions,

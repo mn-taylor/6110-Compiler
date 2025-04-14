@@ -20,7 +20,7 @@ fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarL
                     );
                     let _ = sources
                         .iter()
-                        .map(|(block, var)| {
+                        .map(|(_, var)| {
                             phi_web
                                 .insert(var.clone(), [var].iter().map(|c| (*c).clone()).collect())
                         })
@@ -54,7 +54,7 @@ fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarL
     let mut webs: Vec<HashSet<SSAVarLabel>> = vec![];
     // get rid of redundant webs
     while phi_web.len() != 0 {
-        let (var, set) = phi_web.iter_mut().next().unwrap();
+        let (_, set) = phi_web.iter_mut().next().unwrap();
         webs.push(set.clone());
 
         for ssa_var in set.clone().iter() {
@@ -135,10 +135,7 @@ fn destruct_instruction(
             };
             Instruction::Call(string, new_args, new_ret_val)
         }
-        Instruction::Constant {
-            dest: dest,
-            constant: constant,
-        } => Instruction::Constant {
+        Instruction::Constant { dest, constant } => Instruction::Constant {
             dest: convert_name(dest, coallesced_name, lookup, all_fields),
             constant: constant,
         },
@@ -162,7 +159,7 @@ fn destruct_instruction(
             dest: convert_name(dest, coallesced_name, lookup, all_fields),
             op: op.clone(),
         },
-        Instruction::PhiExpr { dest, sources } => Instruction::PhiExpr {
+        Instruction::PhiExpr { dest, .. } => Instruction::PhiExpr {
             dest: convert_name(dest, coallesced_name, lookup, all_fields),
             sources: vec![], // don't care about these anymore
         },
@@ -245,7 +242,7 @@ pub fn destruct(ssa_method: &mut cfg::CfgMethod<SSAVarLabel>) -> CfgMethod {
         let mut new_instructions: Vec<Instruction<VarLabel>> = vec![];
         for instruction in block.body.iter() {
             match instruction {
-                Instruction::PhiExpr { dest, sources } => (),
+                Instruction::PhiExpr { .. } => (),
                 _ => new_instructions.push(destruct_instruction(
                     instruction.clone(),
                     &coallesced_name,

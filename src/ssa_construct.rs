@@ -28,21 +28,10 @@ pub fn var_to_def_locs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<BlockLabel>> 
     for (label, block) in m.blocks.iter() {
         for instr in block.body.clone() {
             match instr {
-                Instruction::ThreeOp {
-                    source1,
-                    source2,
-                    dest,
-                    op,
-                } => add_block_to_var_def(&mut def, &dest, *label),
-                Instruction::Constant { dest, constant } => {
-                    add_block_to_var_def(&mut def, &dest, *label)
-                }
-                Instruction::MoveOp { source, dest } => {
-                    add_block_to_var_def(&mut def, &dest, *label)
-                }
-                Instruction::TwoOp { source1, dest, op } => {
-                    add_block_to_var_def(&mut def, &dest, *label)
-                }
+                Instruction::ThreeOp { dest, .. } => add_block_to_var_def(&mut def, &dest, *label),
+                Instruction::Constant { dest, .. } => add_block_to_var_def(&mut def, &dest, *label),
+                Instruction::MoveOp { dest, .. } => add_block_to_var_def(&mut def, &dest, *label),
+                Instruction::TwoOp { dest, .. } => add_block_to_var_def(&mut def, &dest, *label),
                 _ => (),
             }
         }
@@ -212,7 +201,7 @@ pub fn get_graph<T>(m: &mut cfg::CfgMethod<T>) -> HashMap<BlockLabel, HashSet<Bl
     let mut g: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
 
     for (label, block) in m.blocks.iter() {
-        if (block.parents.len() == 0 && *label != 0) {
+        if block.parents.len() == 0 && *label != 0 {
             // these nodes are never accessed by the program and confuse the computation of dominance sets
             continue;
         }
@@ -248,22 +237,22 @@ pub fn insert_phis(m: &mut CfgMethod) -> &CfgMethod {
 
     // Algorithm 3.1 in SSA-Based Compiler Design
     for (var, defs) in var_defs.iter() {
-        let mut F: HashSet<BlockLabel> = HashSet::new();
-        let mut W: Vec<BlockLabel> = vec![];
+        let mut f: HashSet<BlockLabel> = HashSet::new();
+        let mut w: Vec<BlockLabel> = vec![];
 
         for def in defs {
-            W.push(*def);
+            w.push(*def);
         }
 
-        while W.len() != 0 {
-            let X = W.pop().unwrap();
-            if dom_frontier.get(&X).is_none() {
+        while w.len() != 0 {
+            let x = w.pop().unwrap();
+            if dom_frontier.get(&x).is_none() {
                 continue;
             }
 
-            for Y in dom_frontier.get(&X).unwrap() {
-                if !F.contains(Y) {
-                    let block = m.blocks.get_mut(Y).unwrap();
+            for y in dom_frontier.get(&x).unwrap() {
+                if !f.contains(y) {
+                    let block = m.blocks.get_mut(y).unwrap();
                     block.body.insert(
                         0,
                         Instruction::PhiExpr {
@@ -272,10 +261,10 @@ pub fn insert_phis(m: &mut CfgMethod) -> &CfgMethod {
                         },
                     );
 
-                    F.insert(*Y);
+                    f.insert(*y);
 
-                    if !defs.contains(Y) {
-                        W.push(*Y);
+                    if !defs.contains(y) {
+                        w.push(*y);
                     }
                 }
             }
@@ -383,8 +372,6 @@ fn rewrite_instr(
     all_fields: &HashSet<VarLabel>,
     block_id: BlockLabel,
 ) -> Instruction<SSAVarLabel> {
-    let new_instr: Instruction<SSAVarLabel>;
-
     match instr {
         Instruction::MoveOp { source, dest } => {
             // replace source by its reaching_def
@@ -495,7 +482,7 @@ fn rewrite_instr(
 
             Instruction::Ret(new_opt_source)
         }
-        Instruction::PhiExpr { dest, sources } => {
+        Instruction::PhiExpr { dest, .. } => {
             // only modify destination, sources are modified by loop in rename_variables
 
             let new_dest = rewrite_dest(*dest, reaching_defs, latest_defs, all_fields, block_id);
