@@ -366,7 +366,16 @@ pub fn split_crit_edges(method: &mut cfg::CfgMethod<SSAVarLabel>) {
         for insn in blk.body {
             if let Instruction::PhiExpr { mut sources, .. } = insn {
                 for (par, var) in sources.iter_mut() {
-                    let fresh_var = *var; // TODO very very wrong
+                    let fresh_var = method.fields.keys().max().unwrap_or(&0) + 1;
+                    method.fields.insert(
+                        fresh_var as u32,
+                        method.fields.get(&var.name).unwrap().clone(),
+                    );
+                    let fresh_var = SSAVarLabel {
+                        name: fresh_var,
+                        version: 0,
+                    };
+
                     let par_copies = copies.entry(*par).or_insert(vec![]);
                     par_copies.push(cfg::OneMove {
                         src: *var,
