@@ -2,6 +2,7 @@ use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, CfgType, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
 use crate::ssa_construct::SSAVarLabel;
+use maplit::hashset;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -66,16 +67,20 @@ fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarL
         for instruction in block.body.iter() {
             match instruction {
                 Instruction::PhiExpr { dest, sources } => {
-                    for (_, var) in sources {
-                        let new_web: HashSet<SSAVarLabel> = phi_web
-                            .get(dest)
-                            .unwrap()
-                            .union(phi_web.get(var).unwrap())
-                            .cloned()
-                            .collect();
-                        phi_web.insert(dest.clone(), new_web.clone());
+                    let new_web: HashSet<SSAVarLabel> = sources
+                        .iter()
+                        .fold(HashSet::new(), |accum, (_, var)| {
+                            accum.union(phi_web.get(var).unwrap()).cloned().collect()
+                        })
+                        .union(&hashset! {dest.clone()})
+                        .cloned()
+                        .collect();
+
+                    // insert set new web for each phi related node
+                    phi_web.insert(dest.clone(), new_web.clone());
+                    let _ = sources.iter().for_each(|(_, var)| {
                         phi_web.insert(var.clone(), new_web.clone());
-                    }
+                    });
                 }
                 _ => break,
             }
@@ -123,8 +128,6 @@ fn convert_name(
             //     all_fields.len(),
             //     new_name
             // );
-
-            println!("original name {}, lookup: {:?}", name.name, lookup.keys());
 
             // println!("coalesced: {:?}", coallesced_name.keys());
 
