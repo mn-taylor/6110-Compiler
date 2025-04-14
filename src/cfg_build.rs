@@ -129,7 +129,7 @@ fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>, prune: bool) {
 }
 
 // might be prettier to have parents separate from cfg.  fewer things to worry about.  debatable.
-fn get_parents(blocks: &mut HashMap<BlockLabel, BasicBlock>) {
+pub fn get_parents(blocks: &mut HashMap<BlockLabel, BasicBlock>) {
     let mut parents = HashMap::new();
     for lbl in blocks.keys() {
         parents.insert(*lbl, vec![]);

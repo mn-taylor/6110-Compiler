@@ -297,4 +297,66 @@ pub fn destruct(ssa_method: &mut cfg::CfgMethod<SSAVarLabel>) -> CfgMethod {
     de_ssa_method
 }
 
-// function to convert Non-conventional SSA into convential SSA
+use crate::cfg_build;
+use cfg::BlockLabel;
+
+fn change_parent(old: BlockLabel, new: BlockLabel, blk: &mut BasicBlock<VarLabel>) {
+    for insn in blk.body.iter_mut() {
+        if let Instruction::PhiExpr { sources, .. } = insn {
+            for (par, _) in sources.iter_mut() {
+                if *par == old {
+                    *par = new;
+                }
+            }
+        } else {
+            break;
+        }
+    }
+}
+
+// algorithm 3.5 of SSA book
+fn split_crit_edges(cfg: &mut HashMap<BlockLabel, BasicBlock<VarLabel>>) {
+    cfg_build::get_parents(cfg);
+    let all_lbls = cfg.keys().clone();
+    for lbl in all_lbls {
+        let mut blk = cfg.get(lbl).unwrap().clone();
+        for parent in blk.parents.iter() {
+            match &cfg.get_mut(parent).unwrap().jump_loc {
+                Jump::Nowhere => panic!("parent jumping nowhere?"),
+                Jump::Uncond(_) => (),
+                Jump::Cond {
+                    true_block: t,
+                    false_block: f,
+                    ..
+                } => {
+                    let new_par_name = cfg.keys().max().unwrap_or(&0) + 1;
+                    let new_par = BasicBlock {
+                        parents: vec![],
+                        block_id: new_par_name,
+                        body: vec![],
+                        jump_loc: Jump::Uncond(*lbl),
+                    };
+                    change_parent(*parent, new_par_name, &mut blk);
+                    if t == lbl {
+                        *t = new_par_name;
+                    } else if f == lbl {
+                        *f = new_par_name;
+                    } else {
+                        panic!("oops");
+                    }
+                }
+            }
+        }
+
+        // given a parent of blk, what are the corresponding copies
+        let copies = HashMap::new();
+
+        for parent in blk.parents {}
+        for insn in blk.body {
+            match insn {
+                PhiExpr {} => {}
+                _ => break,
+            }
+        }
+    }
+}
