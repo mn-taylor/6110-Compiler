@@ -43,12 +43,10 @@ pub fn var_to_def_locs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<BlockLabel>> 
 fn intersect_all<'a>(
     vals: &mut impl Iterator<Item = &'a HashSet<BlockLabel>>,
 ) -> HashSet<BlockLabel> {
-    let mut int: HashSet<BlockLabel>;
-    if let Some(set) = vals.next() {
-        int = set.clone();
-    } else {
-        int = HashSet::new();
-    }
+    let mut int = vals
+        .next()
+        .expect("can't take intersection of no sets.")
+        .clone();
 
     for val in vals {
         int = int.intersection(&val).map(|x| *x).collect();
@@ -100,7 +98,6 @@ pub fn dominator_sets(
             }
         }
     }
-
     dom_sets
 }
 
@@ -203,7 +200,7 @@ pub fn get_graph<T>(m: &mut cfg::CfgMethod<T>) -> HashMap<BlockLabel, HashSet<Bl
     for (label, block) in m.blocks.iter() {
         if block.parents.len() == 0 && *label != 0 {
             // these nodes are never accessed by the program and confuse the computation of dominance sets
-            continue;
+            panic!("ssa construction was given a disconnected graph");
         }
 
         let mut edges: HashSet<BlockLabel> = HashSet::new();
