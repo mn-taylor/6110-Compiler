@@ -16,6 +16,7 @@ pub type Arg = cfg::Arg<VarLabel>;
 pub type Instruction = cfg::Instruction<VarLabel>;
 pub type CfgMethod = cfg::CfgMethod<VarLabel>;
 pub type CfgProgram = cfg::CfgProgram<VarLabel>;
+use std::collections::VecDeque;
 
 struct State {
     break_loc: Option<BlockLabel>,
@@ -95,8 +96,33 @@ fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>, prune: bool) {
             }
         }
     }
+
     // fix screwed-up parents
     get_parents(blks);
+
+    // delete disconnected components from blks
+    let mut agenda: VecDeque<usize> = VecDeque::from([0]);
+    let mut visited: HashSet<usize> = HashSet::from([0]);
+    while !agenda.is_empty() {
+        let parent = blks.get(&agenda.pop_front().unwrap()).unwrap().clone();
+        let mut children: Vec<usize> = vec![];
+        match parent.jump_loc {
+            Jump::Uncond(c) => children.push(c),
+            Jump::Cond {
+                source: _,
+                true_block,
+                false_block,
+            } => children.extend([true_block, false_block]),
+            _ => {}
+        }
+        for c in children.into_iter() {
+            if !visited.contains(&c) {
+                visited.insert(c);
+                agenda.push_back(c);
+            }
+        }
+    }
+    blks.retain(|b, _| visited.contains(b));
 }
 
 // might be prettier to have parents separate from cfg.  fewer things to worry about.  debatable.
