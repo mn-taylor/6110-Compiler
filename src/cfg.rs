@@ -99,8 +99,8 @@ impl<VarLabel: fmt::Display> fmt::Display for Jump<VarLabel> {
 
 #[derive(Clone)]
 pub struct OneMove<VarLabel> {
-    src: VarLabel,
-    dest: VarLabel,
+    pub src: VarLabel,
+    pub dest: VarLabel,
 }
 
 #[derive(Clone)]

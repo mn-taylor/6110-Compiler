@@ -276,7 +276,7 @@ pub fn insert_phis(m: &mut CfgMethod) -> &CfgMethod {
     return m;
 }
 
-#[derive(Debug, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq, Copy)]
 pub struct SSAVarLabel {
     pub name: u32,
     pub version: u32,

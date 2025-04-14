@@ -64,7 +64,7 @@ impl State {
     }
 }
 
-fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>, prune: bool) {
+fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>) {
     get_parents(blks);
 
     let mut lbls_set: HashSet<BlockLabel> = blks.keys().map(|x| *x).collect();
@@ -129,7 +129,7 @@ fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>, prune: bool) {
 }
 
 // might be prettier to have parents separate from cfg.  fewer things to worry about.  debatable.
-pub fn get_parents(blocks: &mut HashMap<BlockLabel, BasicBlock>) {
+pub fn get_parents<T>(blocks: &mut HashMap<BlockLabel, cfg::BasicBlock<T>>) {
     let mut parents = HashMap::new();
     for lbl in blocks.keys() {
         parents.insert(*lbl, vec![]);
@@ -265,7 +265,7 @@ pub fn lin_method(
         })
         .collect::<Vec<_>>();
 
-    collapse_jumps(&mut st.all_blocks, true);
+    collapse_jumps(&mut st.all_blocks);
     // get_parents(&mut st.all_blocks);
     CfgMethod {
         name: method.name.val.to_string(),
