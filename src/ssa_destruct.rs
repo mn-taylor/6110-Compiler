@@ -127,6 +127,7 @@ fn destruct_instruction(
     all_fields: &mut HashMap<u32, (CfgType, String)>,
 ) -> Instruction<VarLabel> {
     match instr {
+        Instruction::ParMov(_) => panic!("these should not be here yet"),
         Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             name: convert_name(&name, coallesced_name, lookup, all_fields),

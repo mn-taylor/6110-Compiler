@@ -16,15 +16,16 @@ fn prop_copies(
     copy_lookup: &HashMap<SSAVarLabel, SSAVarLabel>,
 ) -> Instruction<SSAVarLabel> {
     match instr {
+        Instruction::ParMov(_) => todo!(),
         // can be smarter and not call check copy when we know there cant be a copy
         Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
-            dest: dest,
+            dest,
             name: check_copy(name, copy_lookup),
             idx: check_copy(idx, copy_lookup),
         },
         Instruction::ArrayStore { source, arr, idx } => Instruction::ArrayStore {
             source: check_copy(source, copy_lookup),
-            arr: arr,
+            arr,
             idx: check_copy(idx, copy_lookup),
         },
         Instruction::Call(string, args, opt_ret_val) => {
@@ -43,14 +44,14 @@ fn prop_copies(
         }
         Instruction::Constant { dest, constant } => Instruction::Constant {
             dest: dest.clone(),
-            constant: constant,
+            constant,
         },
         Instruction::MoveOp { source, dest } => Instruction::MoveOp {
             source: check_copy(source, copy_lookup),
-            dest: dest,
+            dest,
         },
         Instruction::PhiExpr { dest, sources } => Instruction::PhiExpr {
-            dest: dest,
+            dest,
             sources: sources
                 .iter()
                 .map(|(block_id, var)| (*block_id, check_copy(var.clone(), copy_lookup)))
@@ -62,7 +63,7 @@ fn prop_copies(
         },
         Instruction::TwoOp { source1, dest, op } => Instruction::TwoOp {
             source1: check_copy(source1, copy_lookup),
-            dest: dest,
+            dest,
             op: op.clone(),
         },
         Instruction::ThreeOp {
@@ -73,7 +74,7 @@ fn prop_copies(
         } => Instruction::ThreeOp {
             source1: check_copy(source1, copy_lookup),
             source2: check_copy(source2, copy_lookup),
-            dest: dest,
+            dest,
             op: op.clone(),
         },
     }

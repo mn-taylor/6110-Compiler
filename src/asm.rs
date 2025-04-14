@@ -467,6 +467,7 @@ fn asm_instruction(
 ) -> Vec<String> {
     match instr {
         Instruction::PhiExpr { .. } => panic!(),
+        Instruction::ParMov(_) => panic!(),
         Instruction::ThreeOp {
             source1,
             source2,

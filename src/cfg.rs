@@ -98,6 +98,12 @@ impl<VarLabel: fmt::Display> fmt::Display for Jump<VarLabel> {
 }
 
 #[derive(Clone)]
+pub struct OneMove<VarLabel> {
+    src: VarLabel,
+    dest: VarLabel,
+}
+
+#[derive(Clone)]
 pub enum Instruction<VarLabel> {
     PhiExpr {
         dest: VarLabel,
@@ -118,6 +124,7 @@ pub enum Instruction<VarLabel> {
         source: VarLabel,
         dest: VarLabel,
     },
+    ParMov(Vec<OneMove<VarLabel>>),
     Constant {
         dest: VarLabel,
         constant: i64,
@@ -187,6 +194,12 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
+            Instruction::ParMov(moves) => {
+                for mov in moves {
+                    write!(f, "{} <- {} || ", mov.dest, mov.src)?;
+                }
+                Ok(())
+            }
         }
     }
 }

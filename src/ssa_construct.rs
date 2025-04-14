@@ -370,6 +370,7 @@ fn rewrite_instr(
     block_id: BlockLabel,
 ) -> Instruction<SSAVarLabel> {
     match instr {
+        Instruction::ParMov(_) => panic!(),
         Instruction::MoveOp { source, dest } => {
             // replace source by its reaching_def
             let new_source = rewrite_source(*source, reaching_defs, all_fields, block_id);
