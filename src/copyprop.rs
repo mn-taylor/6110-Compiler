@@ -127,12 +127,25 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
             }
         }
 
+        let new_jmp = match curr_block.jump_loc {
+            cfg::Jump::Cond {
+                source,
+                true_block,
+                false_block,
+            } => cfg::Jump::Cond {
+                true_block,
+                false_block,
+                source: check_copy(source, copy_lookup),
+            },
+            _ => curr_block.jump_loc.clone(),
+        };
+
         // make new block and add it to new_method
         let new_block: BasicBlock<SSAVarLabel> = cfg::BasicBlock {
             parents: curr_block.parents.clone(),
             block_id: curr_block.block_id.clone(),
             body: new_instructions,
-            jump_loc: curr_block.jump_loc.clone(),
+            jump_loc: new_jmp,
         };
 
         new_method.blocks.insert(curr, new_block);
