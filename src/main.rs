@@ -2,6 +2,7 @@ mod utils;
 
 use decaf_skeleton_rust::asm;
 use decaf_skeleton_rust::cfg_build;
+use decaf_skeleton_rust::deadcode;
 use decaf_skeleton_rust::ir_build;
 use decaf_skeleton_rust::parse;
 use decaf_skeleton_rust::scan;
@@ -9,7 +10,7 @@ use decaf_skeleton_rust::semantics;
 use decaf_skeleton_rust::ssa_construct;
 use decaf_skeleton_rust::ssa_destruct;
 
-use decaf_skeleton_rust::optim;
+use decaf_skeleton_rust::copyprop;
 
 fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
     match output {
@@ -182,13 +183,12 @@ fn main() {
                     if args.debug {
                         println!("method after ssa construction: \n{}", ssa_method);
                     }
-                    let mut optimized_method = optim::copy_propagation(&mut ssa_method);
+                    let mut ssa_method = copyprop::copy_propagation(&mut ssa_method);
                     if args.debug {
-                        println!("method after constant propagation: \n{}", optimized_method);
+                        println!("method after constant propagation: \n{}", ssa_method);
                     }
 
-                    let result = ssa_destruct::destruct(&mut optimized_method);
-                    ssa_destruct::split_crit_edges(&mut ssa_method);
+                    // ssa_destruct::split_crit_edges(&mut ssa_method);
                     if args.debug {
                         println!("method after splitting edges: \n{ssa_method}");
                     }
@@ -203,6 +203,7 @@ fn main() {
             // if args.debug {
             //     println!("{}", p);
             // }
+
             for l in asm::asm_program(&p, args.mac) {
                 writeln!(writer, "{}", l).unwrap();
             }

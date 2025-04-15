@@ -1,6 +1,7 @@
 use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, Instruction};
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
+use maplit::hashset;
 use std::collections::HashMap;
 
 // find first variable not in coppy lookup
@@ -99,7 +100,7 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
 
     let mut num_iters = 0;
 
-    while agenda.len() != 0 && num_iters < 2 {
+    while agenda.len() != 0 && num_iters < 1 {
         let curr = agenda.pop().unwrap();
         let curr_block = method.blocks.get(&curr).unwrap();
 
@@ -111,14 +112,16 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
             // check for new copies and update table
             match new_instr {
                 Instruction::MoveOp { source, dest } => {
-                    match method.fields.get(&source.name.clone()) {
-                        Some(_) => {
-                            copy_lookup.insert(dest, source);
-                        }
-                        None => new_instructions.push(Instruction::MoveOp {
+                    // don't propagate global variables
+                    if method.fields.get(&source.name.clone()).is_none()
+                        || method.fields.get(&dest.name.clone()).is_none()
+                    {
+                        new_instructions.push(Instruction::MoveOp {
                             source: source,
                             dest: dest,
-                        }),
+                        });
+                    } else {
+                        copy_lookup.insert(dest, source);
                     }
                 }
                 _ => {
