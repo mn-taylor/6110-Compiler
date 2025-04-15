@@ -188,7 +188,7 @@ fn main() {
                         println!("method after constant propagation: \n{}", ssa_method);
                     }
 
-                    // ssa_destruct::split_crit_edges(&mut ssa_method);
+                    ssa_destruct::split_crit_edges(&mut ssa_method);
                     if args.debug {
                         println!("method after splitting edges: \n{ssa_method}");
                     }
