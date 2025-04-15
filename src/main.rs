@@ -171,34 +171,34 @@ fn main() {
             let mut p = cfg_build::lin_program(&prog);
 
             // test ssa construction and destruction
-            p.methods = p
-                .methods
-                .iter_mut()
-                .map(|c| {
-                    if args.debug {
-                        println!("looking at method {}", c.name);
-                        println!("method before ssa: \n{}", c);
-                    }
-                    let mut ssa_method = ssa_construct::construct(c);
-                    if args.debug {
-                        println!("method after ssa construction: \n{}", ssa_method);
-                    }
-                    let mut ssa_method = copyprop::copy_propagation(&mut ssa_method);
-                    if args.debug {
-                        println!("method after constant propagation: \n{}", ssa_method);
-                    }
+            // p.methods = p
+            //     .methods
+            //     .iter_mut()
+            //     .map(|c| {
+            //         if args.debug {
+            //             println!("looking at method {}", c.name);
+            //             println!("method before ssa: \n{}", c);
+            //         }
+            //         let mut ssa_method = ssa_construct::construct(c);
+            //         if args.debug {
+            //             println!("method after ssa construction: \n{}", ssa_method);
+            //         }
+            //         let mut ssa_method = copyprop::copy_propagation(&mut ssa_method);
+            //         if args.debug {
+            //             println!("method after constant propagation: \n{}", ssa_method);
+            //         }
 
-                    ssa_destruct::split_crit_edges(&mut ssa_method);
-                    if args.debug {
-                        println!("method after splitting edges: \n{ssa_method}");
-                    }
-                    let result = ssa_destruct::destruct(&mut ssa_method);
-                    if args.debug {
-                        println!("method after ssa destruction: \n{}", result);
-                    }
-                    result
-                })
-                .collect::<Vec<_>>();
+            //         ssa_destruct::split_crit_edges(&mut ssa_method);
+            //         if args.debug {
+            //             println!("method after splitting edges: \n{ssa_method}");
+            //         }
+            //         let result = ssa_destruct::destruct(&mut ssa_method);
+            //         if args.debug {
+            //             println!("method after ssa destruction: \n{}", result);
+            //         }
+            //         result
+            //     })
+            //     .collect::<Vec<_>>();
 
             // if args.debug {
             //     println!("{}", p);

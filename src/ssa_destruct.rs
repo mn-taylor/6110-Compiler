@@ -37,39 +37,21 @@ fn union(
     new_sets
 }
 
-// fn get_phi_webs
 fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarLabel>> {
     let mut phi_web: Vec<HashSet<SSAVarLabel>> = vec![];
-
-    // initalize each phi web
     for block in ssa_method.blocks.values() {
         for instruction in block.body.iter() {
             match instruction {
                 Instruction::PhiExpr { dest, sources } => {
-                    phi_web.push(hashset! {dest.clone()});
-                    sources
-                        .iter()
-                        .for_each(|(_, var)| phi_web.push(hashset!(var.clone())));
+                    for (_, var) in sources {
+                        phi_web = union(*dest, *var, phi_web);
+                    }
                 }
                 _ => break,
             }
         }
     }
-
-    for block in ssa_method.blocks.values() {
-        for instruction in block.body.iter() {
-            match instruction {
-                Instruction::PhiExpr { dest, sources } => {
-                    sources.iter().for_each(|(_, var)| {
-                        phi_web = union(dest.clone(), var.clone(), phi_web.clone());
-                    });
-                }
-                _ => break,
-            }
-        }
-    }
-
-    return phi_web;
+    phi_web
 }
 
 fn convert_name(
