@@ -114,30 +114,50 @@ fn destruct_instruction(
     all_fields: &mut HashMap<u32, (CfgType, String)>,
 ) -> Vec<Instruction<VarLabel>> {
     match instr {
-        Instruction::ParMov(copies) => {
+        Instruction::ParMov(mut copies) => {
             // algorithm 3.6 in SSA-Based Compiler Design
-            let mut all_srcs: HashSet<SSAVarLabel> = hashset! {};
-            let mut all_dests: HashSet<SSAVarLabel> = hashset! {};
-            let mut instructions: Vec<Instruction<VarLabel>> = vec![];
-            let mut inter_instructions: Vec<Instruction<VarLabel>> = vec![];
-            copies.iter().for_each(|om| {
-                all_srcs.insert(om.src.clone());
-                all_dests.insert(om.dest.clone());
-            });
+            let mut instructions: Vec<Instruction<SSAVarLabel>> = vec![];
 
-            copies.iter().for_each(|om| {
+            copies.retain(|om| om.src != om.dest);
+            while copies.len() > 0 {
+                let mut all_srcs: HashSet<SSAVarLabel> = copies.iter().map(|om| om.src).collect();
+                let mut all_dests: HashSet<SSAVarLabel> = copies.iter().map(|om| om.src).collect();
+                match (&all_dests - &all_srcs).iter().next() {
+                    Some(b) => {
+                        // retain with an impure function?  gross.
+                        let found_it = false;
+                        copies.retain(|om| {
+                            if !found_it && om.dest == *b {
+                                found_it = true;
+                                instructions.push(Instruction::MoveOp {
+                                    source: om.src,
+                                    dest: om.dest,
+                                });
+                                return false;
+                            }
+                            true
+                        });
+                    }
+                    None => {
+                        // create new variable and add it to lookup and translations
+                        let inter_name = (*all_fields.keys().max().unwrap() as usize + 1) as u32;
+                        let inter_ssa_name = SSAVarLabel {
+                            name: inter_name,
+                            version: 1,
+                        };
+                        lookup.insert(inter_ssa_name, inter_name);
+                        all_fields.insert(inter_name, (*all_fields.get(&source).unwrap()).clone());
+                        instructions.push()
+                    }
+                }
+
+                copies.retain(|om| om.src != om.dest);
+            }
+
+            for om in copies.iter() {
                 if true {
                     // should modify conditional so that we do not have to always do t1 < temp < t2 when doing parallel moves.
                     let source = convert_name(&om.src, coallesced_name, lookup, all_fields);
-
-                    // create new variable and add it to lookup and translations
-                    let inter_name = (*all_fields.keys().max().unwrap() as usize + 1) as u32;
-                    let inter_ssa_name = SSAVarLabel {
-                        name: inter_name,
-                        version: 1,
-                    };
-                    lookup.insert(inter_ssa_name, inter_name);
-                    all_fields.insert(inter_name, (*all_fields.get(&source).unwrap()).clone());
 
                     let dest = convert_name(&om.dest, coallesced_name, lookup, all_fields);
 
@@ -155,7 +175,7 @@ fn destruct_instruction(
                         dest: convert_name(&om.dest, coallesced_name, lookup, all_fields),
                     })
                 }
-            });
+            }
 
             inter_instructions.extend(instructions);
             return inter_instructions;
