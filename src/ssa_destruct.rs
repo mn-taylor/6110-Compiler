@@ -75,14 +75,6 @@ fn convert_name(
             let new_name = *all_fields.keys().max().unwrap() as usize + 1;
             lookup.insert(name.clone(), new_name as u32);
 
-            // println!(
-            //     "BEFORE field len: {}, coallesced name: {}",
-            //     all_fields.len(),
-            //     new_name
-            // );
-
-            // println!("coalesced: {:?}", coallesced_name.keys());
-
             // update all_fields
             let original_var = lookup
                 .get(&SSAVarLabel {
@@ -94,12 +86,6 @@ fn convert_name(
                 new_name as u32,
                 all_fields.get(original_var).unwrap().clone(),
             );
-
-            // println!(
-            //     "AFTER field len: {}, coallesced name: {}",
-            //     all_fields.len(),
-            //     new_name
-            // );
 
             new_name as u32
         }
@@ -283,8 +269,6 @@ pub fn destruct(ssa_method: &mut cfg::CfgMethod<SSAVarLabel>) -> CfgMethod {
     let mut coallesced_name: HashMap<SSAVarLabel, SSAVarLabel> = HashMap::new();
     let mut flat_name_lookup: HashMap<SSAVarLabel, VarLabel> = HashMap::new();
 
-    println!("phi webs: {:?}\n\n", webs);
-
     // collapse all var labels in the web into the same name
     for web in webs {
         let new_name = web.iter().min_by_key(|c| c.version).unwrap();
@@ -293,7 +277,6 @@ pub fn destruct(ssa_method: &mut cfg::CfgMethod<SSAVarLabel>) -> CfgMethod {
         }
     }
 
-    println!("new_names {:?}\n\n", coallesced_name);
     let mut de_ssa_method: cfg::CfgMethod<VarLabel> = cfg::CfgMethod {
         name: ssa_method.name.clone(),
         params: ssa_method.params.clone(),
