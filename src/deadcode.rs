@@ -8,7 +8,7 @@ fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
     match instruction {
         Instruction::PhiExpr { dest, sources } => sources.iter().map(|(_, var)| *var).collect(),
         Instruction::ArrayAccess { dest, name, idx } => hashset! {idx},
-        Instruction::ArrayStore { source, arr, idx } => hashset! {source},
+        Instruction::ArrayStore { source, arr, idx } => hashset! {source, idx},
         Instruction::Call(_, args, _) => {
             let mut sources = hashset! {};
             args.iter().for_each(|arg| match arg {
@@ -50,7 +50,7 @@ fn get_dest(instruction: Instruction<SSAVarLabel>) -> Option<SSAVarLabel> {
     match instruction {
         Instruction::PhiExpr { dest, sources } => Some(dest),
         Instruction::ArrayAccess { dest, name, idx } => Some(dest),
-        Instruction::Call(_, _, opt_ret_val) => opt_ret_val,
+        Instruction::Call(_, _, _) => None, // We always want to call functions whether or not their return values are used, because they may modify global variables.
         Instruction::Constant { dest, constant } => Some(dest),
         Instruction::MoveOp { source, dest } => Some(dest),
         Instruction::ThreeOp {
@@ -98,7 +98,7 @@ pub fn dead_code_elimination(m: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
             match get_dest(instruction.clone()) {
                 Some(dest_var) => {
                     // add instruction if dest is used later or dest is global
-                    if m.fields.contains_key(&dest_var.name) || all_used_vars.contains(&dest_var) {
+                    if !m.fields.contains_key(&dest_var.name) || all_used_vars.contains(&dest_var) {
                         new_instructions.push(instruction.clone());
                     } else {
                     }

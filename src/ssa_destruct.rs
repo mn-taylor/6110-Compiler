@@ -1,8 +1,8 @@
-use crate::cfg;
+use crate::cfg::{self, OneMove};
 use crate::cfg::{Arg, BasicBlock, CfgType, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
 use crate::ssa_construct::SSAVarLabel;
-use maplit::hashset;
+use maplit::{hashmap, hashset};
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -117,13 +117,17 @@ fn destruct_instruction(
         Instruction::ParMov(copies) => {
             // algorithm 3.6 in SSA-Based Compiler Design
             let mut all_srcs: HashSet<SSAVarLabel> = hashset! {};
+            let mut all_dests: HashSet<SSAVarLabel> = hashset! {};
             let mut instructions: Vec<Instruction<VarLabel>> = vec![];
+            let mut inter_instructions: Vec<Instruction<VarLabel>> = vec![];
             copies.iter().for_each(|om| {
                 all_srcs.insert(om.src.clone());
+                all_dests.insert(om.dest.clone());
             });
 
             copies.iter().for_each(|om| {
-                if all_srcs.contains(&om.dest) {
+                if true {
+                    // should modify conditional so that we do not have to always do t1 < temp < t2 when doing parallel moves.
                     let source = convert_name(&om.src, coallesced_name, lookup, all_fields);
 
                     // create new variable and add it to lookup and translations
@@ -137,7 +141,7 @@ fn destruct_instruction(
 
                     let dest = convert_name(&om.dest, coallesced_name, lookup, all_fields);
 
-                    instructions.push(Instruction::MoveOp {
+                    inter_instructions.push(Instruction::MoveOp {
                         source: source,
                         dest: inter_name,
                     });
@@ -153,7 +157,8 @@ fn destruct_instruction(
                 }
             });
 
-            return instructions;
+            inter_instructions.extend(instructions);
+            return inter_instructions;
         }
         Instruction::ArrayAccess { dest, name, idx } => vec![Instruction::ArrayAccess {
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
@@ -389,7 +394,7 @@ pub fn split_crit_edges(method: &mut cfg::CfgMethod<SSAVarLabel>) {
                     );
                     let fresh_var = SSAVarLabel {
                         name: fresh_var,
-                        version: 0,
+                        version: 1,
                     };
 
                     let par_copies = copies.entry(*par).or_insert(vec![]);

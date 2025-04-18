@@ -5,6 +5,7 @@ pub mod copyprop;
 pub mod deadcode;
 pub mod ir;
 pub mod ir_build;
+pub mod metrics;
 pub mod parse;
 pub mod scan;
 pub mod semantics;

@@ -18,7 +18,7 @@ pub struct CfgMethod<VarLabel> {
 impl<VarLabel: fmt::Debug + fmt::Display> fmt::Display for CfgMethod<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Method: {}", self.name)?;
-        writeln!(f, "Fields: {:?}", self.fields)?;
+        // writeln!(f, "Fields: {:?}", self.fields)?;
         for block in self.blocks.values() {
             writeln!(f, "{}", block)?;
         }
@@ -97,7 +97,7 @@ impl<VarLabel: fmt::Display> fmt::Display for Jump<VarLabel> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct OneMove<VarLabel> {
     pub src: VarLabel,
     pub dest: VarLabel,
@@ -177,7 +177,7 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
             Instruction::Ret(None) => write!(f, "return"),
             Instruction::Call(name, args, Some(dest)) => write!(
                 f,
-                "t{} <- call {}({})",
+                "t{} <- call {}(t{})",
                 dest,
                 name,
                 args.iter()
@@ -196,7 +196,7 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
             ),
             Instruction::ParMov(moves) => {
                 for mov in moves {
-                    write!(f, "{} <- {} || ", mov.dest, mov.src)?;
+                    write!(f, "t{} <- t{} || ", mov.dest, mov.src)?;
                 }
                 Ok(())
             }

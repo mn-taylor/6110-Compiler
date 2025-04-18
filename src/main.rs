@@ -1,13 +1,19 @@
 mod utils;
 
+use core::num;
+
 use decaf_skeleton_rust::asm;
+use decaf_skeleton_rust::cfg;
+use decaf_skeleton_rust::cfg::{BasicBlock, Instruction, Jump};
 use decaf_skeleton_rust::cfg_build;
 use decaf_skeleton_rust::deadcode;
 use decaf_skeleton_rust::ir_build;
+use decaf_skeleton_rust::metrics::num_intstructions;
 use decaf_skeleton_rust::parse;
 use decaf_skeleton_rust::scan;
 use decaf_skeleton_rust::semantics;
 use decaf_skeleton_rust::ssa_construct;
+use decaf_skeleton_rust::ssa_construct::SSAVarLabel;
 use decaf_skeleton_rust::ssa_destruct;
 
 use decaf_skeleton_rust::copyprop;
@@ -175,27 +181,61 @@ fn main() {
                 .methods
                 .iter_mut()
                 .map(|c| {
+                    let mut metrics_string = vec![];
                     if args.debug {
                         println!("looking at method {}", c.name);
                         println!("method before ssa: \n{}", c);
+                        metrics_string.push(format!(
+                            " before ssa |  num_instructions: {}",
+                            num_intstructions(c)
+                        ));
                     }
                     let mut ssa_method = ssa_construct::construct(c);
                     if args.debug {
                         println!("method after ssa construction: \n{}", ssa_method);
+                        metrics_string.push(format!(
+                            "after ssa construction | num_instructions: {}",
+                            num_intstructions(&ssa_method)
+                        ));
                     }
-                    let mut ssa_method = copyprop::copy_propagation(&mut ssa_method);
+                    ssa_method = copyprop::copy_propagation(&mut ssa_method);
                     if args.debug {
-                        println!("method after constant propagation: \n{}", ssa_method);
+                        println!("method after copy propagation: \n{}", ssa_method);
+                        metrics_string.push(format!(
+                            "after constant propagation | num_instructions: {}",
+                            num_intstructions(&ssa_method)
+                        ));
+                    }
+
+                    ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
+                    ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
+
+                    if args.debug {
+                        println!("method after dead code elimination: \n{}", ssa_method);
+                        metrics_string.push(format!(
+                            "after dead code elimination | num_instructions: {}",
+                            num_intstructions(&ssa_method)
+                        ));
                     }
 
                     ssa_destruct::split_crit_edges(&mut ssa_method);
                     if args.debug {
-                        println!("method after splitting edges: \n{ssa_method}");
+                        // println!("method after splitting edges: \n{ssa_method}");
                     }
                     let result = ssa_destruct::destruct(&mut ssa_method);
                     if args.debug {
                         println!("method after ssa destruction: \n{}", result);
+                        metrics_string.push(format!(
+                            "after de-ssa | num_instructions: {}",
+                            num_intstructions(&result)
+                        ));
                     }
+
+                    if args.debug {
+                        println!("Optimization Metrics for {}", c.name);
+                        metrics_string.iter().for_each(|c| println!("{}", c));
+                    }
+
                     result
                 })
                 .collect::<Vec<_>>();

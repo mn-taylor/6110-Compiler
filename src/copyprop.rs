@@ -118,7 +118,9 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
                             dest: dest,
                         });
                     } else {
+                        // idea: leave old move instructions to simplify code. Then clean up with dead code elimination.
                         copy_lookup.insert(dest, source);
+                        new_instructions.push(new_instr);
                     }
                 }
                 _ => {
