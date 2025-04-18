@@ -1,5 +1,5 @@
 use crate::cfg;
-use crate::cfg::{Arg, BasicBlock, Instruction};
+use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction};
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
 use std::collections::HashMap;
 
@@ -8,6 +8,16 @@ fn check_copy(var: SSAVarLabel, copy_lookup: &HashMap<SSAVarLabel, SSAVarLabel>)
     match copy_lookup.get(&var) {
         Some(original) => check_copy(original.clone(), copy_lookup),
         None => var,
+    }
+}
+
+fn check_imm_var_copy(
+    imm_var: ImmVar<SSAVarLabel>,
+    copy_lookup: &HashMap<SSAVarLabel, SSAVarLabel>,
+) -> ImmVar<SSAVarLabel> {
+    match imm_var {
+        ImmVar::Var(var) => ImmVar::Var(check_copy(var, copy_lookup)),
+        ImmVar::Imm(i) => ImmVar::Imm(i),
     }
 }
 
@@ -21,19 +31,19 @@ fn prop_copies(
         Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
             dest,
             name: check_copy(name, copy_lookup),
-            idx: check_copy(idx, copy_lookup),
+            idx: check_imm_var_copy(idx, copy_lookup),
         },
         Instruction::ArrayStore { source, arr, idx } => Instruction::ArrayStore {
-            source: check_copy(source, copy_lookup),
+            source: check_imm_var_copy(source, copy_lookup),
             arr,
-            idx: check_copy(idx, copy_lookup),
+            idx: check_imm_var_copy(idx, copy_lookup),
         },
         Instruction::Call(string, args, opt_ret_val) => {
             let new_args = args
                 .iter()
                 .map(|arg| match arg {
                     Arg::StrArg(string) => Arg::StrArg(string.to_string()),
-                    Arg::VarArg(var) => Arg::VarArg(check_copy(var.clone(), copy_lookup)),
+                    Arg::VarArg(var) => Arg::VarArg(check_imm_var_copy(var.clone(), copy_lookup)),
                 })
                 .collect::<Vec<_>>();
             let new_ret_val = match opt_ret_val {
@@ -47,7 +57,7 @@ fn prop_copies(
             constant,
         },
         Instruction::MoveOp { source, dest } => Instruction::MoveOp {
-            source: check_copy(source, copy_lookup),
+            source: check_imm_var_copy(source, copy_lookup),
             dest,
         },
         Instruction::PhiExpr { dest, sources } => Instruction::PhiExpr {
@@ -58,11 +68,11 @@ fn prop_copies(
                 .collect::<Vec<_>>(),
         },
         Instruction::Ret(opt_ret_val) => match opt_ret_val {
-            Some(val) => Instruction::Ret(Some(check_copy(val, copy_lookup))),
+            Some(val) => Instruction::Ret(Some(check_imm_var_copy(val, copy_lookup))),
             None => Instruction::Ret(None),
         },
         Instruction::TwoOp { source1, dest, op } => Instruction::TwoOp {
-            source1: check_copy(source1, copy_lookup),
+            source1: check_imm_var_copy(source1, copy_lookup),
             dest,
             op: op.clone(),
         },
@@ -72,8 +82,8 @@ fn prop_copies(
             dest,
             op,
         } => Instruction::ThreeOp {
-            source1: check_copy(source1, copy_lookup),
-            source2: check_copy(source2, copy_lookup),
+            source1: check_imm_var_copy(source1, copy_lookup),
+            source2: check_imm_var_copy(source2, copy_lookup),
             dest,
             op: op.clone(),
         },
@@ -109,18 +119,23 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
             let new_instr = prop_copies(instruction.clone(), copy_lookup);
 
             // check for new copies and update table
-            match new_instr {
+            match &new_instr {
                 Instruction::MoveOp { source, dest } => {
                     // don't propagate global variables
                     if method.fields.get(&dest.name.clone()).is_none() {
                         new_instructions.push(Instruction::MoveOp {
-                            source: source,
-                            dest: dest,
+                            source: source.clone(),
+                            dest: dest.clone(),
                         });
                     } else {
                         // idea: leave old move instructions to simplify code. Then clean up with dead code elimination.
-                        copy_lookup.insert(dest, source);
-                        new_instructions.push(new_instr);
+                        match source.clone() {
+                            ImmVar::Var(s) => {
+                                copy_lookup.insert(dest.clone(), s.clone());
+                            }
+                            _ => {}
+                        };
+                        new_instructions.push(new_instr.clone());
                     }
                 }
                 _ => {

@@ -1,5 +1,5 @@
 use crate::cfg::{self, Jump};
-use crate::cfg::{Arg, BasicBlock, Instruction};
+use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction};
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
 use maplit::{hashmap, hashset};
 use std::collections::{HashMap, HashSet};
@@ -7,21 +7,62 @@ use std::collections::{HashMap, HashSet};
 fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
     match instruction {
         Instruction::PhiExpr { dest, sources } => sources.iter().map(|(_, var)| *var).collect(),
-        Instruction::ArrayAccess { dest, name, idx } => hashset! {idx},
-        Instruction::ArrayStore { source, arr, idx } => hashset! {source, idx},
+        Instruction::ArrayAccess { dest, name, idx } => {
+            let mut set = hashset! {};
+            match idx {
+                ImmVar::Var(v) => {
+                    set.insert(v);
+                }
+                _ => {}
+            }
+
+            set
+        }
+        Instruction::ArrayStore { source, arr, idx } => {
+            let mut set = hashset! {};
+            match idx {
+                ImmVar::Var(v) => {
+                    set.insert(v);
+                }
+                _ => {}
+            }
+            match source {
+                ImmVar::Var(v) => {
+                    set.insert(v);
+                }
+                _ => {}
+            }
+            set
+        }
         Instruction::Call(_, args, _) => {
             let mut sources = hashset! {};
             args.iter().for_each(|arg| match arg {
-                Arg::VarArg(var) => {
-                    sources.insert(var.clone());
-                }
+                Arg::VarArg(var) => match var {
+                    ImmVar::Var(v) => {
+                        sources.insert(v.clone());
+                    }
+                    _ => {}
+                },
                 _ => {}
             });
             sources
         }
-        Instruction::MoveOp { source, dest } => hashset! {source},
+        Instruction::MoveOp { source, dest } => {
+            let mut set = hashset! {};
+            match source {
+                ImmVar::Var(v) => {
+                    set.insert(v);
+                }
+                _ => {}
+            }
+
+            set
+        }
         Instruction::Ret(opt_ret_val) => match opt_ret_val {
-            Some(var) => hashset! {var},
+            Some(var) => match var {
+                ImmVar::Var(v) => hashset! {v},
+                _ => hashset! {},
+            },
             None => hashset! {},
         },
         Instruction::ThreeOp {
@@ -29,8 +70,28 @@ fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
             source2,
             dest,
             op,
-        } => hashset! {source1, source2},
-        Instruction::TwoOp { source1, dest, op } => hashset! {source1},
+        } => {
+            let mut set = hashset! {};
+
+            match source1 {
+                ImmVar::Var(v) => {
+                    set.insert(v);
+                }
+                _ => {}
+            }
+            match source2 {
+                ImmVar::Var(v) => {
+                    set.insert(v);
+                }
+                _ => {}
+            }
+
+            set
+        }
+        Instruction::TwoOp { source1, dest, op } => match source1 {
+            ImmVar::Var(v) => hashset! {v},
+            _ => hashset! {},
+        },
         _ => hashset! {}, // Excludes phis and constant loads
     }
 }

@@ -1,4 +1,4 @@
-use crate::cfg::{self, OneMove};
+use crate::cfg::{self, ImmVar, OneMove};
 use crate::cfg::{Arg, BasicBlock, CfgType, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
 use crate::ssa_construct::SSAVarLabel;
@@ -52,6 +52,18 @@ fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarL
         }
     }
     phi_web
+}
+
+fn convert_imm_var_name(
+    imm_var: &ImmVar<SSAVarLabel>,
+    coallesced_name: &HashMap<SSAVarLabel, SSAVarLabel>,
+    lookup: &mut HashMap<SSAVarLabel, VarLabel>,
+    all_fields: &mut HashMap<u32, (CfgType, String)>,
+) -> ImmVar<VarLabel> {
+    match imm_var {
+        ImmVar::Var(var) => ImmVar::Var(convert_name(var, coallesced_name, lookup, all_fields)),
+        ImmVar::Imm(i) => ImmVar::Imm(*i),
+    }
 }
 
 fn convert_name(
@@ -142,16 +154,21 @@ fn destruct_instruction(
                     let dest = convert_name(&om.dest, coallesced_name, lookup, all_fields);
 
                     inter_instructions.push(Instruction::MoveOp {
-                        source: source,
+                        source: ImmVar::Var(source),
                         dest: inter_name,
                     });
                     instructions.push(Instruction::MoveOp {
-                        source: inter_name,
+                        source: ImmVar::Var(inter_name),
                         dest: dest,
                     });
                 } else {
                     instructions.push(Instruction::MoveOp {
-                        source: convert_name(&om.src, coallesced_name, lookup, all_fields),
+                        source: ImmVar::Var(convert_name(
+                            &om.src,
+                            coallesced_name,
+                            lookup,
+                            all_fields,
+                        )),
                         dest: convert_name(&om.dest, coallesced_name, lookup, all_fields),
                     })
                 }
@@ -163,19 +180,19 @@ fn destruct_instruction(
         Instruction::ArrayAccess { dest, name, idx } => vec![Instruction::ArrayAccess {
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             name: convert_name(&name, coallesced_name, lookup, all_fields),
-            idx: convert_name(&idx, coallesced_name, lookup, all_fields),
+            idx: convert_imm_var_name(&idx, coallesced_name, lookup, all_fields),
         }],
         Instruction::ArrayStore { source, arr, idx } => vec![Instruction::ArrayStore {
-            source: convert_name(&source, coallesced_name, lookup, all_fields),
+            source: convert_imm_var_name(&source, coallesced_name, lookup, all_fields),
             arr: convert_name(&arr, coallesced_name, lookup, all_fields),
-            idx: convert_name(&idx, coallesced_name, lookup, all_fields),
+            idx: convert_imm_var_name(&idx, coallesced_name, lookup, all_fields),
         }],
         Instruction::Call(string, args, opt_ret_val) => {
             let new_args = args
                 .iter()
                 .map(|arg| match arg {
                     Arg::StrArg(string) => Arg::StrArg(string.to_string()),
-                    Arg::VarArg(var) => Arg::VarArg(convert_name(
+                    Arg::VarArg(var) => Arg::VarArg(convert_imm_var_name(
                         &var.clone(),
                         coallesced_name,
                         lookup,
@@ -194,7 +211,7 @@ fn destruct_instruction(
             constant: constant,
         }],
         Instruction::MoveOp { source, dest } => vec![Instruction::MoveOp {
-            source: convert_name(&source, coallesced_name, lookup, all_fields),
+            source: convert_imm_var_name(&source, coallesced_name, lookup, all_fields),
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
         }],
         Instruction::ThreeOp {
@@ -203,13 +220,13 @@ fn destruct_instruction(
             dest,
             op,
         } => vec![Instruction::ThreeOp {
-            source1: convert_name(&source1, coallesced_name, lookup, all_fields),
-            source2: convert_name(&source2, coallesced_name, lookup, all_fields),
+            source1: convert_imm_var_name(&source1, coallesced_name, lookup, all_fields),
+            source2: convert_imm_var_name(&source2, coallesced_name, lookup, all_fields),
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             op: op.clone(),
         }],
         Instruction::TwoOp { source1, dest, op } => vec![Instruction::TwoOp {
-            source1: convert_name(&source1, coallesced_name, lookup, all_fields),
+            source1: convert_imm_var_name(&source1, coallesced_name, lookup, all_fields),
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             op: op.clone(),
         }],
@@ -218,7 +235,7 @@ fn destruct_instruction(
             sources: vec![], // don't care about these anymore
         }],
         Instruction::Ret(opt_ret_val) => match opt_ret_val {
-            Some(var) => vec![Instruction::Ret(Some(convert_name(
+            Some(var) => vec![Instruction::Ret(Some(convert_imm_var_name(
                 &var,
                 coallesced_name,
                 lookup,
