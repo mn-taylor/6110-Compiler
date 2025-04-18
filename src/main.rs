@@ -12,6 +12,7 @@ use decaf_skeleton_rust::ssa_construct;
 use decaf_skeleton_rust::ssa_destruct;
 
 use decaf_skeleton_rust::copyprop;
+use utils::cli::Optimization;
 
 fn get_writer(output: &Option<std::path::PathBuf>) -> Box<dyn std::io::Write> {
     match output {
@@ -45,7 +46,11 @@ fn main() {
     if args.debug {
         eprintln!(
             "Filename: {:?}\nDebug: {:?}\nOptimizations: {:?}\nOutput File: {:?}\nTarget: {:?}",
-            args.input, args.debug, args.opt, args.output, args.target
+            args.input,
+            args.debug,
+            args.get_opts(),
+            args.output,
+            args.target
         );
     }
 
@@ -171,7 +176,6 @@ fn main() {
             }
             let mut p = cfg_build::lin_program(&prog);
 
-            // test ssa construction and destruction
             p.methods = p
                 .methods
                 .iter_mut()
@@ -193,7 +197,9 @@ fn main() {
                             num_intstructions(&ssa_method)
                         ));
                     }
-                    ssa_method = copyprop::copy_propagation(&mut ssa_method);
+                    if args.get_opts().contains(&Optimization::Cp) {
+                        ssa_method = copyprop::copy_propagation(&mut ssa_method);
+                    }
                     if args.debug {
                         println!("method after copy propagation: \n{}", ssa_method);
                         metrics_string.push(format!(
@@ -202,8 +208,10 @@ fn main() {
                         ));
                     }
 
-                    ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
-                    ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
+                    if args.get_opts().contains(&Optimization::Dce) {
+                        ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
+                        ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
+                    }
 
                     if args.debug {
                         println!("method after dead code elimination: \n{}", ssa_method);

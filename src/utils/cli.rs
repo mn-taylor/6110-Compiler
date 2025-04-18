@@ -1,3 +1,4 @@
+use clap::Parser;
 /**
  * A generic command-line interface for 6.035 compilers.  This class
  * provides command-line parsing for student projects.  It recognizes
@@ -7,7 +8,9 @@
  *
  * @author 6.1100 Staff, last updated January 2024
  */
-use clap::Parser;
+use enum_iterator::all;
+use enum_iterator::Sequence;
+use std::collections::HashSet;
 
 #[derive(Clone, clap::ValueEnum, Debug)]
 pub enum CompilerAction {
@@ -18,8 +21,55 @@ pub enum CompilerAction {
     Assembly,
 }
 
-#[derive(Clone, clap::ValueEnum, Debug, PartialEq, Eq, Hash)]
-pub enum Optimization {}
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Sequence, Copy)]
+pub enum Optimization {
+    Cp,
+    Dce,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum OptimizationOption {
+    Yes(Optimization),
+    No(Optimization),
+    All,
+}
+
+impl std::str::FromStr for OptimizationOption {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "dce" => Ok(OptimizationOption::Yes(Optimization::Dce)),
+            "cp" => Ok(OptimizationOption::Yes(Optimization::Cp)),
+            "all" => Ok(OptimizationOption::All),
+            "-dce" => Ok(OptimizationOption::No(Optimization::Dce)),
+            "-cp" => Ok(OptimizationOption::No(Optimization::Cp)),
+            _ => Err(format!("unknown optimization: {}", s)),
+        }
+    }
+}
+
+impl Args {
+    pub fn get_opts(&self) -> Vec<Optimization> {
+        let mut opts: HashSet<Optimization>;
+        if self.opt.contains(&OptimizationOption::All) {
+            opts = all::<Optimization>().collect();
+        } else {
+            opts = HashSet::new();
+        }
+        for o in self.opt.iter() {
+            match o {
+                OptimizationOption::All => (),
+                OptimizationOption::Yes(o) => {
+                    opts.insert(*o);
+                }
+                OptimizationOption::No(o) => {
+                    opts.remove(&o);
+                }
+            }
+        }
+        opts.into_iter().collect()
+    }
+}
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -37,9 +87,10 @@ pub struct Args {
         long,
         value_delimiter = ',',
         value_enum,
-        value_name = "optimization,.."
+        value_name = "optimization,..",
+        allow_hyphen_values = true
     )]
-    pub opt: Vec<Optimization>,
+    opt: Vec<OptimizationOption>,
 
     /// Print debugging information
     #[arg(short, long, default_value_t = false)]
