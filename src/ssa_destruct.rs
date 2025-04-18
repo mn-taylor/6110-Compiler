@@ -384,7 +384,6 @@ pub fn split_crit_edges(method: &mut cfg::CfgMethod<SSAVarLabel>) {
         // given a parent of blk, what are the corresponding copies
         let mut copies: HashMap<BlockLabel, Vec<cfg::OneMove<SSAVarLabel>>> = HashMap::new();
         for insn in blk.body.iter_mut() {
-            println!("instruction before: {}", insn);
             if let Instruction::PhiExpr { sources, .. } = insn {
                 for (par, var) in sources {
                     let fresh_var = method.fields.keys().max().unwrap_or(&0) + 1;
@@ -407,7 +406,6 @@ pub fn split_crit_edges(method: &mut cfg::CfgMethod<SSAVarLabel>) {
             } else {
                 break;
             }
-            println!("instruction after: {}", insn);
         }
         for (par, parcops) in copies {
             cfg.get_mut(&par)
