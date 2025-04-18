@@ -217,7 +217,8 @@ fn main() {
                     if args.debug {
                         // println!("method after splitting edges: \n{ssa_method}");
                     }
-                    let result = ssa_destruct::destruct(&mut ssa_method);
+                    let mut result = ssa_destruct::destruct(&mut ssa_method);
+                    ssa_destruct::seq_method(&mut result);
                     if args.debug {
                         println!("method after ssa destruction: \n{}", result);
                         metrics_string.push(format!(

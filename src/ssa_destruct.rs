@@ -2,7 +2,6 @@ use crate::cfg::{self};
 use crate::cfg::{Arg, BasicBlock, CfgType, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
 use crate::ssa_construct::SSAVarLabel;
-use maplit::hashset;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -114,71 +113,16 @@ fn destruct_instruction(
     all_fields: &mut HashMap<u32, (CfgType, String)>,
 ) -> Vec<Instruction<VarLabel>> {
     match instr {
-        Instruction::ParMov(mut copies) => {
-            // algorithm 3.6 in SSA-Based Compiler Design
-            let mut instructions: Vec<Instruction<SSAVarLabel>> = vec![];
-
-            copies.retain(|om| om.src != om.dest);
-            while copies.len() > 0 {
-                let mut all_srcs: HashSet<SSAVarLabel> = copies.iter().map(|om| om.src).collect();
-                let mut all_dests: HashSet<SSAVarLabel> = copies.iter().map(|om| om.src).collect();
-                match (&all_dests - &all_srcs).iter().next() {
-                    Some(b) => {
-                        // retain with an impure function?  gross.
-                        let found_it = false;
-                        copies.retain(|om| {
-                            if !found_it && om.dest == *b {
-                                found_it = true;
-                                instructions.push(Instruction::MoveOp {
-                                    source: om.src,
-                                    dest: om.dest,
-                                });
-                                return false;
-                            }
-                            true
-                        });
-                    }
-                    None => {
-                        // create new variable and add it to lookup and translations
-                        let inter_name = (*all_fields.keys().max().unwrap() as usize + 1) as u32;
-                        let inter_ssa_name = SSAVarLabel {
-                            name: inter_name,
-                            version: 1,
-                        };
-                        lookup.insert(inter_ssa_name, inter_name);
-                        all_fields.insert(inter_name, (*all_fields.get(&source).unwrap()).clone());
-                        instructions.push()
-                    }
-                }
-
-                copies.retain(|om| om.src != om.dest);
-            }
-
-            for om in copies.iter() {
-                if true {
-                    // should modify conditional so that we do not have to always do t1 < temp < t2 when doing parallel moves.
-                    let source = convert_name(&om.src, coallesced_name, lookup, all_fields);
-
-                    let dest = convert_name(&om.dest, coallesced_name, lookup, all_fields);
-
-                    inter_instructions.push(Instruction::MoveOp {
-                        source: source,
-                        dest: inter_name,
-                    });
-                    instructions.push(Instruction::MoveOp {
-                        source: inter_name,
-                        dest: dest,
-                    });
-                } else {
-                    instructions.push(Instruction::MoveOp {
-                        source: convert_name(&om.src, coallesced_name, lookup, all_fields),
+        Instruction::ParMov(copies) => {
+            vec![Instruction::ParMov(
+                copies
+                    .into_iter()
+                    .map(|om| cfg::OneMove {
+                        src: convert_name(&om.src, coallesced_name, lookup, all_fields),
                         dest: convert_name(&om.dest, coallesced_name, lookup, all_fields),
                     })
-                }
-            }
-
-            inter_instructions.extend(instructions);
-            return inter_instructions;
+                    .collect(),
+            )]
         }
         Instruction::ArrayAccess { dest, name, idx } => vec![Instruction::ArrayAccess {
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
@@ -246,6 +190,69 @@ fn destruct_instruction(
             )))],
             None => vec![Instruction::Ret(None)],
         },
+    }
+}
+
+pub fn seq_method(m: &mut CfgMethod) {
+    for (_, blk) in m.blocks.iter_mut() {
+        blk.body = blk
+            .body
+            .clone() // gross
+            .into_iter()
+            .map(|insn| sequentialize(insn, &mut m.fields))
+            .collect::<Vec<_>>()
+            .concat();
+    }
+}
+
+fn sequentialize(
+    insn: Instruction<VarLabel>,
+    all_fields: &mut HashMap<u32, (CfgType, String)>,
+) -> Vec<Instruction<VarLabel>> {
+    if let Instruction::ParMov(mut copies) = insn {
+        // algorithm 3.6 in SSA-Based Compiler Design
+        let mut instructions: Vec<Instruction<VarLabel>> = vec![];
+
+        copies.retain(|om| om.src != om.dest);
+        while copies.len() > 0 {
+            let all_srcs: HashSet<VarLabel> = copies.iter().map(|om| om.src).collect();
+            let all_dests: HashSet<VarLabel> = copies.iter().map(|om| om.dest).collect();
+            match (&all_dests - &all_srcs).iter().next() {
+                Some(b) => {
+                    // retain with an impure function?  gross.
+                    let mut found_it = false;
+                    copies.retain(|om| {
+                        if !found_it && om.dest == *b {
+                            found_it = true;
+                            instructions.push(Instruction::MoveOp {
+                                source: om.src,
+                                dest: om.dest,
+                            });
+                            return false;
+                        }
+                        true
+                    });
+                }
+                None => {
+                    let om = copies.pop().unwrap();
+                    // create new variable and add it to lookup and translations
+                    let inter_name = (*all_fields.keys().max().unwrap() as usize + 1) as u32;
+                    all_fields.insert(inter_name, (*all_fields.get(&om.src).unwrap()).clone());
+                    instructions.push(Instruction::MoveOp {
+                        source: om.src,
+                        dest: inter_name,
+                    });
+                    copies.push(cfg::OneMove {
+                        src: inter_name,
+                        dest: om.dest,
+                    });
+                }
+            }
+            copies.retain(|om| om.src != om.dest);
+        }
+        instructions
+    } else {
+        vec![insn]
     }
 }
 

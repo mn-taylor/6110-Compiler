@@ -97,13 +97,13 @@ impl<VarLabel: fmt::Display> fmt::Display for Jump<VarLabel> {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct OneMove<VarLabel> {
     pub src: VarLabel,
     pub dest: VarLabel,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Instruction<VarLabel> {
     PhiExpr {
         dest: VarLabel,
