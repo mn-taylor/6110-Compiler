@@ -1,5 +1,5 @@
 use crate::cfg;
-use crate::cfg::{Arg, BasicBlock, BlockLabel, Instruction, Jump};
+use crate::cfg::{Arg, BasicBlock, BlockLabel, ImmVar, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -379,7 +379,12 @@ fn rewrite_instr(
         Instruction::ParMov(_) => panic!(),
         Instruction::MoveOp { source, dest } => {
             // replace source by its reaching_def
-            let new_source = rewrite_source(*source, reaching_defs, all_fields, block_id);
+            let new_source = match source {
+                ImmVar::Var(s) => {
+                    ImmVar::Var(rewrite_source(*s, reaching_defs, all_fields, block_id))
+                }
+                ImmVar::Imm(i) => ImmVar::Imm(*i),
+            };
 
             // update dest
             let new_dest = rewrite_dest(*dest, reaching_defs, latest_defs, all_fields, block_id);
@@ -394,8 +399,19 @@ fn rewrite_instr(
             dest,
             op,
         } => {
-            let new_source1 = rewrite_source(*source1, reaching_defs, all_fields, block_id);
-            let new_source2 = rewrite_source(*source2, reaching_defs, all_fields, block_id);
+            let new_source1 = match source1 {
+                ImmVar::Var(s) => {
+                    ImmVar::Var(rewrite_source(*s, reaching_defs, all_fields, block_id))
+                }
+                ImmVar::Imm(i) => ImmVar::Imm(*i),
+            };
+
+            let new_source2 = match source2 {
+                ImmVar::Var(s) => {
+                    ImmVar::Var(rewrite_source(*s, reaching_defs, all_fields, block_id))
+                }
+                ImmVar::Imm(i) => ImmVar::Imm(*i),
+            };
 
             let new_dest = rewrite_dest(*dest, reaching_defs, latest_defs, all_fields, block_id);
 
@@ -407,7 +423,12 @@ fn rewrite_instr(
             }
         }
         Instruction::TwoOp { source1, dest, op } => {
-            let new_source1 = rewrite_source(*source1, reaching_defs, all_fields, block_id);
+            let new_source1 = match source1 {
+                ImmVar::Var(s) => {
+                    ImmVar::Var(rewrite_source(*s, reaching_defs, all_fields, block_id))
+                }
+                ImmVar::Imm(i) => ImmVar::Imm(*i),
+            };
 
             let new_dest = rewrite_dest(*dest, reaching_defs, latest_defs, all_fields, block_id);
 
@@ -418,7 +439,12 @@ fn rewrite_instr(
             }
         }
         Instruction::ArrayAccess { dest, name, idx } => {
-            let new_idx = rewrite_source(*idx, reaching_defs, all_fields, block_id);
+            let new_idx = match idx {
+                ImmVar::Var(s) => {
+                    ImmVar::Var(rewrite_source(*s, reaching_defs, all_fields, block_id))
+                }
+                ImmVar::Imm(i) => ImmVar::Imm(*i),
+            };
             let new_name = SSAVarLabel {
                 name: *name,
                 version: 0,
@@ -432,8 +458,18 @@ fn rewrite_instr(
             }
         }
         Instruction::ArrayStore { source, arr, idx } => {
-            let new_idx = rewrite_source(*idx, reaching_defs, all_fields, block_id);
-            let new_source = rewrite_source(*source, reaching_defs, all_fields, block_id);
+            let new_idx = match idx {
+                ImmVar::Var(s) => {
+                    ImmVar::Var(rewrite_source(*s, reaching_defs, all_fields, block_id))
+                }
+                ImmVar::Imm(i) => ImmVar::Imm(*i),
+            };
+            let new_source = match source {
+                ImmVar::Var(s) => {
+                    ImmVar::Var(rewrite_source(*s, reaching_defs, all_fields, block_id))
+                }
+                ImmVar::Imm(i) => ImmVar::Imm(*i),
+            };
 
             let new_arr = SSAVarLabel {
                 name: *arr,
@@ -458,9 +494,12 @@ fn rewrite_instr(
             let new_args = args
                 .iter()
                 .map(|c| match c {
-                    Arg::VarArg(name) => {
-                        Arg::VarArg(rewrite_source(*name, reaching_defs, all_fields, block_id))
-                    }
+                    Arg::VarArg(name) => Arg::VarArg(match name {
+                        ImmVar::Var(var) => {
+                            ImmVar::Var(rewrite_source(*var, reaching_defs, all_fields, block_id))
+                        }
+                        ImmVar::Imm(i) => ImmVar::Imm(*i),
+                    }),
                     Arg::StrArg(string) => Arg::StrArg(string.to_string()),
                 })
                 .collect::<Vec<_>>();
@@ -480,7 +519,12 @@ fn rewrite_instr(
         }
         Instruction::Ret(opt_source) => {
             let new_opt_source = match opt_source {
-                Some(var) => Some(rewrite_source(*var, reaching_defs, all_fields, block_id)),
+                Some(var) => Some(match var {
+                    ImmVar::Var(v) => {
+                        ImmVar::Var(rewrite_source(*v, reaching_defs, all_fields, block_id))
+                    }
+                    ImmVar::Imm(i) => ImmVar::Imm(*i),
+                }),
                 None => None,
             };
 

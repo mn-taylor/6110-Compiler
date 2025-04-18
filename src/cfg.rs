@@ -110,18 +110,18 @@ pub enum Instruction<VarLabel> {
         sources: Vec<(BlockLabel, VarLabel)>,
     },
     ThreeOp {
-        source1: VarLabel,
-        source2: VarLabel,
+        source1: ImmVar<VarLabel>,
+        source2: ImmVar<VarLabel>,
         dest: VarLabel,
         op: Bop,
     },
     TwoOp {
-        source1: VarLabel,
+        source1: ImmVar<VarLabel>,
         dest: VarLabel,
         op: UnOp,
     },
     MoveOp {
-        source: VarLabel,
+        source: ImmVar<VarLabel>,
         dest: VarLabel,
     },
     ParMov(Vec<OneMove<VarLabel>>),
@@ -132,14 +132,14 @@ pub enum Instruction<VarLabel> {
     ArrayAccess {
         dest: VarLabel,
         name: VarLabel,
-        idx: VarLabel,
+        idx: ImmVar<VarLabel>,
     },
     ArrayStore {
-        source: VarLabel,
+        source: ImmVar<VarLabel>,
         arr: VarLabel,
-        idx: VarLabel,
+        idx: ImmVar<VarLabel>,
     },
-    Ret(Option<VarLabel>),
+    Ret(Option<ImmVar<VarLabel>>),
     Call(String, Vec<Arg<VarLabel>>, Option<VarLabel>),
 }
 
@@ -206,8 +206,23 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
 
 #[derive(Debug, Clone)]
 pub enum Arg<VarLabel> {
-    VarArg(VarLabel),
+    VarArg(ImmVar<VarLabel>),
     StrArg(String),
+}
+
+#[derive(Clone, Debug)]
+pub enum ImmVar<VarLabel> {
+    Var(VarLabel),
+    Imm(i64),
+}
+
+impl<VarLabel: fmt::Display> fmt::Display for ImmVar<VarLabel> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ImmVar::Var(v) => write!(f, "{}", v),
+            ImmVar::Imm(i) => write!(f, "{}", i),
+        }
+    }
 }
 
 impl<VarLabel: fmt::Display> fmt::Display for Arg<VarLabel> {

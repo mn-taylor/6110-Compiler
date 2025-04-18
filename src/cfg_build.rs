@@ -1,5 +1,5 @@
 use crate::{
-    cfg,
+    cfg::{self, ImmVar},
     ir::{self, Program},
     parse,
     scan::{self, IncrOp},
@@ -344,8 +344,8 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
 
                 let t3 = st.gen_temp(infer_type(st.type_of(t1), op));
                 let end = st.add_block(block_with_instr(Instruction::ThreeOp {
-                    source1: t1,
-                    source2: t2,
+                    source1: ImmVar::Var(t1),
+                    source2: cfg::ImmVar::Var(t2),
                     dest: t3,
                     op: op.clone(),
                 }));
@@ -357,7 +357,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
             let (t1, t1start, t1end) = lin_expr(&e.val, st, scope);
             let t2 = st.gen_temp(infer_unary_type(st.type_of(t1), op));
             let end = st.add_block(block_with_instr(Instruction::TwoOp {
-                source1: t1,
+                source1: ImmVar::Var(t1),
                 dest: t2,
                 op: op.clone(),
             }));
@@ -398,7 +398,7 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                 match arg {
                     ir::Arg::ExprArg(WithLoc { val: e1, loc: _ }) => {
                         let (t, tstart, tend) = lin_expr(e1, st, scope);
-                        let cfg_arg = Arg::VarArg(t);
+                        let cfg_arg = Arg::VarArg(ImmVar::Var(t));
                         temp_args.push(cfg_arg);
 
                         st.get_block(prev_block).jump_loc = Jump::Uncond(tstart);
@@ -500,7 +500,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
                 match arg {
                     ir::Arg::ExprArg(WithLoc { val: e1, loc: _ }) => {
                         let (t, tstart, tend) = lin_expr(e1, st, scope);
-                        let cfg_arg = Arg::VarArg(t);
+                        let cfg_arg = Arg::VarArg(ImmVar::Var(t));
                         temp_args.push(cfg_arg);
 
                         st.get_block(prev_block).jump_loc = Jump::Uncond(tstart);
@@ -618,7 +618,7 @@ fn lin_stmt(s: &Stmt, st: &mut State, scope: &Scope) -> (BlockLabel, BlockLabel)
         ir::Stmt::Return(_, ret_val) => match ret_val {
             Some(expr) => {
                 let (t, tstart, tend) = lin_expr(&expr.val, st, scope);
-                let ret_instr = Instruction::Ret(Some(t));
+                let ret_instr = Instruction::Ret(Some(ImmVar::Var(t)));
                 st.get_block(tend).body.push(ret_instr);
                 (tstart, tend)
             }
@@ -660,12 +660,12 @@ fn lin_reg_assign(
     let op_ = convert_assign_op(op);
     let instr = match op_ {
         None => Instruction::MoveOp {
-            source: t1,
+            source: ImmVar::Var(t1),
             dest: target_id,
         },
         Some(binop) => Instruction::ThreeOp {
-            source1: target_id,
-            source2: t1,
+            source1: ImmVar::Var(target_id),
+            source2: ImmVar::Var(t1),
             dest: target_id,
             op: binop,
         },
@@ -694,14 +694,14 @@ fn lin_assign_to_loc(
             let load_block = st.add_block(block_with_instr(Instruction::ArrayAccess {
                 dest: temp,
                 name: *ll_arr_name,
-                idx,
+                idx: ImmVar::Var(idx),
             }));
             // what are these naming conventions????!
             let (ass_start, ass_end) = lin_assign_expr(temp, val_to_assign, st, scope);
             let store_block = st.add_block(block_with_instr(Instruction::ArrayStore {
-                source: temp,
+                source: ImmVar::Var(temp),
                 arr: *ll_arr_name,
-                idx,
+                idx: ImmVar::Var(idx),
             }));
             let (start, end) = link(idx_start, idx_end, load_block, load_block, st);
             let (start, end) = link(start, end, ass_start, ass_end, st);
@@ -725,8 +725,8 @@ fn lin_assign_expr(
 
             // can just do the instructions in sequence in one block.
             let end = st.add_block(block_with_instr(Instruction::ThreeOp {
-                source1: target,
-                source2: t1,
+                source1: ImmVar::Var(target),
+                source2: ImmVar::Var(t1),
                 dest: target,
                 op: convert_incr_op(op.val.clone()),
             }));
@@ -786,7 +786,7 @@ fn lin_location(
                 let instr = Instruction::ArrayAccess {
                     dest: dest,
                     name: *id,
-                    idx: idx_val,
+                    idx: ImmVar::Var(idx_val),
                 };
 
                 let block = st.add_block(block_with_instr(instr));

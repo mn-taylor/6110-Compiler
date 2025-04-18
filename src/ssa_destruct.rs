@@ -1,4 +1,4 @@
-use crate::cfg::{self};
+use crate::cfg::{self, ImmVar, OneMove};
 use crate::cfg::{Arg, BasicBlock, CfgType, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
 use crate::ssa_construct::SSAVarLabel;
@@ -53,6 +53,18 @@ fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarL
     phi_web
 }
 
+fn convert_imm_var_name(
+    imm_var: &ImmVar<SSAVarLabel>,
+    coallesced_name: &HashMap<SSAVarLabel, SSAVarLabel>,
+    lookup: &mut HashMap<SSAVarLabel, VarLabel>,
+    all_fields: &mut HashMap<u32, (CfgType, String)>,
+) -> ImmVar<VarLabel> {
+    match imm_var {
+        ImmVar::Var(var) => ImmVar::Var(convert_name(var, coallesced_name, lookup, all_fields)),
+        ImmVar::Imm(i) => ImmVar::Imm(*i),
+    }
+}
+
 fn convert_name(
     var: &SSAVarLabel,
     coallesced_name: &HashMap<SSAVarLabel, SSAVarLabel>,
@@ -100,11 +112,48 @@ fn destruct_instruction(
 ) -> Vec<Instruction<VarLabel>> {
     match instr {
         Instruction::ParMov(copies) => {
-            vec![Instruction::ParMov(
-                copies
-                    .into_iter()
-                    .map(|om| cfg::OneMove {
-                        src: convert_name(&om.src, coallesced_name, lookup, all_fields),
+            // algorithm 3.6 in SSA-Based Compiler Design
+            let mut all_srcs: HashSet<SSAVarLabel> = hashset! {};
+            let mut all_dests: HashSet<SSAVarLabel> = hashset! {};
+            let mut instructions: Vec<Instruction<VarLabel>> = vec![];
+            let mut inter_instructions: Vec<Instruction<VarLabel>> = vec![];
+            copies.iter().for_each(|om| {
+                all_srcs.insert(om.src.clone());
+                all_dests.insert(om.dest.clone());
+            });
+
+            copies.iter().for_each(|om| {
+                if true {
+                    // should modify conditional so that we do not have to always do t1 < temp < t2 when doing parallel moves.
+                    let source = convert_name(&om.src, coallesced_name, lookup, all_fields);
+
+                    // create new variable and add it to lookup and translations
+                    let inter_name = (*all_fields.keys().max().unwrap() as usize + 1) as u32;
+                    let inter_ssa_name = SSAVarLabel {
+                        name: inter_name,
+                        version: 1,
+                    };
+                    lookup.insert(inter_ssa_name, inter_name);
+                    all_fields.insert(inter_name, (*all_fields.get(&source).unwrap()).clone());
+
+                    let dest = convert_name(&om.dest, coallesced_name, lookup, all_fields);
+
+                    inter_instructions.push(Instruction::MoveOp {
+                        source: ImmVar::Var(source),
+                        dest: inter_name,
+                    });
+                    instructions.push(Instruction::MoveOp {
+                        source: ImmVar::Var(inter_name),
+                        dest: dest,
+                    });
+                } else {
+                    instructions.push(Instruction::MoveOp {
+                        source: ImmVar::Var(convert_name(
+                            &om.src,
+                            coallesced_name,
+                            lookup,
+                            all_fields,
+                        )),
                         dest: convert_name(&om.dest, coallesced_name, lookup, all_fields),
                     })
                     .collect(),
@@ -113,19 +162,19 @@ fn destruct_instruction(
         Instruction::ArrayAccess { dest, name, idx } => vec![Instruction::ArrayAccess {
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             name: convert_name(&name, coallesced_name, lookup, all_fields),
-            idx: convert_name(&idx, coallesced_name, lookup, all_fields),
+            idx: convert_imm_var_name(&idx, coallesced_name, lookup, all_fields),
         }],
         Instruction::ArrayStore { source, arr, idx } => vec![Instruction::ArrayStore {
-            source: convert_name(&source, coallesced_name, lookup, all_fields),
+            source: convert_imm_var_name(&source, coallesced_name, lookup, all_fields),
             arr: convert_name(&arr, coallesced_name, lookup, all_fields),
-            idx: convert_name(&idx, coallesced_name, lookup, all_fields),
+            idx: convert_imm_var_name(&idx, coallesced_name, lookup, all_fields),
         }],
         Instruction::Call(string, args, opt_ret_val) => {
             let new_args = args
                 .iter()
                 .map(|arg| match arg {
                     Arg::StrArg(string) => Arg::StrArg(string.to_string()),
-                    Arg::VarArg(var) => Arg::VarArg(convert_name(
+                    Arg::VarArg(var) => Arg::VarArg(convert_imm_var_name(
                         &var.clone(),
                         coallesced_name,
                         lookup,
@@ -144,7 +193,7 @@ fn destruct_instruction(
             constant: constant,
         }],
         Instruction::MoveOp { source, dest } => vec![Instruction::MoveOp {
-            source: convert_name(&source, coallesced_name, lookup, all_fields),
+            source: convert_imm_var_name(&source, coallesced_name, lookup, all_fields),
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
         }],
         Instruction::ThreeOp {
@@ -153,13 +202,13 @@ fn destruct_instruction(
             dest,
             op,
         } => vec![Instruction::ThreeOp {
-            source1: convert_name(&source1, coallesced_name, lookup, all_fields),
-            source2: convert_name(&source2, coallesced_name, lookup, all_fields),
+            source1: convert_imm_var_name(&source1, coallesced_name, lookup, all_fields),
+            source2: convert_imm_var_name(&source2, coallesced_name, lookup, all_fields),
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             op: op.clone(),
         }],
         Instruction::TwoOp { source1, dest, op } => vec![Instruction::TwoOp {
-            source1: convert_name(&source1, coallesced_name, lookup, all_fields),
+            source1: convert_imm_var_name(&source1, coallesced_name, lookup, all_fields),
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             op: op.clone(),
         }],
@@ -168,7 +217,7 @@ fn destruct_instruction(
             sources: vec![], // don't care about these anymore
         }],
         Instruction::Ret(opt_ret_val) => match opt_ret_val {
-            Some(var) => vec![Instruction::Ret(Some(convert_name(
+            Some(var) => vec![Instruction::Ret(Some(convert_imm_var_name(
                 &var,
                 coallesced_name,
                 lookup,
