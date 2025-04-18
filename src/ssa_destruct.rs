@@ -1,8 +1,8 @@
-use crate::cfg::{self, OneMove};
+use crate::cfg::{self};
 use crate::cfg::{Arg, BasicBlock, CfgType, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
 use crate::ssa_construct::SSAVarLabel;
-use maplit::{hashmap, hashset};
+use maplit::hashset;
 use std::collections::HashMap;
 use std::collections::HashSet;
 

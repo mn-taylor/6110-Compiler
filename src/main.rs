@@ -1,10 +1,6 @@
 mod utils;
 
-use core::num;
-
 use decaf_skeleton_rust::asm;
-use decaf_skeleton_rust::cfg;
-use decaf_skeleton_rust::cfg::{BasicBlock, Instruction, Jump};
 use decaf_skeleton_rust::cfg_build;
 use decaf_skeleton_rust::deadcode;
 use decaf_skeleton_rust::ir_build;
@@ -13,7 +9,6 @@ use decaf_skeleton_rust::parse;
 use decaf_skeleton_rust::scan;
 use decaf_skeleton_rust::semantics;
 use decaf_skeleton_rust::ssa_construct;
-use decaf_skeleton_rust::ssa_construct::SSAVarLabel;
 use decaf_skeleton_rust::ssa_destruct;
 
 use decaf_skeleton_rust::copyprop;

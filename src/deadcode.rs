@@ -1,14 +1,14 @@
 use crate::cfg::{self, Jump};
-use crate::cfg::{Arg, BasicBlock, Instruction};
-use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
+use crate::cfg::{Arg, Instruction};
+use crate::ssa_construct::SSAVarLabel;
 use maplit::{hashmap, hashset};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
     match instruction {
-        Instruction::PhiExpr { dest, sources } => sources.iter().map(|(_, var)| *var).collect(),
-        Instruction::ArrayAccess { dest, name, idx } => hashset! {idx},
-        Instruction::ArrayStore { source, arr, idx } => hashset! {source, idx},
+        Instruction::PhiExpr { sources, .. } => sources.iter().map(|(_, var)| *var).collect(),
+        Instruction::ArrayAccess { idx, .. } => hashset! {idx},
+        Instruction::ArrayStore { source, idx, .. } => hashset! {source, idx},
         Instruction::Call(_, args, _) => {
             let mut sources = hashset! {};
             args.iter().for_each(|arg| match arg {
@@ -19,47 +19,35 @@ fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
             });
             sources
         }
-        Instruction::MoveOp { source, dest } => hashset! {source},
+        Instruction::MoveOp { source, .. } => hashset! {source},
         Instruction::Ret(opt_ret_val) => match opt_ret_val {
             Some(var) => hashset! {var},
             None => hashset! {},
         },
         Instruction::ThreeOp {
-            source1,
-            source2,
-            dest,
-            op,
+            source1, source2, ..
         } => hashset! {source1, source2},
-        Instruction::TwoOp { source1, dest, op } => hashset! {source1},
+        Instruction::TwoOp { source1, .. } => hashset! {source1},
         _ => hashset! {}, // Excludes phis and constant loads
     }
 }
 
 fn get_jump_sources(j: Jump<SSAVarLabel>) -> HashSet<SSAVarLabel> {
     match j {
-        Jump::Cond {
-            source,
-            true_block,
-            false_block,
-        } => hashset! {source},
+        Jump::Cond { source, .. } => hashset! {source},
         _ => hashset! {},
     }
 }
 
 fn get_dest(instruction: Instruction<SSAVarLabel>) -> Option<SSAVarLabel> {
     match instruction {
-        Instruction::PhiExpr { dest, sources } => Some(dest),
-        Instruction::ArrayAccess { dest, name, idx } => Some(dest),
+        Instruction::PhiExpr { dest, .. } => Some(dest),
+        Instruction::ArrayAccess { dest, .. } => Some(dest),
         Instruction::Call(_, _, _) => None, // We always want to call functions whether or not their return values are used, because they may modify global variables.
-        Instruction::Constant { dest, constant } => Some(dest),
-        Instruction::MoveOp { source, dest } => Some(dest),
-        Instruction::ThreeOp {
-            source1,
-            source2,
-            dest,
-            op,
-        } => Some(dest),
-        Instruction::TwoOp { source1, dest, op } => Some(dest),
+        Instruction::Constant { dest, .. } => Some(dest),
+        Instruction::MoveOp { dest, .. } => Some(dest),
+        Instruction::ThreeOp { dest, .. } => Some(dest),
+        Instruction::TwoOp { dest, .. } => Some(dest),
         _ => None, // Excludes Array Stores, Returns, and Parallel Moves
     }
 }
