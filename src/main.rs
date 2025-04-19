@@ -205,14 +205,14 @@ fn main() {
                     if args.debug && args.get_opts().contains(&Optimization::Cp) {
                         println!("method after copy propagation: \n{}", ssa_method);
                         metrics_string.push(format!(
-                            "after constant propagation | num_instructions: {}",
+                            "after copy propagation | num_instructions: {}",
                             num_intstructions(&ssa_method)
                         ));
                     }
 
                     if args.get_opts().contains(&Optimization::Dce) {
                         ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
-                        ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
+                        // ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
                     }
 
                     if args.debug && args.get_opts().contains(&Optimization::Dce) {
@@ -221,20 +221,13 @@ fn main() {
                             "after dead code elimination | num_instructions: {}",
                             num_intstructions(&ssa_method)
                         ));
-
-                        ssa_method = constprop::constant_propagation(&mut ssa_method);
-                        ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
-                        metrics_string.push(format!(
-                            "after constant propagation | num_instructions: {}",
-                            num_intstructions(&ssa_method)
-                        ));
                     }
 
                     // ssa_method = copyprop::copy_propagation(&mut ssa_method);
                     // ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
                     // ssa_method = constprop::constant_propagation(&mut ssa_method);
                     // ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
-                    println!("method after constant propagation: \n{}", ssa_method);
+                    // println!("method after constant propagation: \n{}", ssa_method);
                     // ssa_method = constprop::constant_propagation(&mut ssa_method);
                     // ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
 

@@ -1,0 +1,39 @@
+---------------------------------
+Original Code
+---------------------------------
+import printf;
+
+void main() {
+  int a, b, c;
+
+  b = 1;
+  a = b;
+  c = a;
+
+  printf("%d %d %d", a, b, c);
+}
+
+----------------------------------
+
+method after ssa construction: 
+Method: main
+------------------------- 
+BasicBlock 0 
+  Parents: []
+| t4_v1 <- $1 |
+| t2_v1 <- t4_v1 |
+| t1_v1 <- t2_v1 |
+| t3_v1 <- t1_v1 |
+| call printf(t"%d %d %d", t1_v1, t2_v1, t3_v1) |
+| nowhere |
+-------------------------
+
+method after ssa destruction: 
+Method: main
+------------------------- 
+BasicBlock 0 
+  Parents: []
+| t4 <- $1 |
+| call printf(t"%d %d %d", t4, t4, t4) |
+| nowhere |
+-------------------------

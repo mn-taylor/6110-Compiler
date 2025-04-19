@@ -1,0 +1,41 @@
+Original Code
+import printf;
+
+void main() {
+  int a, b, c;
+
+  a = 5;
+  b = 6;
+  c = a + b;
+
+  printf("%d %d", a, b);
+}
+
+method after ssa construction: 
+Method: main
+------------------------- 
+BasicBlock 0 
+  Parents: []
+| t4_v1 <- $5 |
+| t1_v1 <- t4_v1 |
+| t5_v1 <- $6 |
+| t2_v1 <- t5_v1 |
+| t6_v1 = t1_v1 + t2_v1 |
+| t3_v1 <- t6_v1 |
+| call printf(t"%d %d", t1_v1, t2_v1) |
+| nowhere |
+-------------------------
+
+method after dead code elimination: 
+Method: main
+------------------------- 
+BasicBlock 0 
+  Parents: []
+| t4_v1 <- $5 |
+| t1_v1 <- t4_v1 |
+| t5_v1 <- $6 |
+| t2_v1 <- t5_v1 |
+| t6_v1 = t1_v1 + t2_v1 |
+| call printf(t"%d %d", t1_v1, t2_v1) |
+| nowhere |
+-------------------------
