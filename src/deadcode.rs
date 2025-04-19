@@ -148,7 +148,7 @@ pub fn dead_code_elimination(m: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
             .collect()
     }
 
-    // remove definitions of non global variables
+    // remove definitions of non global variables that are never sources
     for (id, block) in m.blocks.iter() {
         let mut new_block = block.clone();
 
