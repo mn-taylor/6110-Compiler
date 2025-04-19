@@ -210,10 +210,20 @@ pub enum Arg<VarLabel> {
     StrArg(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum ImmVar<VarLabel> {
     Var(VarLabel),
     Imm(i64),
+}
+
+pub trait IsImmediate {
+    fn is_immediate(&self) -> bool;
+}
+
+impl<VarLabel> IsImmediate for ImmVar<VarLabel> {
+    fn is_immediate(&self) -> bool {
+        matches!(self, ImmVar::Imm(_))
+    }
 }
 
 impl<VarLabel: fmt::Display> fmt::Display for ImmVar<VarLabel> {

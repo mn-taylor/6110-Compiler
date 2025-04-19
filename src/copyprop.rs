@@ -3,7 +3,7 @@ use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction};
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
 use std::collections::HashMap;
 
-// find first variable not in coppy lookup
+// find first variable not in copy lookup
 fn check_copy(var: SSAVarLabel, copy_lookup: &HashMap<SSAVarLabel, SSAVarLabel>) -> SSAVarLabel {
     match copy_lookup.get(&var) {
         Some(original) => check_copy(original.clone(), copy_lookup),
