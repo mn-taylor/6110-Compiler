@@ -71,6 +71,8 @@ fn convert_bop_to_asm(bop: Bop) -> String {
     .to_string()
 }
 
+//
+
 fn convert_multipication_var_var(mop: MulOp, operand: Reg, optarget: Reg) -> Vec<String> {
     let mut instructions = vec![];
     match mop {
@@ -98,13 +100,15 @@ fn convert_multipication_imm_var(mop: MulOp, operand: i64, optarget: Reg) -> Vec
         MulOp::Mod => {
             instructions.push(format!("\tmovq {}, {}", optarget, Reg::Rax));
             instructions.push(format!("\tcqto"));
-            instructions.push(format!("\tidivq ${}", operand));
+            instructions.push(format!("\tmovq ${}, {}", operand, Reg::R9));
+            instructions.push(format!("\tidivq {}", Reg::R9));
             instructions.push(format!("\tmovq {}, {}", Reg::Rdx, optarget));
         }
         MulOp::Div => {
             instructions.push(format!("\tmovq {}, {}", optarget, Reg::Rax));
             instructions.push(format!("\tcqto"));
-            instructions.push(format!("\tidivq ${}", operand));
+            instructions.push(format!("\tmovq ${}, {}", operand, Reg::R9));
+            instructions.push(format!("\tidivq {}", Reg::R9));
             instructions.push(format!("\tmovq {}, {}", Reg::Rax, optarget));
         }
     };
@@ -749,7 +753,7 @@ fn asm_mul_op(
                 ImmVar::Imm(i2) => {
                     // var_imm
                     instructions.push(load_into_reg(Reg::R9, s1, stack_lookup));
-                    instructions.extend(convert_multipication_var_imm(mop, Reg::R9, i2));
+                    instructions.extend(convert_multipication_imm_var(mop, i2, Reg::R9));
                     instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
                 }
             }
@@ -758,7 +762,7 @@ fn asm_mul_op(
             ImmVar::Var(s2) => {
                 // imm_var
                 instructions.push(load_into_reg(Reg::R10, s2, stack_lookup));
-                instructions.extend(convert_multipication_imm_var(mop, i1, Reg::R10));
+                instructions.extend(convert_multipication_var_imm(mop, Reg::R10, i1));
                 instructions.push(store_from_reg(Reg::R10, dest, stack_lookup));
             }
             ImmVar::Imm(i2) => {
@@ -910,7 +914,10 @@ fn asm_instruction(
                 ImmVar::Var(v) => {
                     instructions.extend(load_into_reg_arr(Reg::Rax, name, v, stack_lookup));
                 }
-                ImmVar::Imm(i) => instructions.push(store_from_reg_imm(i, dest, stack_lookup)),
+                ImmVar::Imm(i) => {
+                    todo!("write load into reg function for immediate indices");
+                    instructions.push(store_from_reg_imm(i, dest, stack_lookup));
+                }
             }
 
             instructions.push(store_from_reg(Reg::Rax, dest, stack_lookup));
