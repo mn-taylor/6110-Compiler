@@ -72,7 +72,7 @@ impl<VarLabel: fmt::Debug + fmt::Display> fmt::Display for BasicBlock<VarLabel> 
 pub enum Jump<VarLabel> {
     Uncond(BlockLabel),
     Cond {
-        source: VarLabel,
+        source: ImmVar<VarLabel>,
         true_block: BlockLabel,
         false_block: BlockLabel,
     },

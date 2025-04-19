@@ -98,7 +98,14 @@ fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
 
 fn get_jump_sources(j: Jump<SSAVarLabel>) -> HashSet<SSAVarLabel> {
     match j {
-        Jump::Cond { source, .. } => hashset! {source},
+        Jump::Cond {
+            source,
+            true_block,
+            false_block,
+        } => match source {
+            ImmVar::Var(v) => hashset! {v},
+            ImmVar::Imm(i) => hashset! {},
+        },
         _ => hashset! {},
     }
 }

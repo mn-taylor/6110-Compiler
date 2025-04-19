@@ -144,15 +144,18 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
             }
         }
 
-        let new_jmp = match curr_block.jump_loc {
+        let new_jmp = match &curr_block.jump_loc {
             cfg::Jump::Cond {
                 source,
                 true_block,
                 false_block,
             } => cfg::Jump::Cond {
-                true_block,
-                false_block,
-                source: check_copy(source, copy_lookup),
+                true_block: *true_block,
+                false_block: *false_block,
+                source: match source {
+                    ImmVar::Var(v) => ImmVar::Var(check_copy(*v, copy_lookup)),
+                    ImmVar::Imm(i64) => ImmVar::Imm(*i64),
+                },
             },
             _ => curr_block.jump_loc.clone(),
         };

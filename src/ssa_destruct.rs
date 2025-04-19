@@ -305,7 +305,12 @@ pub fn destruct_jump(
             true_block,
             false_block,
         } => Jump::Cond {
-            source: convert_name(&source, coallesced_name, lookup, all_fields),
+            source: match source {
+                ImmVar::Var(v) => {
+                    ImmVar::Var(convert_name(&v, coallesced_name, lookup, all_fields))
+                }
+                ImmVar::Imm(i) => ImmVar::Imm(i),
+            },
             true_block: true_block,
             false_block: false_block,
         },
