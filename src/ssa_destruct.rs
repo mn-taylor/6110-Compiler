@@ -2,6 +2,7 @@ use crate::cfg::{self, ImmVar, OneMove};
 use crate::cfg::{Arg, BasicBlock, CfgType, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
 use crate::ssa_construct::SSAVarLabel;
+use maplit::{hashmap, hashset};
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -156,8 +157,11 @@ fn destruct_instruction(
                         )),
                         dest: convert_name(&om.dest, coallesced_name, lookup, all_fields),
                     })
-                    .collect(),
-            )]
+                }
+            });
+
+            inter_instructions.extend(instructions);
+            inter_instructions
         }
         Instruction::ArrayAccess { dest, name, idx } => vec![Instruction::ArrayAccess {
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
@@ -260,7 +264,7 @@ fn sequentialize(
                         if !found_it && om.dest == *b {
                             found_it = true;
                             instructions.push(Instruction::MoveOp {
-                                source: om.src,
+                                source: ImmVar::Var(om.src),
                                 dest: om.dest,
                             });
                             return false;
@@ -274,7 +278,7 @@ fn sequentialize(
                     let inter_name = (*all_fields.keys().max().unwrap() as usize + 1) as u32;
                     all_fields.insert(inter_name, (*all_fields.get(&om.src).unwrap()).clone());
                     instructions.push(Instruction::MoveOp {
-                        source: om.src,
+                        source: ImmVar::Var(om.src),
                         dest: inter_name,
                     });
                     copies.push(cfg::OneMove {

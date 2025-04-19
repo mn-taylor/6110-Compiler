@@ -169,7 +169,9 @@ fn prop_const(
     simplify(new_instruction)
 }
 
-fn constant_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMethod<SSAVarLabel> {
+pub fn constant_propagation(
+    method: &mut cfg::CfgMethod<SSAVarLabel>,
+) -> cfg::CfgMethod<SSAVarLabel> {
     let mut new_method: cfg::CfgMethod<SSAVarLabel> = cfg::CfgMethod {
         name: method.name.clone(),
         params: method.params.clone(),
