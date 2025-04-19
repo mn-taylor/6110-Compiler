@@ -358,7 +358,13 @@ fn rewrite_jump(
             true_block,
             false_block,
         } => {
-            let new_source = rewrite_source(source, reaching_defs, all_fields, block_id);
+            let new_source = match source {
+                ImmVar::Var(v) => {
+                    ImmVar::Var(rewrite_source(v, reaching_defs, all_fields, block_id))
+                }
+                ImmVar::Imm(i) => ImmVar::Imm(i),
+            };
+
             Jump::Cond {
                 source: new_source,
                 true_block: true_block,

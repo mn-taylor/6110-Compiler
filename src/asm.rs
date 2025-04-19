@@ -1,4 +1,4 @@
-use crate::cfg::{CfgType, Jump};
+use crate::cfg::{CfgType, ImmVar, Jump};
 use crate::cfg_build::{Arg, BasicBlock, CfgMethod, CfgProgram, Instruction, VarLabel};
 use crate::ir::{Bop, UnOp};
 use crate::parse::Primitive;
@@ -6,6 +6,7 @@ use crate::scan::{format_str_for_output, AddOp, EqOp, MulOp, RelOp};
 use std::fmt;
 
 use std::collections::HashMap;
+use std::ops::{Add, Mul};
 
 pub enum Reg {
     Rax,
@@ -50,6 +51,14 @@ impl fmt::Display for Reg {
     }
 }
 
+fn convert_aop_to_asm(aop: AddOp) -> String {
+    match aop {
+        AddOp::Sub => "subq",
+        AddOp::Add => "addq",
+    }
+    .to_string()
+}
+
 fn convert_bop_to_asm(bop: Bop) -> String {
     match bop {
         Bop::MulBop(MulOp::Div) => "idivq",
@@ -62,7 +71,7 @@ fn convert_bop_to_asm(bop: Bop) -> String {
     .to_string()
 }
 
-fn convert_multipication(mop: MulOp, operand: Reg, optarget: Reg) -> Vec<String> {
+fn convert_multipication_var_var(mop: MulOp, operand: Reg, optarget: Reg) -> Vec<String> {
     let mut instructions = vec![];
     match mop {
         MulOp::Mul => instructions.push(format!("\timulq {}, {}", operand, optarget)),
@@ -80,6 +89,59 @@ fn convert_multipication(mop: MulOp, operand: Reg, optarget: Reg) -> Vec<String>
         }
     };
     instructions
+}
+
+fn convert_multipication_imm_var(mop: MulOp, operand: i64, optarget: Reg) -> Vec<String> {
+    let mut instructions = vec![];
+    match mop {
+        MulOp::Mul => instructions.push(format!("\timulq ${}, {}", operand, optarget)),
+        MulOp::Mod => {
+            instructions.push(format!("\tmovq {}, {}", optarget, Reg::Rax));
+            instructions.push(format!("\tcqto"));
+            instructions.push(format!("\tidivq ${}", operand));
+            instructions.push(format!("\tmovq {}, {}", Reg::Rdx, optarget));
+        }
+        MulOp::Div => {
+            instructions.push(format!("\tmovq {}, {}", optarget, Reg::Rax));
+            instructions.push(format!("\tcqto"));
+            instructions.push(format!("\tidivq ${}", operand));
+            instructions.push(format!("\tmovq {}, {}", Reg::Rax, optarget));
+        }
+    };
+    instructions
+}
+
+// the operand register is also the destination register
+fn convert_multipication_var_imm(mop: MulOp, operand_dest: Reg, optarget: i64) -> Vec<String> {
+    let mut instructions = vec![];
+    match mop {
+        MulOp::Mul => instructions.push(format!("\timulq ${}, {}", optarget, operand_dest)),
+        MulOp::Mod => {
+            instructions.push(format!("\tmovq ${}, {}", optarget, Reg::Rax));
+            instructions.push(format!("\tcqto"));
+            instructions.push(format!("\tidivq {}", operand_dest));
+            instructions.push(format!("\tmovq {}, {}", Reg::Rdx, operand_dest));
+        }
+        MulOp::Div => {
+            instructions.push(format!("\tmovq ${}, {}", optarget, Reg::Rax));
+            instructions.push(format!("\tcqto"));
+            instructions.push(format!("\tidivq {}", operand_dest));
+            instructions.push(format!("\tmovq {}, {}", Reg::Rax, operand_dest));
+        }
+    };
+    instructions
+}
+
+fn flip_rel_op(op: Bop) -> Bop {
+    match op {
+        Bop::RelBop(rop) => Bop::RelBop(match rop {
+            RelOp::Ge => RelOp::Lt,
+            RelOp::Le => RelOp::Gt,
+            RelOp::Gt => RelOp::Le,
+            RelOp::Lt => RelOp::Ge,
+        }),
+        _ => op,
+    }
 }
 
 fn convert_rel_op_to_cmov_type(op: Bop) -> String {
@@ -331,14 +393,18 @@ fn asm_block(
     }
 
     // handle jumps
-    match b.jump_loc {
+    match &b.jump_loc {
         Jump::Uncond(block_id) => instructions.push(format!("\tjmp {}{}", root, block_id)),
         Jump::Cond {
             source,
             true_block,
             false_block,
         } => {
-            instructions.push(load_into_reg(Reg::R9, source, stack_lookup));
+            let jump_var = match source {
+                ImmVar::Var(v)=> v.clone(),
+                _=> panic!("Conditional Jump sources should never be immediates, since they can be simplified")
+            };
+            instructions.push(load_into_reg(Reg::R9, jump_var, stack_lookup));
 
             let compare = format!("\tcmpq $1, {}", Reg::R9);
             let true_jump = format!("\tje {}{}", root, true_block);
@@ -410,6 +476,48 @@ fn load_into_reg_arr(
     instructions
 }
 
+fn load_into_reg_arr_imm(
+    dest: Reg,
+    varname: VarLabel,
+    index: i64,
+    stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
+) -> Vec<String> {
+    let mut instructions = vec![];
+    // instructions.push(load_into_reg(Reg::R9, index, stack_lookup));
+    match stack_lookup.get(&varname) {
+        Some((_, offset)) => {
+            // movl offset(base, index, scale), destination
+
+            // instructions.push(format!(
+            //     "\tmovq -{}({}, {}, $8), {dest}",
+            //     offset,
+            //     Reg::Rbp,
+            //     Reg::R9
+            // ))
+            // instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
+            instructions.push(format!("\tsubq {}, {}", index * 8, Reg::R10));
+            instructions.push(format!("\tmovq -{offset}({}), {dest}", Reg::R10));
+        }
+        None => {
+            // instructions.push(format!(
+            //     "\tleaq (global_var{}(%rip), {}, $8), {}",
+            //     varname,
+            //     Reg::R9,
+            //     Reg::R9
+            // ));
+            // instructions.push(format!("\tmovq 0({}), {}", Reg::R9, dest));
+            // instructions.push(format!("\taddq {}, {}", Reg::R10, Reg::R9));
+
+            // instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            instructions.push(format!("\tleaq global_var{}(%rip), {}", varname, Reg::R10));
+            instructions.push(format!("\taddq {}, {}", index * 8, Reg::R10));
+            instructions.push(format!("\tmovq -0({}), {dest}", Reg::R10));
+        }
+    }
+    instructions
+}
+
 fn store_from_reg_arr(
     src: Reg,
     arrname: VarLabel,
@@ -446,6 +554,93 @@ fn store_from_reg_arr(
     instructions
 }
 
+fn store_from_reg_arr_var_imm(
+    src: Reg,
+    arrname: VarLabel,
+    index: i64,
+    stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
+) -> Vec<String> {
+    let mut instructions = vec![];
+    instructions.push(format!("\tmovq ${index}, {}", Reg::R9));
+    match stack_lookup.get(&arrname) {
+        Some((_, offset)) => {
+            instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
+            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tmovq {src}, -{offset}({})", Reg::R10));
+        }
+        None => {
+            // instructions.push(format!(
+            //    "\tleaq (global_var{}(%rip), {}, $16), {}",
+            //    arrname,
+            //    Reg::R9,
+            //    Reg::R9
+            // ));
+            // instructions.push(format!("\tmovq {src}, 0({})", Reg::R9))
+
+            instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
+            instructions.push(format!("\taddq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tmovq {src}, -0({}) ", Reg::R10));
+            // instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
+            // instructions.push(format!("\taddq {}, {}", Reg::R10, Reg::R9));
+            // instructions.push(format!("\tmovq {src}, 0({})", Reg::R9))
+        }
+    }
+    instructions
+}
+
+fn store_from_reg_arr_imm_var(
+    imm: i64,
+    arrname: VarLabel,
+    index: VarLabel,
+    stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
+) -> Vec<String> {
+    let mut instructions = vec![];
+    instructions.push(load_into_reg(Reg::R9, index, stack_lookup));
+    match stack_lookup.get(&arrname) {
+        Some((_, offset)) => {
+            instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
+            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tmovq ${imm}, -{offset}({})", Reg::R10));
+        }
+        None => {
+            instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
+            instructions.push(format!("\taddq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tmovq ${imm}, -0({}) ", Reg::R10));
+        }
+    }
+    instructions
+}
+
+fn store_from_reg_arr_imm_imm(
+    imm: i64,
+    arrname: VarLabel,
+    index: i64,
+    stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
+) -> Vec<String> {
+    let mut instructions = vec![];
+    // instructions.push(load_into_reg(Reg::R9, index, stack_lookup));
+    instructions.push(format!("\tmovq ${index}, {}", Reg::R9));
+    match stack_lookup.get(&arrname) {
+        Some((_, offset)) => {
+            instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
+            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tmovq ${imm}, -{offset}({})", Reg::R10));
+        }
+        None => {
+            instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
+            instructions.push(format!("\taddq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tmovq ${imm}, -0({}) ", Reg::R10));
+        }
+    }
+    instructions
+}
+
 fn store_from_reg(
     src: Reg,
     varname: VarLabel,
@@ -455,6 +650,193 @@ fn store_from_reg(
         Some((_, offset)) => format!("\tmovq {}, -{}({})", src, offset, Reg::Rbp),
         None => format!("\tmovq {}, global_var{}(%rip)", src, varname),
     }
+}
+
+fn store_from_reg_imm(
+    imm: i64,
+    varname: VarLabel,
+    stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
+) -> String {
+    match stack_lookup.get(&varname) {
+        Some((_, offset)) => format!("\tmovq ${}, -{}({})", imm, offset, Reg::Rbp),
+        None => format!("\tmovq ${}, global_var{}(%rip)", imm, varname),
+    }
+}
+
+fn asm_add_op(
+    source1: ImmVar<u32>,
+    source2: ImmVar<u32>,
+    dest: u32,
+    aop: AddOp,
+    stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
+) -> Vec<String> {
+    let mut instructions = vec![];
+    match source1 {
+        ImmVar::Var(s1) => match source2 {
+            ImmVar::Var(s2) => {
+                //var var
+                instructions.push(load_into_reg(Reg::R9, s1, stack_lookup));
+                instructions.push(load_into_reg(Reg::R10, s2, stack_lookup));
+
+                instructions.push(format!(
+                    "\t{} {}, {}",
+                    convert_aop_to_asm(aop),
+                    Reg::R10,
+                    Reg::R9
+                ));
+                instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
+            }
+            ImmVar::Imm(i2) => {
+                instructions.push(load_into_reg(Reg::R9, s1, stack_lookup));
+                instructions.push(format!(
+                    "\t{} ${}, {}",
+                    convert_aop_to_asm(aop),
+                    i2,
+                    Reg::R9
+                ));
+                instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
+            }
+        },
+        ImmVar::Imm(i1) => match source2 {
+            ImmVar::Var(s2) => {
+                instructions.push(load_into_reg(Reg::R9, s2, stack_lookup));
+                match aop {
+                    AddOp::Add => {
+                        instructions.push(format!(
+                            "\t{} ${}, {}",
+                            convert_aop_to_asm(aop),
+                            i1,
+                            Reg::R9
+                        ));
+                    }
+                    AddOp::Sub => {
+                        instructions.push(format!("\tneg {}", Reg::R9));
+                        instructions.push(format!(
+                            "\t{} ${}, {}",
+                            convert_aop_to_asm(AddOp::Add),
+                            i1,
+                            Reg::R9
+                        ));
+                    }
+                }
+                instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
+            }
+            ImmVar::Imm(i2) => panic!("Three Op with two immediate sources can be simplified"),
+        },
+    }
+
+    instructions
+}
+
+fn asm_mul_op(
+    source1: ImmVar<u32>,
+    source2: ImmVar<u32>,
+    dest: u32,
+    mop: MulOp,
+    stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
+) -> Vec<String> {
+    let mut instructions = vec![];
+    match source1 {
+        ImmVar::Var(s1) => {
+            match source2 {
+                ImmVar::Var(s2) => {
+                    // var-var
+                    instructions.push(load_into_reg(Reg::R9, s1, stack_lookup));
+                    instructions.push(load_into_reg(Reg::R10, s2, stack_lookup));
+                    instructions.extend(convert_multipication_var_var(mop, Reg::R10, Reg::R9));
+                    instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
+                }
+                ImmVar::Imm(i2) => {
+                    // var_imm
+                    instructions.push(load_into_reg(Reg::R9, s1, stack_lookup));
+                    instructions.extend(convert_multipication_var_imm(mop, Reg::R9, i2));
+                    instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
+                }
+            }
+        }
+        ImmVar::Imm(i1) => match source2 {
+            ImmVar::Var(s2) => {
+                // imm_var
+                instructions.push(load_into_reg(Reg::R10, s2, stack_lookup));
+                instructions.extend(convert_multipication_imm_var(mop, i1, Reg::R10));
+                instructions.push(store_from_reg(Reg::R10, dest, stack_lookup));
+            }
+            ImmVar::Imm(i2) => {
+                panic!("Three operand expression should be simplified");
+            }
+        },
+    }
+    instructions
+}
+
+fn asm_rel_op(
+    source1: ImmVar<u32>,
+    source2: ImmVar<u32>,
+    dest: u32,
+    rop: Bop,
+    stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
+) -> Vec<String> {
+    let mut instructions = vec![];
+    match source1 {
+        ImmVar::Var(s1) => match source2 {
+            ImmVar::Var(s2) => {
+                instructions.push(load_into_reg(Reg::R9, s1, stack_lookup));
+                instructions.push(load_into_reg(Reg::R10, s2, stack_lookup));
+
+                instructions.push(format!("\tcmpq {}, {}", Reg::R10, Reg::R9));
+                instructions.push(format!("\tmovq ${}, {}", 0, Reg::R9,));
+
+                instructions.push(format!("\tmovq ${}, {}", 1, Reg::R11));
+                instructions.push(format!(
+                    "\t{} {}, {}",
+                    convert_rel_op_to_cmov_type(rop),
+                    Reg::R11,
+                    Reg::R9
+                ));
+                instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
+            }
+            ImmVar::Imm(i2) => {
+                // cmp can only take immediates on the left argument so we must flip the relational operation
+                instructions.push(load_into_reg(Reg::R9, s1, stack_lookup));
+
+                instructions.push(format!("\tcmpq ${}, {}", i2, Reg::R9));
+
+                instructions.push(format!("\tmovq ${}, {}", 0, Reg::R9,));
+
+                instructions.push(format!("\tmovq ${}, {}", 1, Reg::R11));
+                instructions.push(format!(
+                    "\t{} {}, {}",
+                    convert_rel_op_to_cmov_type(rop),
+                    Reg::R11,
+                    Reg::R9
+                ));
+                instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
+            }
+        },
+        ImmVar::Imm(i1) => match source2 {
+            ImmVar::Var(s2) => {
+                // cmp can only take immediates on the left argument so we must flip the relational operation
+                instructions.push(load_into_reg(Reg::R10, s2, stack_lookup));
+
+                instructions.push(format!("\tcmpq ${i1}, {}", Reg::R10));
+                instructions.push(format!("\tmovq ${}, {}", 0, Reg::R9,));
+
+                instructions.push(format!("\tmovq ${}, {}", 1, Reg::R11));
+                instructions.push(format!(
+                    "\t{} {}, {}",
+                    convert_rel_op_to_cmov_type(flip_rel_op(rop)),
+                    Reg::R11,
+                    Reg::R9
+                ));
+                instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
+            }
+            ImmVar::Imm(i2) => {
+                panic!("Three Op expression with two immediate sources can be simplified")
+            }
+        },
+    }
+
+    instructions
 }
 
 fn asm_instruction(
@@ -473,52 +855,21 @@ fn asm_instruction(
             source2,
             dest,
             op,
-        } => {
-            let get_source1 = load_into_reg(Reg::R9, source1, stack_lookup);
-            let get_source2 = load_into_reg(Reg::R10, source2, stack_lookup);
+        } => match op {
+            Bop::MulBop(mop) => asm_mul_op(source1, source2, dest, mop, stack_lookup),
 
-            match op {
-                Bop::MulBop(mop) => {
-                    let mut instructions = vec![get_source1, get_source2];
-                    instructions.extend(convert_multipication(mop, Reg::R10, Reg::R9));
-                    instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
-                    instructions
-                }
-
-                Bop::AddBop(_) => {
-                    // NOTE: R10 (source1) is on lhs, R9 (source2) on rhs.
-                    let operate = format!("\t{} {}, {}", convert_bop_to_asm(op), Reg::R10, Reg::R9);
-                    let return_to_stack = store_from_reg(Reg::R9, dest, stack_lookup);
-
-                    return vec![get_source1, get_source2, operate, return_to_stack];
-                }
-                _ => {
-                    let compare = format!("\tcmpq {}, {}", Reg::R10, Reg::R9);
-                    let initialize_dest = format!("\tmovq ${}, {}", 0, Reg::R9,);
-
-                    let set_one = format!("\tmovq ${}, {}", 1, Reg::R11);
-                    let cond_move = format!(
-                        "\t{} {}, {}",
-                        convert_rel_op_to_cmov_type(op),
-                        Reg::R11,
-                        Reg::R9
-                    );
-                    let return_to_stack = store_from_reg(Reg::R9, dest, stack_lookup);
-                    return vec![
-                        get_source1,
-                        get_source2,
-                        compare,
-                        initialize_dest,
-                        set_one,
-                        cond_move,
-                        return_to_stack,
-                    ];
-                }
-            }
-        }
+            Bop::AddBop(aop) => asm_add_op(source1, source2, dest, aop, stack_lookup),
+            _ => asm_rel_op(source1, source2, dest, op, stack_lookup),
+        },
         Instruction::TwoOp { source1, dest, op } => {
+            // Will maintain the invariant that the source is always an s
+            let s = match source1 {
+                ImmVar::Var(v) => v,
+                ImmVar::Imm(i) => panic!(),
+            };
+
             let mut instructions = vec![];
-            instructions.push(load_into_reg(Reg::Rax, source1, stack_lookup));
+            instructions.push(load_into_reg(Reg::Rax, s, stack_lookup));
             match op {
                 UnOp::Not => {
                     instructions.push(format!("\tnot {}", Reg::Rax));
@@ -535,7 +886,13 @@ fn asm_instruction(
             return instructions;
         }
         Instruction::MoveOp { source, dest } => {
-            let get_source = load_into_reg(Reg::Rax, source, stack_lookup);
+            // Maintain the invariant that the source is not a constant, when assembling
+            let s: u32 = match source {
+                ImmVar::Var(v) => v,
+                ImmVar::Imm(i) => panic!(),
+            };
+
+            let get_source = load_into_reg(Reg::Rax, s, stack_lookup);
             let return_to_stack = store_from_reg(Reg::Rax, dest, stack_lookup);
 
             return vec![get_source, return_to_stack];
@@ -549,30 +906,60 @@ fn asm_instruction(
         Instruction::ArrayAccess { dest, name, idx } => {
             let mut instructions = vec![];
 
-            instructions.extend(load_into_reg_arr(Reg::Rax, name, idx, stack_lookup));
+            match idx {
+                ImmVar::Var(v) => {
+                    instructions.extend(load_into_reg_arr(Reg::Rax, name, v, stack_lookup));
+                }
+                ImmVar::Imm(i) => instructions.push(store_from_reg_imm(i, dest, stack_lookup)),
+            }
+
             instructions.push(store_from_reg(Reg::Rax, dest, stack_lookup));
             instructions
         }
         Instruction::ArrayStore { source, arr, idx } => {
             let mut instructions: Vec<String> = vec![];
-            instructions.push(load_into_reg(Reg::Rax, source, stack_lookup));
-            instructions.extend(store_from_reg_arr(Reg::Rax, arr, idx, stack_lookup));
+
+            match source {
+                ImmVar::Var(s) => {
+                    instructions.push(load_into_reg(Reg::Rax, s, stack_lookup));
+                    match idx {
+                        ImmVar::Var(index) => instructions.extend(store_from_reg_arr(
+                            Reg::Rax,
+                            arr,
+                            index,
+                            stack_lookup,
+                        )),
+                        ImmVar::Imm(i) => instructions.extend(store_from_reg_arr_var_imm(
+                            Reg::Rax,
+                            arr,
+                            i,
+                            stack_lookup,
+                        )),
+                    }
+                }
+                ImmVar::Imm(src) => match idx {
+                    ImmVar::Var(index) => instructions.extend(store_from_reg_arr_imm_var(
+                        src,
+                        arr,
+                        index,
+                        stack_lookup,
+                    )),
+                    ImmVar::Imm(i) => {
+                        instructions.extend(store_from_reg_arr_imm_imm(src, arr, i, stack_lookup))
+                    }
+                },
+            }
+
             instructions
         }
 
         Instruction::Ret(ret_val) => {
             let mut instructions = vec![];
             match ret_val {
-                Some(var) => {
-                    instructions.push(load_into_reg(Reg::Rax, var, stack_lookup));
-                    // let (_, var_offset) = stack_lookup.get(&var).unwrap();
-                    // instructions.push(format!(
-                    //     "\tmovq -{}({}), {}",
-                    //    var_offset,
-                    //   Reg::Rbp,
-                    //     Reg::Rax
-                    // ));
-                }
+                Some(return_imm_var) => match return_imm_var {
+                    ImmVar::Var(v) => instructions.push(load_into_reg(Reg::Rax, v, stack_lookup)),
+                    ImmVar::Imm(i) => instructions.push(format!("\tmovq ${i}, {}", Reg::Rax)),
+                },
                 None => {}
             }
             instructions.push(format!("jmp {}end", root));
@@ -593,11 +980,23 @@ fn asm_instruction(
                     Arg::VarArg(label) => {
                         let arg_reg = argument_registers.pop();
                         match arg_reg {
-                            Some(reg) => {
-                                instructions.push(load_into_reg(reg, *label, stack_lookup))
-                            }
+                            Some(reg) => match label {
+                                ImmVar::Var(v) => {
+                                    instructions.push(load_into_reg(reg, *v, stack_lookup))
+                                }
+                                ImmVar::Imm(i) => {
+                                    instructions.push(format!("\tmovq ${i}, {}", reg))
+                                }
+                            },
                             None => {
-                                instructions.push(load_into_reg(Reg::Rax, *label, stack_lookup));
+                                match label {
+                                    ImmVar::Var(v) => {
+                                        instructions.push(load_into_reg(Reg::Rax, *v, stack_lookup))
+                                    }
+                                    ImmVar::Imm(i) => {
+                                        instructions.push(format!("\tmovq ${i}, {}", Reg::Rax))
+                                    }
+                                }
                                 instructions.push(format!("\tpushq {}", Reg::Rax));
                             }
                         }

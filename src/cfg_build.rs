@@ -297,7 +297,7 @@ fn lin_branch(
             let (t, tstart, tend) = lin_expr(cond, st, scope);
 
             st.get_block(tend).jump_loc = Jump::Cond {
-                source: t,
+                source: ImmVar::Var(t),
                 true_block: true_branch,
                 false_block: false_branch,
             };

@@ -102,7 +102,10 @@ fn get_jump_sources(j: Jump<SSAVarLabel>) -> HashSet<SSAVarLabel> {
             source,
             true_block,
             false_block,
-        } => hashset! {source},
+        } => match source {
+            ImmVar::Var(v) => hashset! {v},
+            ImmVar::Imm(i) => hashset! {},
+        },
         _ => hashset! {},
     }
 }
