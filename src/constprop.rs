@@ -1,5 +1,5 @@
 use crate::cfg;
-use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction, IsImmediate};
+use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction, IsImmediate, Jump};
 use crate::ir::{Bop, UnOp};
 use crate::scan::{AddOp, EqOp, MulOp, RelOp};
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
@@ -234,4 +234,41 @@ pub fn constant_propagation(
     }
 
     new_method
+}
+
+fn prop_const_jump(j: Jump<SSAVarLabel>) -> Jump<SSAVarLabel> {
+    // should modify conditional jumps if possible. Should turn conditional jumps with immediate soures into unconditional jumps.
+    todo!()
+}
+
+// Might be time consuming to all of these identies for each instruction.
+fn use_identities(i: Instruction<SSAVarLabel>) -> Instruction<SSAVarLabel> {
+    /**
+     * Identities to check for
+     * x + 0 = x
+     * 0 + x = x
+     * x - x = 0
+     *
+     * x * 1 = x
+     * 1 * x = x
+     * x * 0 = 0
+     * 0 * x = 0
+     *
+     * x / 1 = x
+     * 0 / x = 0 // Is it?
+     *
+     * x % 1 = 0
+     * x % x = 0
+     *
+     * x > x = 0
+     * x >= x = 1
+     * x <= x = 1
+     * x < x = 0
+     *
+     * x == x = 1
+     * x != x = 0
+     *
+     *
+     */
+    todo!()
 }
