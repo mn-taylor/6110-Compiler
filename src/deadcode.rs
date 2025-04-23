@@ -1,12 +1,19 @@
 use crate::cfg::{self, Jump};
 use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction};
+use crate::scan::Sum;
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
 use maplit::{hashmap, hashset};
 use std::collections::HashSet;
 
 fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
     match instruction {
-        Instruction::PhiExpr { dest, sources } => sources.iter().map(|(_, var)| *var).collect(),
+        Instruction::PhiExpr { dest, sources } => sources
+            .iter()
+            .map(|(_, var)| match var {
+                Sum::Inl(v) => *v,
+                _ => panic!("Should not do register allocation before optimizations"),
+            })
+            .collect(),
         Instruction::ArrayAccess { dest, name, idx } => {
             let mut set = hashset! {};
             match idx {

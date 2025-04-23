@@ -1,6 +1,7 @@
 use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, BlockLabel, ImmVar, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
+use crate::scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
@@ -548,6 +549,7 @@ fn rewrite_instr(
                 sources: new_sources,
             }
         }
+        _ => panic!("Should not do register allocation before performing optimizations"),
     }
 }
 
@@ -640,12 +642,14 @@ pub fn rename_variables(
                         .map(|parent| {
                             (
                                 *parent,
-                                reaching_defs
-                                    .get(parent)
-                                    .unwrap()
-                                    .get(&dest.name)
-                                    .unwrap()
-                                    .clone(),
+                                Sum::Inl(
+                                    reaching_defs
+                                        .get(parent)
+                                        .unwrap()
+                                        .get(&dest.name)
+                                        .unwrap()
+                                        .clone(),
+                                ),
                             )
                         })
                         .collect::<Vec<_>>();

@@ -1,7 +1,7 @@
 use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction, IsImmediate, Jump};
 use crate::ir::{Bop, UnOp};
-use crate::scan::{AddOp, EqOp, MulOp, RelOp};
+use crate::scan::{AddOp, EqOp, MulOp, RelOp, Sum};
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
 use maplit::{hashmap, hashset};
 use std::collections::{HashMap, HashSet};
@@ -121,12 +121,12 @@ fn prop_const(
         Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
             dest: dest,
             name: name,
-            idx: check_const(idx, const_lookup),
+            idx: idx, // check_const(idx, const_lookup),
         },
         Instruction::ArrayStore { source, arr, idx } => Instruction::ArrayStore {
-            source: check_const(source, const_lookup),
+            source: source, //check_const(source, const_lookup),
             arr: arr,
-            idx: check_const(idx, const_lookup),
+            idx: idx, // check_const(idx, const_lookup),
         },
         Instruction::Call(func_name, args, opt_return_val) => {
             let new_args: Vec<Arg<SSAVarLabel>> = args
@@ -189,8 +189,13 @@ pub fn constant_propagation(
         for instr in block.body.iter() {
             match instr {
                 Instruction::PhiExpr { dest, sources } => {
-                    let new_forbidden: HashSet<SSAVarLabel> =
-                        sources.iter().map(|(id, var)| *var).collect();
+                    let new_forbidden: HashSet<SSAVarLabel> = sources
+                        .iter()
+                        .map(|(id, var)| match var {
+                            Sum::Inl(v) => *v,
+                            Sum::Inr(mv) => panic!(),
+                        })
+                        .collect();
 
                     forbidden = forbidden
                         .union(&new_forbidden)

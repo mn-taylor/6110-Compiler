@@ -224,12 +224,9 @@ fn main() {
                     }
 
                     // ssa_method = copyprop::copy_propagation(&mut ssa_method);
-                    // ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
+                    // ssa_method = deadcode::dead_code_elimination(&mut ssa_method)
                     // ssa_method = constprop::constant_propagation(&mut ssa_method);
-                    // ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
-                    // println!("method after constant propagation: \n{}", ssa_method);
-                    // ssa_method = constprop::constant_propagation(&mut ssa_method);
-                    // ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
+                    //
 
                     ssa_destruct::split_crit_edges(&mut ssa_method);
                     if args.debug {

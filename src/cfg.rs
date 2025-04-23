@@ -162,7 +162,7 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
             Instruction::PhiExpr { dest, sources } => {
                 let sources_str = sources
                     .iter()
-                    .map(|(block, var)| format!("({},  t{})", block, var))
+                    .map(|(block, var)| format!("({},  t{:?})", block, var))
                     .collect::<Vec<_>>()
                     .join(", ");
 
@@ -212,6 +212,24 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
                     write!(f, "t{} <- t{} || ", mov.dest, mov.src)?;
                 }
                 Ok(())
+            }
+            Instruction::Spill { ord_var, mem_var } => {
+                write!(f, "Spill t{ord_var} into t{:?}", mem_var);
+                Ok(())
+            }
+            Instruction::Reload { ord_var, mem_var } => {
+                write!(f, "Reload t{:?} into t{ord_var}", mem_var);
+                Ok(())
+            }
+            Instruction::MemPhiExpr { dest, sources } => {
+                let sources_str = sources
+                    .iter()
+                    .map(|(block, var)| format!("({},  t{:?})", block, var))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                // Final print: "dest = phi [block -> var, block -> var, ...]"
+                write!(f, "t{:?} = phi ({})", dest, sources_str)
             }
         }
     }

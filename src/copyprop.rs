@@ -1,5 +1,6 @@
 use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction};
+use crate::scan::Sum;
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
 use std::collections::HashMap;
 
@@ -30,7 +31,7 @@ fn prop_copies(
         // can be smarter and not call check copy when we know there cant be a copy
         Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
             dest,
-            name: check_copy(name, copy_lookup),
+            name: name,
             idx: check_imm_var_copy(idx, copy_lookup),
         },
         Instruction::ArrayStore { source, arr, idx } => Instruction::ArrayStore {
@@ -53,7 +54,7 @@ fn prop_copies(
             Instruction::Call(string, new_args, new_ret_val)
         }
         Instruction::Constant { dest, constant } => Instruction::Constant {
-            dest: dest.clone(),
+            dest: dest,
             constant,
         },
         Instruction::MoveOp { source, dest } => Instruction::MoveOp {
@@ -64,7 +65,20 @@ fn prop_copies(
             dest,
             sources: sources
                 .iter()
-                .map(|(block_id, var)| (*block_id, check_copy(var.clone(), copy_lookup)))
+                .map(|(block_id, var)| {
+                    (
+                        *block_id,
+                        Sum::Inl(check_copy(
+                            match var {
+                                Sum::Inl(v) => *v,
+                                _ => {
+                                    panic!("Should not do register allocation before optimizations")
+                                }
+                            },
+                            copy_lookup,
+                        )),
+                    )
+                })
                 .collect::<Vec<_>>(),
         },
         Instruction::Ret(opt_ret_val) => match opt_ret_val {
@@ -87,6 +101,9 @@ fn prop_copies(
             dest,
             op: op.clone(),
         },
+        _ => {
+            panic!("Should not do register allocation before optimizations")
+        }
     }
 }
 
@@ -135,7 +152,7 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
                             }
                             _ => {}
                         };
-                        // new_instructions.push(new_instr.clone());
+                        new_instructions.push(new_instr.clone());
                     }
                 }
                 _ => {
