@@ -1,5 +1,6 @@
 use crate::ir;
 use crate::parse;
+use crate::scan::Sum;
 use ir::{Bop, UnOp};
 use parse::Primitive;
 use std::collections::HashMap;
@@ -105,9 +106,21 @@ pub struct OneMove<VarLabel> {
 
 #[derive(Clone, Debug)]
 pub enum Instruction<VarLabel> {
+    Spill {
+        ord_var: VarLabel,
+        mem_var: MemVarLabel,
+    },
+    Reload {
+        ord_var: VarLabel,
+        mem_var: MemVarLabel,
+    },
     PhiExpr {
         dest: VarLabel,
-        sources: Vec<(BlockLabel, VarLabel)>,
+        sources: Vec<(BlockLabel, Sum<VarLabel, MemVarLabel>)>,
+    },
+    MemPhiExpr {
+        dest: MemVarLabel,
+        sources: Vec<(BlockLabel, MemVarLabel)>,
     },
     ThreeOp {
         source1: ImmVar<VarLabel>,
@@ -214,6 +227,11 @@ pub enum Arg<VarLabel> {
 pub enum ImmVar<VarLabel> {
     Var(VarLabel),
     Imm(i64),
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct MemVarLabel {
+    id: u32,
 }
 
 pub trait IsImmediate {
