@@ -1,11 +1,10 @@
 use crate::cfg::{self, GetNameVer};
-use crate::cfg::{Arg, BasicBlock, BlockLabel, CfgType, ImmVar, Instruction, IsImmediate, Jump};
-use crate::cfg_build::get_parents;
+use crate::cfg::{BlockLabel, CfgType, ImmVar, Instruction, IsImmediate};
 use crate::deadcode::get_dest;
 use crate::ir::{Bop, UnOp};
-use crate::scan::{AddOp, EqOp, MulOp, RelOp, Sum};
+use crate::scan::{AddOp, EqOp, MulOp, RelOp};
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
-use maplit::{hashmap, hashset};
+use maplit::hashmap;
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 
@@ -39,9 +38,9 @@ fn get_commutative_ordering(
         let (var1, ver1) = source1.get_name_ver().unwrap();
         let (var2, ver2) = source2.get_name_ver().unwrap();
 
-        if (var1 < var2) {
+        if var1 < var2 {
             (source1, source2)
-        } else if (var1 > var2) {
+        } else if var1 > var2 {
             (source2, source1)
         } else if ver1 < ver2 {
             (source1, source2)

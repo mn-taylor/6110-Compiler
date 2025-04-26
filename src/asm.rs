@@ -6,7 +6,6 @@ use crate::scan::{format_str_for_output, AddOp, EqOp, MulOp, RelOp};
 use std::fmt;
 
 use std::collections::HashMap;
-use std::ops::{Add, Mul};
 
 pub enum Reg {
     Rax,

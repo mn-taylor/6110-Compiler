@@ -3,8 +3,8 @@ use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction, IsImmediate, Jump};
 use crate::cfg_build::get_parents;
 use crate::ir::{Bop, UnOp};
 use crate::scan::{AddOp, EqOp, MulOp, RelOp, Sum};
-use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, prune_method, SSAVarLabel};
-use maplit::{hashmap, hashset};
+use crate::ssa_construct::{prune_method, SSAVarLabel};
+use maplit::hashset;
 use std::collections::{HashMap, HashSet};
 
 fn binary_operation(imm1: i64, imm2: i64, bop: &Bop) -> i64 {
@@ -286,7 +286,7 @@ fn prop_const_jump(
 
 // Might be time consuming to all of these identies for each instruction.
 fn use_identities(i: Instruction<SSAVarLabel>) -> Instruction<SSAVarLabel> {
-    /**
+    /*
      * Identities to check for
      * x + 0 = x
      * 0 + x = x

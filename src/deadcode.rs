@@ -1,20 +1,23 @@
 use crate::cfg::{self, Jump};
-use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction};
+use crate::cfg::{Arg, ImmVar, Instruction};
 use crate::scan::Sum;
-use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
+use crate::ssa_construct::SSAVarLabel;
 use maplit::{hashmap, hashset};
 use std::collections::HashSet;
+use std::hash::Hash;
 
-fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
+fn get_sources<VarLabel: Eq + Hash + Copy>(
+    instruction: Instruction<VarLabel>,
+) -> HashSet<VarLabel> {
     match instruction {
-        Instruction::PhiExpr { dest, sources } => sources
+        Instruction::PhiExpr { sources, .. } => sources
             .iter()
             .map(|(_, var)| match var {
                 Sum::Inl(v) => *v,
                 _ => panic!("Should not do register allocation before optimizations"),
             })
             .collect(),
-        Instruction::ArrayAccess { dest, name, idx } => {
+        Instruction::ArrayAccess { idx, .. } => {
             let mut set = hashset! {};
             match idx {
                 ImmVar::Var(v) => {
@@ -25,7 +28,7 @@ fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
 
             set
         }
-        Instruction::ArrayStore { source, arr, idx } => {
+        Instruction::ArrayStore { source, idx, .. } => {
             let mut set = hashset! {};
             match idx {
                 ImmVar::Var(v) => {
@@ -54,7 +57,7 @@ fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
             });
             sources
         }
-        Instruction::MoveOp { source, dest } => {
+        Instruction::MoveOp { source, .. } => {
             let mut set = hashset! {};
             match source {
                 ImmVar::Var(v) => {
@@ -73,10 +76,7 @@ fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
             None => hashset! {},
         },
         Instruction::ThreeOp {
-            source1,
-            source2,
-            dest,
-            op,
+            source1, source2, ..
         } => {
             let mut set = hashset! {};
 
@@ -95,7 +95,7 @@ fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
 
             set
         }
-        Instruction::TwoOp { source1, dest, op } => match source1 {
+        Instruction::TwoOp { source1, .. } => match source1 {
             ImmVar::Var(v) => hashset! {v},
             _ => hashset! {},
         },
@@ -103,15 +103,11 @@ fn get_sources(instruction: Instruction<SSAVarLabel>) -> HashSet<SSAVarLabel> {
     }
 }
 
-fn get_jump_sources(j: Jump<SSAVarLabel>) -> HashSet<SSAVarLabel> {
+fn get_jump_sources<VarLabel: Eq + Hash>(j: Jump<VarLabel>) -> HashSet<VarLabel> {
     match j {
-        Jump::Cond {
-            source,
-            true_block,
-            false_block,
-        } => match source {
+        Jump::Cond { source, .. } => match source {
             ImmVar::Var(v) => hashset! {v},
-            ImmVar::Imm(i) => hashset! {},
+            ImmVar::Imm(_) => hashset! {},
         },
         _ => hashset! {},
     }
