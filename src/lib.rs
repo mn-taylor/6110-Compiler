@@ -9,6 +9,7 @@ pub mod ir;
 pub mod ir_build;
 pub mod metrics;
 pub mod parse;
+pub mod regalloc;
 pub mod scan;
 pub mod semantics;
 pub mod ssa_construct;
