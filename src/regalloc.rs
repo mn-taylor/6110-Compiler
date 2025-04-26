@@ -11,6 +11,7 @@ type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Instruction = cfg::Instruction<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
 
+#[derive(PartialEq, Eq, Clone, Hash)]
 struct InsnLoc {
     blk: BlockLabel,
     idx: usize,
@@ -82,32 +83,31 @@ fn get_uses(m: &CfgMethod, x: VarLabel, i: InsnLoc) -> HashSet<InsnLoc> {
     uses
 }
 
-fn get_webs(m: CfgMethod) -> HashSet<(VarLabel, HashSet<HashSet<(BlockLabel, usize)>>)> {
+fn get_webs(m: CfgMethod) -> HashSet<(VarLabel, Vec<HashSet<(BlockLabel, usize)>>)> {
     let defs = get_defs(m);
     let mut webs = HashSet::new();
 
     for (varname, def_set) in defs {
-        let mut sets = def_set
+        let mut sets: Vec<HashSet<InsnLoc>> = def_set
             .iter()
             .map(|(bid, iid)| {
                 get_uses(
                     &m,
-                    *bid,
+                    varname,
                     InsnLoc {
                         blk: *bid,
                         idx: *iid,
                     },
                 )
             })
-            .collect::<HashSet<_>>();
+            .collect::<Vec<_>>();
         if sets.is_empty() {
             continue;
         }
 
-        let mut new_sets = HashSet::new();
+        let mut new_sets = vec![];
         while !sets.is_empty() {
-            let curr = sets.iter().next().unwrap().clone();
-            sets.remove(&curr);
+            let curr = sets.pop().unwrap();
 
             let mut found_overlap = false;
             let mut to_merge = None;
