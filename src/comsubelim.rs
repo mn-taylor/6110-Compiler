@@ -185,10 +185,7 @@ fn find_common_subexpressions(
         for (idx, instruction) in block.body.iter().enumerate() {
             match generate_hash(instruction.clone()) {
                 Some(hash) => {
-                    if !m
-                        .fields
-                        .contains_key(&get_dest(instruction.clone()).unwrap().name)
-                    {
+                    if !m.fields.contains_key(&get_dest(instruction).unwrap().name) {
                         println!("{}", instruction);
                     }
 
@@ -199,7 +196,7 @@ fn find_common_subexpressions(
                                 *id,
                                 idx,
                                 m.fields
-                                    .get(&get_dest(instruction.clone()).unwrap().name)
+                                    .get(&get_dest(instruction).unwrap().name)
                                     .unwrap()
                                     .clone(),
                             )],
@@ -209,7 +206,7 @@ fn find_common_subexpressions(
                             *id,
                             idx,
                             m.fields
-                                .get(&get_dest(instruction.clone()).unwrap().name)
+                                .get(&get_dest(instruction).unwrap().name)
                                 .unwrap()
                                 .clone(),
                         ))
@@ -313,7 +310,7 @@ pub fn eliminate_common_subexpressions(
     for (id, block) in m.blocks.iter() {
         let mut new_instructions = vec![];
         for instruction in block.body.iter() {
-            let dest = match get_dest(instruction.clone()) {
+            let dest = match get_dest(instruction) {
                 Some(v) => v,
                 None => {
                     new_instructions.push(instruction.clone());

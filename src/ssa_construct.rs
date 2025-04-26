@@ -46,7 +46,7 @@ pub fn prune_method(m: &mut cfg::CfgMethod<SSAVarLabel>) -> () {
     // delete disconnected components from blks
     let mut agenda: VecDeque<usize> = VecDeque::from([0]);
     let mut visited: HashSet<usize> = HashSet::from([0]);
-    let mut blks = &mut m.blocks;
+    let blks = &mut m.blocks;
     while !agenda.is_empty() {
         let parent = blks.get(&agenda.pop_front().unwrap()).unwrap().clone();
         let mut children: Vec<usize> = vec![];

@@ -1,11 +1,9 @@
 use crate::cfg_build::VarLabel;
-use crate::{cfg, scan};
-use cfg::BlockLabel;
+use crate::{cfg, deadcode, scan};
+use cfg::{BlockLabel, ImmVar};
 use scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
-
-use crate::deadcode::get_dest;
 
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Instruction = cfg::Instruction<VarLabel>;
@@ -22,7 +20,7 @@ fn get_defs(m: CfgMethod) -> HashMap<VarLabel, HashSet<(BlockLabel, usize)>> {
 
     for (bid, block) in m.blocks {
         for (iid, instruction) in block.body.into_iter().enumerate() {
-            if let Some(dest) = get_dest(instruction) {
+            if let Some(dest) = get_insn_dest(&instruction) {
                 defs.entry(dest)
                     .or_insert_with(HashSet::new)
                     .insert((bid, iid));
@@ -73,20 +71,53 @@ fn get_children(m: &CfgMethod, i: InsnLoc) -> Vec<InsnLoc> {
     }
 }
 
+fn get_sources(insn: &Sum<&Instruction, &Jump>) -> HashSet<VarLabel> {
+    match insn {
+        Sum::Inl(i) => deadcode::get_sources(i),
+        Sum::Inr(j) => deadcode::get_jump_sources(j),
+    }
+}
+
+fn get_dest(insn: &Sum<&Instruction, &Jump>) -> Option<VarLabel> {
+    match insn {
+        Sum::Inl(i) => get_insn_dest(i),
+        Sum::Inr(_) => None,
+    }
+}
+
+fn get_insn_dest(insn: &Instruction) -> Option<VarLabel> {
+    match insn {
+        Instruction::PhiExpr { .. } => panic!(),
+        Instruction::MemPhiExpr { .. } => panic!(),
+        Instruction::ParMov(_) => panic!(),
+        Instruction::ArrayAccess { dest, .. } => Some(*dest),
+        Instruction::Call(_, _, dest) => *dest,
+        Instruction::Constant { dest, .. } => Some(*dest),
+        Instruction::MoveOp { dest, .. } => Some(*dest),
+        Instruction::ThreeOp { dest, .. } => Some(*dest),
+        Instruction::TwoOp { dest, .. } => Some(*dest),
+        Instruction::ArrayStore { .. } => None,
+        Instruction::Spill { .. } => None,
+        Instruction::Reload { ord_var, .. } => Some(*ord_var),
+        Instruction::Ret(r) => match r {
+            Some(ImmVar::Var(x)) => Some(*x),
+            Some(ImmVar::Imm(_)) => None,
+            None => None,
+        },
+    }
+}
+
 fn get_uses(m: &CfgMethod, x: VarLabel, i: InsnLoc) -> HashSet<InsnLoc> {
     let mut uses = HashSet::new();
     let mut seen = HashSet::new();
     let mut next = vec![i];
     while let Some(v) = next.pop() {
         seen.insert(v);
-        if
-        /*TODO: v has x as a source*/
-        true {
+        let insn = get_insn(m, v);
+        if get_sources(&insn).contains(&x) {
             uses.insert(v);
         }
-        if
-        /*TODO: v does not have x as dest*/
-        true {
+        if get_dest(&insn) != Some(x) {
             next.append(
                 &mut get_children(m, v)
                     .into_iter()

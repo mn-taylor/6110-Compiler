@@ -6,8 +6,8 @@ use maplit::{hashmap, hashset};
 use std::collections::HashSet;
 use std::hash::Hash;
 
-fn get_sources<VarLabel: Eq + Hash + Copy>(
-    instruction: Instruction<VarLabel>,
+pub fn get_sources<VarLabel: Eq + Hash + Copy>(
+    instruction: &Instruction<VarLabel>,
 ) -> HashSet<VarLabel> {
     match instruction {
         Instruction::PhiExpr { sources, .. } => sources
@@ -21,7 +21,7 @@ fn get_sources<VarLabel: Eq + Hash + Copy>(
             let mut set = hashset! {};
             match idx {
                 ImmVar::Var(v) => {
-                    set.insert(v);
+                    set.insert(*v);
                 }
                 _ => {}
             }
@@ -32,13 +32,13 @@ fn get_sources<VarLabel: Eq + Hash + Copy>(
             let mut set = hashset! {};
             match idx {
                 ImmVar::Var(v) => {
-                    set.insert(v);
+                    set.insert(*v);
                 }
                 _ => {}
             }
             match source {
                 ImmVar::Var(v) => {
-                    set.insert(v);
+                    set.insert(*v);
                 }
                 _ => {}
             }
@@ -61,7 +61,7 @@ fn get_sources<VarLabel: Eq + Hash + Copy>(
             let mut set = hashset! {};
             match source {
                 ImmVar::Var(v) => {
-                    set.insert(v);
+                    set.insert(*v);
                 }
                 _ => {}
             }
@@ -70,7 +70,7 @@ fn get_sources<VarLabel: Eq + Hash + Copy>(
         }
         Instruction::Ret(opt_ret_val) => match opt_ret_val {
             Some(var) => match var {
-                ImmVar::Var(v) => hashset! {v},
+                ImmVar::Var(v) => hashset! {*v},
                 _ => hashset! {},
             },
             None => hashset! {},
@@ -82,13 +82,13 @@ fn get_sources<VarLabel: Eq + Hash + Copy>(
 
             match source1 {
                 ImmVar::Var(v) => {
-                    set.insert(v);
+                    set.insert(*v);
                 }
                 _ => {}
             }
             match source2 {
                 ImmVar::Var(v) => {
-                    set.insert(v);
+                    set.insert(*v);
                 }
                 _ => {}
             }
@@ -96,25 +96,25 @@ fn get_sources<VarLabel: Eq + Hash + Copy>(
             set
         }
         Instruction::TwoOp { source1, .. } => match source1 {
-            ImmVar::Var(v) => hashset! {v},
+            ImmVar::Var(v) => hashset! {*v},
             _ => hashset! {},
         },
         _ => hashset! {}, // Excludes phis and constant loads
     }
 }
 
-fn get_jump_sources<VarLabel: Eq + Hash>(j: Jump<VarLabel>) -> HashSet<VarLabel> {
+pub fn get_jump_sources<VarLabel: Eq + Hash + Copy>(j: &Jump<VarLabel>) -> HashSet<VarLabel> {
     match j {
         Jump::Cond { source, .. } => match source {
-            ImmVar::Var(v) => hashset! {v},
+            ImmVar::Var(v) => hashset! {*v},
             ImmVar::Imm(_) => hashset! {},
         },
         _ => hashset! {},
     }
 }
 
-pub fn get_dest<T>(instruction: Instruction<T>) -> Option<T> {
-    match instruction {
+pub fn get_dest<T: Copy>(instruction: &Instruction<T>) -> Option<T> {
+    match *instruction {
         Instruction::PhiExpr { dest, .. } => Some(dest),
         Instruction::ArrayAccess { dest, .. } => Some(dest),
         Instruction::Call(_, _, _) => None, // We always want to call functions whether or not their return values are used, because they may modify global variables.
@@ -140,13 +140,13 @@ pub fn dead_code_elimination(m: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
     for (_, block) in m.blocks.iter() {
         for instruction in block.body.iter() {
             all_used_vars = all_used_vars
-                .union(&get_sources(instruction.clone()))
+                .union(&get_sources(instruction))
                 .cloned()
                 .collect()
         }
 
         all_used_vars = all_used_vars
-            .union(&get_jump_sources(block.jump_loc.clone()))
+            .union(&get_jump_sources(&block.jump_loc))
             .cloned()
             .collect()
     }
@@ -158,7 +158,7 @@ pub fn dead_code_elimination(m: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
 
         let mut new_instructions = vec![];
         for instruction in block.body.iter() {
-            match get_dest(instruction.clone()) {
+            match get_dest(instruction) {
                 Some(dest_var) => {
                     // add instruction if dest is used later or dest is global
                     if !m.fields.contains_key(&dest_var.name) || all_used_vars.contains(&dest_var) {

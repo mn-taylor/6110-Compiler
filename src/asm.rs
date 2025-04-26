@@ -730,7 +730,7 @@ fn asm_add_op(
                 }
                 instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
             }
-            ImmVar::Imm(i2) => panic!("Three Op with two immediate sources can be simplified"),
+            ImmVar::Imm(_) => panic!("Three Op with two immediate sources can be simplified"),
         },
     }
 
@@ -770,7 +770,7 @@ fn asm_mul_op(
                 instructions.extend(convert_multipication_var_imm(mop, Reg::R10, i1));
                 instructions.push(store_from_reg(Reg::R10, dest, stack_lookup));
             }
-            ImmVar::Imm(i2) => {
+            ImmVar::Imm(_) => {
                 panic!("Three operand expression should be simplified");
             }
         },
@@ -839,7 +839,7 @@ fn asm_rel_op(
                 ));
                 instructions.push(store_from_reg(Reg::R9, dest, stack_lookup));
             }
-            ImmVar::Imm(i2) => {
+            ImmVar::Imm(_) => {
                 panic!("Three Op expression with two immediate sources can be simplified")
             }
         },
@@ -874,7 +874,7 @@ fn asm_instruction(
             // Will maintain the invariant that the source is always an s
             let s = match source1 {
                 ImmVar::Var(v) => v,
-                ImmVar::Imm(i) => panic!(),
+                ImmVar::Imm(_) => panic!(),
             };
 
             let mut instructions = vec![];
@@ -898,7 +898,7 @@ fn asm_instruction(
             // Maintain the invariant that the source is not a constant, when assembling
             let s: u32 = match source {
                 ImmVar::Var(v) => v,
-                ImmVar::Imm(i) => panic!(),
+                ImmVar::Imm(_) => panic!(),
             };
 
             let get_source = load_into_reg(Reg::Rax, s, stack_lookup);

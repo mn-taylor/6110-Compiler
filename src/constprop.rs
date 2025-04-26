@@ -192,7 +192,7 @@ pub fn constant_propagation(
                 Instruction::PhiExpr { dest, sources } => {
                     let new_forbidden: HashSet<SSAVarLabel> = sources
                         .iter()
-                        .map(|(id, var)| match var {
+                        .map(|(_, var)| match var {
                             Sum::Inl(v) => *v,
                             Sum::Inr(mv) => panic!(),
                         })
