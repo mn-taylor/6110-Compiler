@@ -488,7 +488,7 @@ fn load_into_reg_arr_imm(
 ) -> Vec<String> {
     let mut instructions = vec![];
     // instructions.push(load_into_reg(Reg::R9, index, stack_lookup));
-    instructions.push(format!("\tmovq ${index}, {}", Reg::R9));
+    // instructions.push(format!("\tmovq ${index}, {}", Reg::R9));
     match stack_lookup.get(&varname) {
         Some((_, offset)) => {
             // movl offset(base, index, scale), destination
@@ -499,10 +499,10 @@ fn load_into_reg_arr_imm(
             //     Reg::Rbp,
             //     Reg::R9
             // ))
-            instructions.push(format!("\tsalq $3, {}", Reg::R9));
+            // instructions.push(format!("\tsalq $3, {}", Reg::R9));
             instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
-            // instructions.push(format!("\tsubq {}, {}", index * 8, Reg::R10));
-            instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\tsubq ${}, {}", index * 8, Reg::R10));
+            // instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
             instructions.push(format!("\tmovq -{offset}({}), {dest}", Reg::R10));
         }
         None => {
@@ -515,10 +515,8 @@ fn load_into_reg_arr_imm(
             // instructions.push(format!("\tmovq 0({}), {}", Reg::R9, dest));
             // instructions.push(format!("\taddq {}, {}", Reg::R10, Reg::R9));
 
-            instructions.push(format!("\tsalq $3, {}", Reg::R9));
             instructions.push(format!("\tleaq global_var{}(%rip), {}", varname, Reg::R10));
-            // instructions.push(format!("\taddq {}, {}", index * 8, Reg::R10));
-            instructions.push(format!("\taddq {}, {}", Reg::R9, Reg::R10));
+            instructions.push(format!("\taddq ${}, {}", index * 8, Reg::R10));
             instructions.push(format!("\tmovq -0({}), {dest}", Reg::R10));
         }
     }
@@ -588,7 +586,7 @@ fn store_from_reg_arr_var_imm(
 
             instructions.push(format!("\tsalq $3, {}", Reg::R9));
             instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
-            instructions.push(format!("\taddq {}, {}", index * 8, Reg::R10));
+            instructions.push(format!("\taddq ${}, {}", index * 8, Reg::R10));
             instructions.push(format!("\tmovq {src}, -0({}) ", Reg::R10));
             // instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
             // instructions.push(format!("\taddq {}, {}", Reg::R10, Reg::R9));

@@ -1,5 +1,6 @@
 use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction, IsImmediate, Jump};
+use crate::cfg_build::get_parents;
 use crate::ir::{Bop, UnOp};
 use crate::scan::{AddOp, EqOp, MulOp, RelOp, Sum};
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
@@ -62,7 +63,7 @@ fn simplify(i: Instruction<SSAVarLabel>) -> Instruction<SSAVarLabel> {
                         1 => 0,
                         _ => panic!("not acting on non-boolean value"),
                     },
-                    UnOp::IntCast => ((*imm as i32) as i64),
+                    UnOp::IntCast => (*imm as i32) as i64,
                     UnOp::LongCast => *imm,
                 };
 
@@ -121,12 +122,12 @@ fn prop_const(
         Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
             dest: dest,
             name: name,
-            idx: idx, // check_const(idx, const_lookup),
+            idx: check_const(idx, const_lookup),
         },
         Instruction::ArrayStore { source, arr, idx } => Instruction::ArrayStore {
-            source: source, //check_const(source, const_lookup),
+            source: check_const(source, const_lookup),
             arr: arr,
-            idx: idx, // check_const(idx, const_lookup),
+            idx: check_const(idx, const_lookup),
         },
         Instruction::Call(func_name, args, opt_return_val) => {
             let new_args: Vec<Arg<SSAVarLabel>> = args
@@ -207,13 +208,16 @@ pub fn constant_propagation(
         }
     }
 
+    let mut found_constant_load = false;
+
     // find all constants
     for (_, block) in method.blocks.iter() {
         for instr in block.body.iter() {
             match instr {
                 Instruction::Constant { dest, constant } => {
-                    if !forbidden.contains(dest) {
+                    if !forbidden.contains(dest) && method.fields.contains_key(&dest.name) {
                         const_lookup.insert(ImmVar::Var(*dest), ImmVar::Imm(*constant));
+                        found_constant_load = true;
                     }
                 }
                 _ => (),
@@ -225,6 +229,14 @@ pub fn constant_propagation(
     for (i, block) in method.blocks.iter() {
         let mut new_instructions = vec![];
         for instr in block.body.iter() {
+            match instr {
+                Instruction::Constant { dest, constant } => {
+                    if !forbidden.contains(dest) && method.fields.contains_key(&dest.name) {
+                        continue;
+                    }
+                }
+                _ => (), // remove constant loads
+            }
             new_instructions.push(prop_const(instr.clone(), &const_lookup))
         }
 
@@ -232,18 +244,42 @@ pub fn constant_propagation(
             parents: block.parents.clone(),
             block_id: *i,
             body: new_instructions,
-            jump_loc: block.jump_loc.clone(),
+            jump_loc: prop_const_jump(block.jump_loc.clone(), &const_lookup),
         };
 
         new_method.blocks.insert(*i, new_block);
     }
 
-    new_method
+    if found_constant_load {
+        get_parents(&mut method.blocks); // parents might change after prop const jump
+        constant_propagation(&mut new_method)
+    } else {
+        new_method
+    }
 }
 
-fn prop_const_jump(j: Jump<SSAVarLabel>) -> Jump<SSAVarLabel> {
+fn prop_const_jump(
+    j: Jump<SSAVarLabel>,
+    const_lookup: &HashMap<ImmVar<SSAVarLabel>, ImmVar<SSAVarLabel>>,
+) -> Jump<SSAVarLabel> {
     // should modify conditional jumps if possible. Should turn conditional jumps with immediate soures into unconditional jumps.
-    todo!()
+    match &j {
+        Jump::Cond {
+            source,
+            true_block,
+            false_block,
+        } => match check_const(source.clone(), const_lookup) {
+            ImmVar::Imm(imm) => {
+                if imm == 0 {
+                    Jump::Uncond(*false_block)
+                } else {
+                    Jump::Uncond(*true_block)
+                }
+            }
+            _ => j,
+        },
+        _ => j,
+    }
 }
 
 // Might be time consuming to all of these identies for each instruction.
@@ -275,5 +311,5 @@ fn use_identities(i: Instruction<SSAVarLabel>) -> Instruction<SSAVarLabel> {
      *
      *
      */
-    todo!()
+    i
 }

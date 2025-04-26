@@ -25,6 +25,7 @@ pub enum CompilerAction {
 pub enum Optimization {
     Cp,
     Dce,
+    Cop,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -40,9 +41,11 @@ impl std::str::FromStr for OptimizationOption {
         match s.to_lowercase().as_str() {
             "dce" => Ok(OptimizationOption::Yes(Optimization::Dce)),
             "cp" => Ok(OptimizationOption::Yes(Optimization::Cp)),
+            "cop" => Ok(OptimizationOption::Yes(Optimization::Cop)),
             "all" => Ok(OptimizationOption::All),
             "-dce" => Ok(OptimizationOption::No(Optimization::Dce)),
             "-cp" => Ok(OptimizationOption::No(Optimization::Cp)),
+            "-cop" => Ok(OptimizationOption::No(Optimization::Cop)),
             _ => Err(format!("unknown optimization: {}", s)),
         }
     }

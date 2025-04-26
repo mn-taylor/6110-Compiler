@@ -155,6 +155,7 @@ pub fn dead_code_elimination(m: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
             .collect()
     }
 
+    let mut removed_var = false;
     // remove definitions of non global variables that are never sources
     for (id, block) in m.blocks.iter() {
         let mut new_block = block.clone();
@@ -167,6 +168,7 @@ pub fn dead_code_elimination(m: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
                     if !m.fields.contains_key(&dest_var.name) || all_used_vars.contains(&dest_var) {
                         new_instructions.push(instruction.clone());
                     } else {
+                        removed_var = true;
                     }
                 }
                 None => {
@@ -179,5 +181,10 @@ pub fn dead_code_elimination(m: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
         new_method.blocks.insert(*id, new_block);
     }
 
-    return new_method;
+    // should probably do some stack based removal instead of recursive calls so that we dont have to iterate through all the blocks multiple times
+    if removed_var {
+        return dead_code_elimination(&mut new_method);
+    } else {
+        return new_method;
+    }
 }
