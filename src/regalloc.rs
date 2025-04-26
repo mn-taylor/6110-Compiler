@@ -5,6 +5,13 @@ use scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+<<<<<<< HEAD
+=======
+use maplit::{hashmap, hashset};
+
+use crate::deadcode::get_dest;
+
+>>>>>>> 5f75ab5 (get_webs keeps track of dest and source seperately)
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Instruction = cfg::Instruction<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
@@ -15,15 +22,21 @@ struct InsnLoc {
     idx: usize,
 }
 
-fn get_defs(m: CfgMethod) -> HashMap<VarLabel, HashSet<(BlockLabel, usize)>> {
+fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<(BlockLabel, usize)>> {
     let mut defs: HashMap<VarLabel, HashSet<(BlockLabel, usize)>> = HashMap::new();
 
+<<<<<<< HEAD
     for (bid, block) in m.blocks {
         for (iid, instruction) in block.body.into_iter().enumerate() {
             if let Some(dest) = get_insn_dest(&instruction) {
+=======
+    for (bid, block) in m.blocks.iter() {
+        for (iid, instruction) in block.body.iter().enumerate() {
+            if let Some(dest) = get_dest(instruction.clone()) {
+>>>>>>> 5f75ab5 (get_webs keeps track of dest and source seperately)
                 defs.entry(dest)
                     .or_insert_with(HashSet::new)
-                    .insert((bid, iid));
+                    .insert((*bid, iid));
             }
         }
     }
@@ -129,21 +142,28 @@ fn get_uses(m: &CfgMethod, x: VarLabel, i: InsnLoc) -> HashSet<InsnLoc> {
     uses
 }
 
-fn get_webs(m: CfgMethod) -> HashSet<(VarLabel, Vec<HashSet<(BlockLabel, usize)>>)> {
+fn get_webs(m: &CfgMethod) -> HashMap<VarLabel, Vec<(Vec<InsnLoc>, HashSet<InsnLoc>)>> {
     let defs = get_defs(m);
-    let mut webs = HashSet::new();
+    let mut webs = HashMap::new();
 
     for (varname, def_set) in defs {
-        let mut sets: Vec<HashSet<InsnLoc>> = def_set
+        // sets contains vec of def and set of uses
+        let mut sets: Vec<(Vec<InsnLoc>, HashSet<InsnLoc>)> = def_set
             .iter()
             .map(|(bid, iid)| {
-                get_uses(
-                    &m,
-                    varname,
-                    InsnLoc {
+                (
+                    vec![InsnLoc {
                         blk: *bid,
                         idx: *iid,
-                    },
+                    }],
+                    get_uses(
+                        &m,
+                        varname,
+                        InsnLoc {
+                            blk: *bid,
+                            idx: *iid,
+                        },
+                    ),
                 )
             })
             .collect::<Vec<_>>();
@@ -153,36 +173,44 @@ fn get_webs(m: CfgMethod) -> HashSet<(VarLabel, Vec<HashSet<(BlockLabel, usize)>
 
         let mut new_sets = vec![];
         while !sets.is_empty() {
-            let curr = sets.pop().unwrap();
+            let (mut curr_defs, mut curr_uses) = sets.pop().unwrap();
 
-            let mut found_overlap = false;
             let mut to_merge = None;
 
-            for (i, set) in &sets.iter().enumeate() {
-                if !curr.is_disjoint(set) {
-                    to_merge = Some((i, set.clone()));
-                    found_overlap = true;
+            for (i, (defs, uses)) in sets.iter_mut().enumerate() {
+                if !curr_uses.is_disjoint(uses) {
+                    to_merge = Some((i, (defs.clone(), uses.clone())));
                     break;
                 }
             }
 
-            if let Some(merge_set) = to_merge {
-                sets.remove(&merge_set);
-                let merged = curr.union(&merge_set).cloned().collect();
-                sets.insert(merged);
+            if let Some((i, (defs, uses))) = to_merge {
+                sets.remove(i);
+                let merged: HashSet<InsnLoc> = curr_uses.union(&uses).cloned().collect();
+                curr_defs.extend(defs.clone());
+                sets.push((curr_defs, merged));
             } else {
-                new_sets.insert(curr);
+                new_sets.push((curr_defs, curr_uses));
             }
         }
 
-        webs.insert((varname, new_sets));
+        webs.insert(varname, new_sets);
     }
-
     webs
 }
 
-fn find_inter_instructions(_m: CfgMethod, _s: HashSet<InsnLoc>) -> HashSet<InsnLoc> {
-    todo!()
+fn find_inter_instructions(
+    _m: CfgMethod,
+    defs: Vec<InsnLoc>,
+    uses: HashSet<InsnLoc>,
+) -> HashSet<InsnLoc> {
+    let all_instructions = hashset! {};
+
+    for def in defs {
+        let InsnLoc { blk: bid, idx: iid } = def;
+    }
+
+    all_instructions
 }
 
 fn interference_graph(_m: CfgMethod) {
