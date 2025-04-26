@@ -1,6 +1,7 @@
 use crate::ir;
 use crate::parse;
 use crate::scan::Sum;
+use crate::ssa_construct::SSAVarLabel;
 use ir::{Bop, UnOp};
 use parse::Primitive;
 use std::collections::HashMap;
@@ -8,6 +9,7 @@ use std::fmt;
 
 pub type BlockLabel = usize;
 
+#[derive(Clone)]
 pub struct CfgMethod<VarLabel> {
     pub name: String,
     pub params: Vec<u32>, // was var label but that was unnecessary
@@ -250,6 +252,19 @@ pub enum ImmVar<VarLabel> {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct MemVarLabel {
     id: u32,
+}
+
+pub trait GetNameVer {
+    fn get_name_ver(&self) -> Option<(u32, u32)>;
+}
+
+impl GetNameVer for ImmVar<SSAVarLabel> {
+    fn get_name_ver(&self) -> Option<(u32, u32)> {
+        match self {
+            ImmVar::Var(v) => Some((v.name, v.version)),
+            _ => panic!(),
+        }
+    }
 }
 
 pub trait IsImmediate {

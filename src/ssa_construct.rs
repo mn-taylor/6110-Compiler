@@ -4,6 +4,7 @@ use crate::cfg_build::{CfgMethod, VarLabel};
 use crate::scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::VecDeque;
 use std::fmt;
 
 fn add_block_to_var_def(
@@ -39,6 +40,34 @@ pub fn var_to_def_locs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<BlockLabel>> 
     }
 
     def
+}
+
+pub fn prune_method(m: &mut cfg::CfgMethod<SSAVarLabel>) -> () {
+    // delete disconnected components from blks
+    let mut agenda: VecDeque<usize> = VecDeque::from([0]);
+    let mut visited: HashSet<usize> = HashSet::from([0]);
+    let mut blks = &mut m.blocks;
+    while !agenda.is_empty() {
+        let parent = blks.get(&agenda.pop_front().unwrap()).unwrap().clone();
+        let mut children: Vec<usize> = vec![];
+        match parent.jump_loc {
+            Jump::Uncond(c) => children.push(c),
+            Jump::Cond {
+                source: _,
+                true_block,
+                false_block,
+            } => children.extend([true_block, false_block]),
+            _ => {}
+        }
+        for c in children.into_iter() {
+            if !visited.contains(&c) {
+                visited.insert(c);
+                agenda.push_back(c);
+            }
+        }
+    }
+
+    blks.retain(|b, _| visited.contains(b));
 }
 
 fn intersect_all<'a>(

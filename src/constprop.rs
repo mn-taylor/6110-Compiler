@@ -3,7 +3,7 @@ use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction, IsImmediate, Jump};
 use crate::cfg_build::get_parents;
 use crate::ir::{Bop, UnOp};
 use crate::scan::{AddOp, EqOp, MulOp, RelOp, Sum};
-use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
+use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, prune_method, SSAVarLabel};
 use maplit::{hashmap, hashset};
 use std::collections::{HashMap, HashSet};
 
@@ -251,9 +251,11 @@ pub fn constant_propagation(
     }
 
     if found_constant_load {
-        get_parents(&mut method.blocks); // parents might change after prop const jump
+        // get_parents(&mut method.blocks); // parents might change after prop const jump
         constant_propagation(&mut new_method)
     } else {
+        prune_method(&mut new_method);
+        get_parents(&mut new_method.blocks);
         new_method
     }
 }

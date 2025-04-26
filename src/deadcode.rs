@@ -117,7 +117,7 @@ fn get_jump_sources(j: Jump<SSAVarLabel>) -> HashSet<SSAVarLabel> {
     }
 }
 
-fn get_dest(instruction: Instruction<SSAVarLabel>) -> Option<SSAVarLabel> {
+pub fn get_dest(instruction: Instruction<SSAVarLabel>) -> Option<SSAVarLabel> {
     match instruction {
         Instruction::PhiExpr { dest, .. } => Some(dest),
         Instruction::ArrayAccess { dest, .. } => Some(dest),

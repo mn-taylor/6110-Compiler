@@ -2,6 +2,7 @@ mod utils;
 
 use decaf_skeleton_rust::asm;
 use decaf_skeleton_rust::cfg_build;
+use decaf_skeleton_rust::comsubelim;
 use decaf_skeleton_rust::constprop;
 use decaf_skeleton_rust::constprop::constant_propagation;
 use decaf_skeleton_rust::deadcode;
@@ -212,7 +213,7 @@ fn main() {
                     }
 
                     if args.get_opts().contains(&Optimization::Cp) {
-                        // ssa_method = copyprop::copy_propagation(&mut ssa_method);
+                        ssa_method = copyprop::copy_propagation(&mut ssa_method);
                     }
                     if args.debug && args.get_opts().contains(&Optimization::Cp) {
                         println!("method after copy propagation: \n{}", ssa_method);
@@ -232,7 +233,10 @@ fn main() {
                             num_intstructions(&ssa_method)
                         ));
                     }
-                    // ssa_destruct::split_crit_edges(&mut ssa_method);
+
+                    // ssa_method = comsubelim::eliminate_common_subexpressions(&mut ssa_method);
+
+                    ssa_destruct::split_crit_edges(&mut ssa_method);
 
                     if args.debug {
                         // println!("method after splitting edges: \n{ssa_method}");

@@ -64,7 +64,7 @@ impl State {
     }
 }
 
-fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>) {
+pub fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>) {
     get_parents(blks);
 
     let mut lbls_set: HashSet<BlockLabel> = blks.keys().map(|x| *x).collect();

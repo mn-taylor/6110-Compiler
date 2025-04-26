@@ -152,7 +152,7 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
                             }
                             _ => {}
                         };
-                        new_instructions.push(new_instr.clone());
+                        //  new_instructions.push(new_instr.clone());
                     }
                 }
                 _ => {

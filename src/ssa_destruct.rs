@@ -498,6 +498,9 @@ pub fn split_crit_edges(method: &mut cfg::CfgMethod<SSAVarLabel>) {
             }
         }
         for (par, parcops) in copies {
+            if !cfg.contains_key(&par) {
+                continue; // block was removed by the optimizations
+            };
             cfg.get_mut(&par)
                 .unwrap()
                 .body
