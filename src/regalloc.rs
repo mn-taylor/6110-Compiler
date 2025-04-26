@@ -161,9 +161,7 @@ fn get_webs(m: &CfgMethod) -> HashMap<VarLabel, Vec<(Vec<InsnLoc>, HashSet<InsnL
         }
 
         let mut new_sets = vec![];
-        while !sets.is_empty() {
-            let (mut curr_defs, mut curr_uses) = sets.pop().unwrap();
-
+        while let Some((mut curr_defs, curr_uses)) = sets.pop() {
             let mut to_merge = None;
 
             for (i, (defs, uses)) in sets.iter_mut().enumerate() {
@@ -203,4 +201,55 @@ fn find_inter_instructions(
 
 fn interference_graph(_m: CfgMethod) {
     todo!()
+}
+
+fn remove_node(g: &mut HashMap<u32, HashSet<u32>>, v: u32) -> HashSet<u32> {
+    let result = g.remove(&v).unwrap();
+    for (_, es) in g {
+        es.remove(&v);
+    }
+    result
+}
+
+fn color_not_in_set(num_colors: u32, s: HashSet<u32>) -> u32 {
+    let all_colors: HashSet<u32> = (0..num_colors).into_iter().collect();
+    *all_colors.difference(&s).collect::<Vec<_>>().pop().unwrap()
+}
+
+fn color(
+    mut g: HashMap<u32, HashSet<u32>>,
+    num_colors: u32,
+) -> Result<HashMap<u32, u32>, HashSet<u32>> {
+    let mut color_later = Vec::new();
+
+    loop {
+        let mut to_remove = None;
+        for (v, es) in g.iter() {
+            if (es.len() as u32) < num_colors {
+                to_remove = Some(*v);
+                break;
+            };
+        }
+        match to_remove {
+            Some(v) => color_later.push((v, remove_node(&mut g, v))),
+            None => break,
+        }
+    }
+    if g.is_empty() {
+        let mut colors = HashMap::new();
+        while let Some((v, es)) = color_later.pop() {
+            colors.insert(
+                v,
+                color_not_in_set(
+                    num_colors,
+                    es.into_iter().map(|u| *colors.get(&u).unwrap()).collect(),
+                ),
+            );
+        }
+        // return an assignment of colors
+        Ok(colors)
+    } else {
+        // return nodes that could not be colored
+        Err(g.into_keys().collect())
+    }
 }
