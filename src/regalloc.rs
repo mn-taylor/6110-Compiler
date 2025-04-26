@@ -1,77 +1,144 @@
+use crate::cfg_build::VarLabel;
+use crate::{cfg, scan};
+use cfg::BlockLabel;
+use scan::Sum;
+use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::{deadcode::get_dest, ssa_construct::SSAVarLabel};
+use crate::deadcode::get_dest;
 
-fn get_defs(m: CfgMethod<SSAVarLabel>) -> HashMap<VarLabel, HashSet<(block_label, instr_idx)>> {
-    let mut defs: HashMap<VarLabel, HashSet<(block_label, instr_idx)>>;
+type CfgMethod = cfg::CfgMethod<VarLabel>;
+type Instruction = cfg::Instruction<VarLabel>;
+type Jump = cfg::Jump<VarLabel>;
+
+struct InsnLoc {
+    blk: BlockLabel,
+    idx: usize,
+}
+
+fn get_defs(m: CfgMethod) -> HashMap<VarLabel, HashSet<(BlockLabel, usize)>> {
+    let mut defs: HashMap<VarLabel, HashSet<(BlockLabel, usize)>> = HashMap::new();
 
     for (bid, block) in m.blocks {
-        for (iid, instruction) in block.body {
-            match get_dest(instruction) {
-                Some(dest) => {
-                    let mut curr_defs = defs.get_mut(dest).unwrap_or(vec![]);
-                    curr_defs.push(dest);
-                    def.insert(dest, curr_defs);
-                }
+        for (iid, instruction) in block.body.into_iter().enumerate() {
+            if let Some(dest) = get_dest(instruction) {
+                defs.entry(dest)
+                    .or_insert_with(HashSet::new)
+                    .insert((bid, iid));
             }
         }
     }
     defs
 }
 
-fn get_uses(m, block_label, instr_idx) -> HashSet<(block_label, instr_idx)> {
-
+fn get_insn(m: &CfgMethod, i: InsnLoc) -> Sum<&Instruction, &Jump> {
+    let blk = m.blocks.get(&i.blk).unwrap();
+    if blk.body.len() == i.idx {
+        Sum::Inr(&blk.jump_loc)
+    } else {
+        Sum::Inl(blk.body.get(i.idx).unwrap())
+    }
 }
 
-fn get_webs(m) -> HashSet<(VarLabel, HashSet<HashSet<(block_label, instr_idx))>>> {
-    // find all defs
+fn get_children(m: &CfgMethod, i: InsnLoc) -> Vec<InsnLoc> {
+    let blk = m.blocks.get(&i.blk).unwrap();
+    if blk.body.len() == i.idx {
+        match blk.jump_loc {
+            Jump::Nowhere => vec![],
+            Jump::Uncond(next_blk) => vec![InsnLoc {
+                blk: next_blk,
+                idx: 0,
+            }],
+            Jump::Cond {
+                true_block,
+                false_block,
+                ..
+            } => vec![
+                InsnLoc {
+                    blk: true_block,
+                    idx: 0,
+                },
+                InsnLoc {
+                    blk: false_block,
+                    idx: 0,
+                },
+            ],
+        }
+    } else {
+        vec![InsnLoc {
+            blk: i.blk,
+            idx: i.idx + 1,
+        }]
+    }
+}
+
+fn get_uses(m: &CfgMethod, x: VarLabel, i: InsnLoc) -> HashSet<InsnLoc> {
+    let mut uses = HashSet::new();
+    let mut seen = HashSet::new();
+    let mut next = vec![i];
+    while let Some(v) = next.pop() {
+        // TODO: actual logic for getting uses
+    }
+    uses
+}
+
+fn get_webs(m: CfgMethod) -> HashSet<(VarLabel, HashSet<HashSet<(BlockLabel, usize)>>)> {
     let defs = get_defs(m);
-    let webs = 
-    // find all uses
+    let mut webs = HashSet::new();
+
     for (varname, def_set) in defs {
-        // find all uses
-        let mut sets = def_set.iter().map(|bid, iid| get_uses(m, bid, iid)).collect::<HashSet<_>>();
-        if sets.len()==0 {
-            continue
+        let mut sets = def_set
+            .iter()
+            .map(|(bid, iid)| {
+                get_uses(
+                    &m,
+                    *bid,
+                    InsnLoc {
+                        blk: *bid,
+                        idx: *iid,
+                    },
+                )
+            })
+            .collect::<HashSet<_>>();
+        if sets.is_empty() {
+            continue;
         }
 
-        let mut new_sets = hashset!{};
-        while sets.len() != 0{
-            let curr = sets.next();
-            sets.remove_curr();
+        let mut new_sets = HashSet::new();
+        while !sets.is_empty() {
+            let curr = sets.iter().next().unwrap().clone();
+            sets.remove(&curr);
 
-            let found_overlap = false;
-            for set in sets {
-                // if curr intersects with set, remove this set and append to curr
-                if curr.intersection(set).len()!= 0 { // overlapping uses
-                    sets.remove(set);
-                    sets.insert(curr.union(set));
+            let mut found_overlap = false;
+            let mut to_merge = None;
+
+            for set in &sets {
+                if !curr.is_disjoint(set) {
+                    to_merge = Some(set.clone());
                     found_overlap = true;
-                    break
+                    break;
                 }
             }
 
-            if !found_overlap {
+            if let Some(merge_set) = to_merge {
+                sets.remove(&merge_set);
+                let merged = curr.union(&merge_set).cloned().collect();
+                sets.insert(merged);
+            } else {
                 new_sets.insert(curr);
             }
-
         }
 
-
-        
+        webs.insert((varname, new_sets));
     }
 
-    // merge when possible
-
+    webs
 }
 
-fn find_inter_instructions(m, HashSet<(block_label, instr_idx)>) -> {
-
+fn find_inter_instructions(_m: CfgMethod, _s: HashSet<InsnLoc>) -> HashSet<InsnLoc> {
+    todo!()
 }
 
-fn interference_graph(m) -> {
-
+fn interference_graph(_m: CfgMethod) {
+    todo!()
 }
-
-
-
