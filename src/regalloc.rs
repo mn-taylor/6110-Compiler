@@ -11,7 +11,7 @@ type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Instruction = cfg::Instruction<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
 
-#[derive(PartialEq, Eq, Clone, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 struct InsnLoc {
     blk: BlockLabel,
     idx: usize,
@@ -78,7 +78,22 @@ fn get_uses(m: &CfgMethod, x: VarLabel, i: InsnLoc) -> HashSet<InsnLoc> {
     let mut seen = HashSet::new();
     let mut next = vec![i];
     while let Some(v) = next.pop() {
-        // TODO: actual logic for getting uses
+        seen.insert(v);
+        if
+        /*TODO: v has x as a source*/
+        true {
+            uses.insert(v);
+        }
+        if
+        /*TODO: v does not have x as dest*/
+        true {
+            next.append(
+                &mut get_children(m, v)
+                    .into_iter()
+                    .filter(|i| !seen.contains(i))
+                    .collect(),
+            );
+        }
     }
     uses
 }
