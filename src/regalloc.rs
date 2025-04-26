@@ -158,9 +158,9 @@ fn get_webs(m: CfgMethod) -> HashSet<(VarLabel, Vec<HashSet<(BlockLabel, usize)>
             let mut found_overlap = false;
             let mut to_merge = None;
 
-            for set in &sets {
+            for (i, set) in &sets.iter().enumeate() {
                 if !curr.is_disjoint(set) {
-                    to_merge = Some(set.clone());
+                    to_merge = Some((i, set.clone()));
                     found_overlap = true;
                     break;
                 }
