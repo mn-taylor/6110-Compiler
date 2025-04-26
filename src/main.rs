@@ -3,6 +3,7 @@ mod utils;
 use decaf_skeleton_rust::asm;
 use decaf_skeleton_rust::cfg_build;
 use decaf_skeleton_rust::constprop;
+use decaf_skeleton_rust::constprop::constant_propagation;
 use decaf_skeleton_rust::deadcode;
 use decaf_skeleton_rust::deadcode::dead_code_elimination;
 use decaf_skeleton_rust::ir_build;
@@ -222,7 +223,7 @@ fn main() {
                     }
 
                     if args.get_opts().contains(&Optimization::Cop) {
-                        ssa_method = copyprop::copy_propagation(&mut ssa_method);
+                        ssa_method = constprop::constant_propagation(&mut ssa_method);
                     }
                     if args.debug && args.get_opts().contains(&Optimization::Cop) {
                         println!("method after constant propagation: \n{}", ssa_method);
