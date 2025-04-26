@@ -5,13 +5,8 @@ use scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-<<<<<<< HEAD
-=======
 use maplit::{hashmap, hashset};
 
-use crate::deadcode::get_dest;
-
->>>>>>> 5f75ab5 (get_webs keeps track of dest and source seperately)
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Instruction = cfg::Instruction<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
@@ -25,15 +20,9 @@ struct InsnLoc {
 fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<(BlockLabel, usize)>> {
     let mut defs: HashMap<VarLabel, HashSet<(BlockLabel, usize)>> = HashMap::new();
 
-<<<<<<< HEAD
-    for (bid, block) in m.blocks {
-        for (iid, instruction) in block.body.into_iter().enumerate() {
-            if let Some(dest) = get_insn_dest(&instruction) {
-=======
     for (bid, block) in m.blocks.iter() {
         for (iid, instruction) in block.body.iter().enumerate() {
-            if let Some(dest) = get_dest(instruction.clone()) {
->>>>>>> 5f75ab5 (get_webs keeps track of dest and source seperately)
+            if let Some(dest) = get_dest(&Sum::Inl(&instruction.clone())) {
                 defs.entry(dest)
                     .or_insert_with(HashSet::new)
                     .insert((*bid, iid));
@@ -200,17 +189,16 @@ fn get_webs(m: &CfgMethod) -> HashMap<VarLabel, Vec<(Vec<InsnLoc>, HashSet<InsnL
 }
 
 fn find_inter_instructions(
-    _m: CfgMethod,
+    m: CfgMethod,
+    var: VarLabel,
     defs: Vec<InsnLoc>,
     uses: HashSet<InsnLoc>,
 ) -> HashSet<InsnLoc> {
     let all_instructions = hashset! {};
 
-    for def in defs {
-        let InsnLoc { blk: bid, idx: iid } = def;
-    }
-
-    all_instructions
+    // find all instructions/blocks that lie on some path from a def to a use.
+    // find all blocks that are reachable from the def, then find all blocks that can reach a use.
+    let reachable_from_defs = hashset! {};
 }
 
 fn interference_graph(_m: CfgMethod) {
