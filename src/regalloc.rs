@@ -17,7 +17,7 @@ struct InsnLoc {
     idx: usize,
 }
 
-fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<(BlockLabel, usize)>> {
+fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<InsnLoc>> {
     let mut defs: HashMap<VarLabel, HashSet<(BlockLabel, usize)>> = HashMap::new();
 
     for (bid, block) in m.blocks.iter() {
@@ -25,7 +25,10 @@ fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<(BlockLabel, usize)>> {
             if let Some(dest) = get_dest(&Sum::Inl(&instruction.clone())) {
                 defs.entry(dest)
                     .or_insert_with(HashSet::new)
-                    .insert((*bid, iid));
+                    .insert(InsnLoc {
+                        blk: *bid,
+                        idx: iid,
+                    });
             }
         }
     }
@@ -187,7 +190,7 @@ fn get_webs(m: &CfgMethod) -> HashMap<VarLabel, Vec<(Vec<InsnLoc>, HashSet<InsnL
 }
 
 fn find_inter_instructions(
-    m: CfgMethod,
+    m: &CfgMethod,
     var: VarLabel,
     defs: Vec<InsnLoc>,
     uses: HashSet<InsnLoc>,
@@ -199,8 +202,29 @@ fn find_inter_instructions(
     let reachable_from_defs = hashset! {};
 }
 
-fn interference_graph(_m: CfgMethod) {
-    todo!()
+// returns a tuple: a map taking a label k to the corresponding convex closure of a web, and the interference graph, where nodes are labels
+fn interference_graph(
+    m: &CfgMethod,
+) -> (HashMap<u32, HashSet<InsnLoc>>, HashMap<u32, HashSet<u32>>) {
+    let webs = get_webs(m);
+    let mut convex_closures_of_webs = Vec::new();
+    for (var, def_use_s) in webs {
+        for (defs, uses) in def_use_s {
+            convex_closures_of_webs.push(find_inter_instructions(m, var, defs, uses));
+        }
+    }
+    let ret1: HashMap<u32, HashSet<InsnLoc>> = convex_closures_of_webs
+        .into_iter()
+        .enumerate()
+        .map(|(i, s)| (i as u32, s))
+        .collect();
+
+    let mut ret2 = HashMap::new();
+    for (i, _) in ret1.iter() {
+        ret2.insert(*i, HashSet::new());
+    }
+    // TODO: fill in ret2 with intersections
+    (ret1, ret2)
 }
 
 fn remove_node(g: &mut HashMap<u32, HashSet<u32>>, v: u32) -> HashSet<u32> {
