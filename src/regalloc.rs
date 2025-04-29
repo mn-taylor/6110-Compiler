@@ -2,7 +2,7 @@ use crate::cfg_build::{BasicBlock, VarLabel};
 use crate::ssa_construct::get_graph;
 use crate::{cfg, deadcode, scan};
 use cfg::{BlockLabel, ImmVar};
-use maplit::{hashmap, hashset};
+use maplit::hashset;
 use scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -18,8 +18,8 @@ pub struct InsnLoc {
 
 pub struct Web {
     pub var: VarLabel,
-    pub defs: Vec<(Insnloc)>,
-    pub uses: Vec<(InsnLoc)>,
+    pub defs: Vec<InsnLoc>,
+    pub uses: Vec<InsnLoc>,
 }
 
 fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<InsnLoc>> {
@@ -139,15 +139,15 @@ fn get_uses(m: &CfgMethod, x: VarLabel, i: InsnLoc) -> HashSet<InsnLoc> {
     uses
 }
 
-fn get_webs(m: &CfgMethod) -> HashMap<VarLabel, Vec<(Vec<InsnLoc>, HashSet<InsnLoc>)>> {
+fn get_webs(m: &CfgMethod) -> Vec<Web> {
     let defs = get_defs(m);
-    let mut webs = HashMap::new();
+    let mut webs = Vec::new();
 
     for (varname, def_set) in defs {
         // sets contains vec of def and set of uses
         let mut sets: Vec<(Vec<InsnLoc>, HashSet<InsnLoc>)> = def_set
             .iter()
-            .map(|(InsnLoc { blk: bid, idx: iid })| {
+            .map(|InsnLoc { blk: bid, idx: iid }| {
                 (
                     vec![InsnLoc {
                         blk: *bid,
@@ -189,13 +189,19 @@ fn get_webs(m: &CfgMethod) -> HashMap<VarLabel, Vec<(Vec<InsnLoc>, HashSet<InsnL
             }
         }
 
-        webs.insert(varname, new_sets);
+        for (defs, uses) in new_sets {
+            webs.push(Web {
+                var: varname,
+                defs,
+                uses: uses.into_iter().collect(),
+            });
+        }
     }
     webs
 }
 
 fn contains_def(block: &BasicBlock, var: VarLabel, after: usize) -> bool {
-    for ((i, instr)) in block.body.iter().enumerate() {
+    for (i, instr) in block.body.iter().enumerate() {
         if i <= after {
             continue;
         }
@@ -211,22 +217,17 @@ fn contains_def(block: &BasicBlock, var: VarLabel, after: usize) -> bool {
     return false;
 }
 
-fn find_inter_instructions(
-    m: &mut CfgMethod,
-    var: VarLabel,
-    defs: &Vec<InsnLoc>,
-    uses: HashSet<InsnLoc>,
-) -> HashSet<InsnLoc> {
+fn find_inter_instructions(m: &mut CfgMethod, web: &Web) -> HashSet<InsnLoc> {
     let g = get_graph(m);
 
     let mut all_instructions = hashset! {};
-    let target_blocks: HashSet<usize> = uses.iter().map(|InsnLoc { blk, idx }| *blk).collect();
+    let target_blocks: HashSet<usize> = web.uses.iter().map(|InsnLoc { blk, idx }| *blk).collect();
 
     // find all instructions/blocks that lie on some path from a def to a use.
     // find all blocks that are reachable from the def, then find all blocks that can reach a use.
     let mut reachable_from_defs = hashset! {}; // blocks to consider
 
-    for def in defs {
+    for def in web.defs.iter() {
         let InsnLoc { blk: bid, idx: iid } = def;
 
         let mut agenda: Vec<(usize, usize)> = vec![(*bid, *iid)];
@@ -239,7 +240,7 @@ fn find_inter_instructions(
             reachable_from_defs.insert(curr_block);
 
             // check if curr contains a redifinition of
-            if !contains_def(m.blocks.get(&curr_block).unwrap(), var, curr_instr) {
+            if !contains_def(m.blocks.get(&curr_block).unwrap(), web.var, curr_instr) {
                 let children: Vec<(usize, usize)> = g
                     .get(&curr_block)
                     .unwrap()
@@ -286,7 +287,11 @@ fn find_inter_instructions(
 
     for bid in blocks_of_interest.iter() {
         // check if it contains a def
-        let potential_start = defs.iter().find(|InsnLoc { blk, idx }| blk == bid).cloned();
+        let potential_start = web
+            .defs
+            .iter()
+            .find(|InsnLoc { blk, idx }| blk == bid)
+            .cloned();
 
         let starting_idx = match potential_start {
             Some(InsnLoc { blk: _, idx: iid }) => iid,
@@ -299,7 +304,7 @@ fn find_inter_instructions(
                 continue;
             }
 
-            if uses.contains(&InsnLoc { blk: *bid, idx: i }) {
+            if web.uses.contains(&InsnLoc { blk: *bid, idx: i }) {
                 all_instructions.extend(
                     (start..i + 1)
                         .collect::<Vec<_>>()
@@ -310,7 +315,7 @@ fn find_inter_instructions(
             }
 
             if i == m.blocks.get(bid).unwrap().body.len() - 1 {
-                if uses.contains(&InsnLoc {
+                if web.uses.contains(&InsnLoc {
                     blk: *bid,
                     idx: i + 1,
                 }) {
@@ -341,29 +346,35 @@ fn find_inter_instructions(
     all_instructions
 }
 
-// returns a tuple: a map taking a label k to the corresponding convex closure of a web, and the interference graph, where nodes are labels
-fn interference_graph(
-    m: &mut CfgMethod,
-) -> (HashMap<u32, HashSet<InsnLoc>>, HashMap<u32, HashSet<u32>>) {
-    let webs = get_webs(m);
-    let mut convex_closures_of_webs = Vec::new();
-    for (var, def_use_s) in webs {
-        for (defs, uses) in def_use_s {
-            convex_closures_of_webs.push(find_inter_instructions(m, var, &defs, uses));
+fn distinct_pairs<'a, T>(l: &'a Vec<T>) -> Vec<(u32, &'a T, u32, &'a T)> {
+    let mut ret = Vec::new();
+    for i in 0..l.len() {
+        for j in 0..l.len() {
+            ret.push((i as u32, l.get(i).unwrap(), j as u32, l.get(j).unwrap()));
         }
     }
-    let ret1: HashMap<u32, HashSet<InsnLoc>> = convex_closures_of_webs
-        .into_iter()
-        .enumerate()
-        .map(|(i, s)| (i as u32, s))
+    ret
+}
+
+// returns a tuple: a list of the phi webs, and the interference graph, where webs are labelled by their indices in the list.
+fn interference_graph(m: &mut CfgMethod) -> (Vec<Web>, HashMap<u32, HashSet<u32>>) {
+    let webs = get_webs(m);
+
+    let convex_closures_of_webs = webs
+        .iter()
+        .map(|web| find_inter_instructions(m, web))
         .collect();
 
-    let mut ret2 = HashMap::new();
-    for (i, _) in ret1.iter() {
-        ret2.insert(*i, HashSet::new());
+    let mut graph = HashMap::new();
+    for (i, _) in webs.iter().enumerate() {
+        graph.insert(i as u32, HashSet::new());
     }
-    // TODO: fill in ret2 with intersections
-    (ret1, ret2)
+    for (i, ccwi, j, ccwj) in distinct_pairs(&convex_closures_of_webs) {
+        if !ccwi.is_disjoint(ccwj) {
+            graph.get_mut(&i).unwrap().insert(j);
+        }
+    }
+    (webs, graph)
 }
 
 fn remove_node(g: &mut HashMap<u32, HashSet<u32>>, v: u32) -> HashSet<u32> {
