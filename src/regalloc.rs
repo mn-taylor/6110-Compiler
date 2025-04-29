@@ -221,7 +221,7 @@ fn find_inter_instructions(m: &mut CfgMethod, web: &Web) -> HashSet<InsnLoc> {
     let g = get_graph(m);
 
     let mut all_instructions = hashset! {};
-    let target_blocks: HashSet<usize> = web.uses.iter().map(|InsnLoc { blk, idx }| *blk).collect();
+    let target_blocks: HashSet<usize> = web.uses.iter().map(|InsnLoc { blk, .. }| *blk).collect();
 
     // find all instructions/blocks that lie on some path from a def to a use.
     // find all blocks that are reachable from the def, then find all blocks that can reach a use.
@@ -290,7 +290,7 @@ fn find_inter_instructions(m: &mut CfgMethod, web: &Web) -> HashSet<InsnLoc> {
         let potential_start = web
             .defs
             .iter()
-            .find(|InsnLoc { blk, idx }| blk == bid)
+            .find(|InsnLoc { blk, .. }| blk == bid)
             .cloned();
 
         let starting_idx = match potential_start {
@@ -299,7 +299,7 @@ fn find_inter_instructions(m: &mut CfgMethod, web: &Web) -> HashSet<InsnLoc> {
         };
 
         let mut start = starting_idx;
-        for (i, instr) in m.blocks.get(bid).unwrap().body.iter().enumerate() {
+        for (i, _) in m.blocks.get(bid).unwrap().body.iter().enumerate() {
             if i < starting_idx {
                 continue;
             }
@@ -390,10 +390,17 @@ fn color_not_in_set(num_colors: u32, s: HashSet<u32>) -> u32 {
     *all_colors.difference(&s).collect::<Vec<_>>().pop().unwrap()
 }
 
-fn color(
-    mut g: HashMap<u32, HashSet<u32>>,
-    num_colors: u32,
-) -> Result<HashMap<u32, u32>, HashSet<u32>> {
+fn argmax<T>(mut l: impl Iterator<Item = T>, f: impl Fn(&T) -> u32) -> T {
+    let mut arg = l.next().unwrap();
+    for new_arg in l {
+        if f(&new_arg) > f(&arg) {
+            arg = new_arg;
+        }
+    }
+    arg
+}
+
+fn color(mut g: HashMap<u32, HashSet<u32>>, num_colors: u32) -> Result<HashMap<u32, u32>, u32> {
     let mut color_later = Vec::new();
 
     loop {
@@ -423,8 +430,8 @@ fn color(
         // return an assignment of colors
         Ok(colors)
     } else {
-        // return nodes that could not be colored
-        Err(g.into_keys().collect())
+        // of the nodes that could not be colored, return the one with the highest degree
+        Err(*argmax(g.keys(), |x| g.get(x).unwrap().len() as u32))
     }
 }
 
