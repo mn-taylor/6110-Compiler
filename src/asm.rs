@@ -636,11 +636,8 @@ fn store_from_reg_arr_imm_imm(
             instructions.push(format!("\tsalq $3, {}", Reg::R9));
             instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::R10));
             instructions.push(format!("\tsubq {}, {}", Reg::R9, Reg::R10));
-            instructions.push(format!(
-                "\tmovq 
-            ${imm}, -{offset}({})",
-                Reg::R10
-            ));
+            instructions.push(format!("\tmovq ${imm}, {}", Reg::R9));
+            instructions.push(format!("\tmovq {}, -{offset}({})", Reg::R9, Reg::R10));
         }
         None => {
             instructions.push(format!("\tsalq $3, {}", Reg::R9));
