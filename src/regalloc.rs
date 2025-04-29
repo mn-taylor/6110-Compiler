@@ -11,9 +11,9 @@ type Instruction = cfg::Instruction<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
-struct InsnLoc {
-    blk: BlockLabel,
-    idx: usize,
+pub struct InsnLoc {
+    pub blk: BlockLabel,
+    pub idx: usize,
 }
 
 fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<InsnLoc>> {

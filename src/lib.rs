@@ -5,6 +5,7 @@ pub mod comsubelim;
 pub mod constprop;
 pub mod copyprop;
 pub mod deadcode;
+pub mod deepcse;
 pub mod ir;
 pub mod ir_build;
 pub mod metrics;
