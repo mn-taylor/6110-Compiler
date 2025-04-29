@@ -120,57 +120,7 @@ fn destruct_instruction(
     all_fields: &mut HashMap<u32, (CfgType, String)>,
 ) -> Vec<Instruction<VarLabel>> {
     match instr {
-        Instruction::ParMov(copies) => {
-            // algorithm 3.6 in SSA-Based Compiler Design
-            let mut all_srcs: HashSet<SSAVarLabel> = hashset! {};
-            let mut all_dests: HashSet<SSAVarLabel> = hashset! {};
-            let mut instructions: Vec<Instruction<VarLabel>> = vec![];
-            let mut inter_instructions: Vec<Instruction<VarLabel>> = vec![];
-            copies.iter().for_each(|om| {
-                all_srcs.insert(om.src.clone());
-                all_dests.insert(om.dest.clone());
-            });
-
-            copies.iter().for_each(|om| {
-                if true {
-                    // should modify conditional so that we do not have to always do t1 < temp < t2 when doing parallel moves.
-                    let source = convert_name(&om.src, coallesced_name, lookup, all_fields);
-
-                    // create new variable and add it to lookup and translations
-                    let inter_name = (*all_fields.keys().max().unwrap() as usize + 1) as u32;
-                    let inter_ssa_name = SSAVarLabel {
-                        name: inter_name,
-                        version: 1,
-                    };
-                    lookup.insert(inter_ssa_name, inter_name);
-                    all_fields.insert(inter_name, (*all_fields.get(&source).unwrap()).clone());
-
-                    let dest = convert_name(&om.dest, coallesced_name, lookup, all_fields);
-
-                    inter_instructions.push(Instruction::MoveOp {
-                        source: ImmVar::Var(source),
-                        dest: inter_name,
-                    });
-                    instructions.push(Instruction::MoveOp {
-                        source: ImmVar::Var(inter_name),
-                        dest: dest,
-                    });
-                } else {
-                    instructions.push(Instruction::MoveOp {
-                        source: ImmVar::Var(convert_name(
-                            &om.src,
-                            coallesced_name,
-                            lookup,
-                            all_fields,
-                        )),
-                        dest: convert_name(&om.dest, coallesced_name, lookup, all_fields),
-                    })
-                }
-            });
-
-            inter_instructions.extend(instructions);
-            inter_instructions
-        }
+        Instruction::ParMov(_) => panic!(),
         Instruction::ArrayAccess { dest, name, idx } => vec![Instruction::ArrayAccess {
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             name: name,

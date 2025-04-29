@@ -1,6 +1,7 @@
 use crate::cfg_build::{BasicBlock, VarLabel};
 use crate::ssa_construct::get_graph;
-use crate::{cfg, deadcode, scan};
+use crate::{asm, cfg, deadcode, scan};
+use asm::Reg;
 use cfg::{BlockLabel, ImmVar, MemVarLabel};
 use maplit::{hashmap, hashset};
 use scan::Sum;
@@ -515,4 +516,100 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>,
         }
     }
     return (new_method, hashmap! {}, vec![]);
+}
+
+// returns index of web
+fn get_src_web(v: VarLabel, i: InsnLoc, webs: Vec<Web>) -> u32 {}
+
+fn get_dst_web(v: VarLabel, i: InsnLoc, webs: Vec<Web>) -> u32 {}
+
+use cfg::Instruction;
+fn insn_map<T, U>(
+    instr: cfg::Instruction<T>,
+    src_fun: Fn(T) -> U,
+    dst_fun: Fn(T) -> U,
+) -> cfg::Instruction<U> {
+    match instr {
+        Instruction::ParMov(_) => panic!(),
+        Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
+            dest: dst_fun(dest),
+            name,
+            idx: src_fun(idx),
+        },
+        Instruction::ArrayStore { source, arr, idx } => Instruction::ArrayStore {
+            source: src_fun(source),
+            arr,
+            idx: src_fun(idx),
+        },
+        Instruction::Call(string, args, opt_ret_val) => {
+            let new_args = args
+                .iter()
+                .map(|arg| match arg {
+                    Arg::StrArg(string) => Arg::StrArg(string.to_string()),
+                    Arg::VarArg(var) => Arg::VarArg(convert_imm_var_name(
+                        &var.clone(),
+                        coallesced_name,
+                        lookup,
+                        all_fields,
+                    )),
+                })
+                .collect::<Vec<_>>();
+            let new_ret_val = match opt_ret_val {
+                Some(ret_var) => Some(convert_name(&ret_var, coallesced_name, lookup, all_fields)),
+                None => None,
+            };
+            vec![Instruction::Call(string, new_args, new_ret_val)]
+        }
+        Instruction::Constant { dest, constant } => vec![Instruction::Constant {
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
+            constant: constant,
+        }],
+        Instruction::MoveOp { source, dest } => vec![Instruction::MoveOp {
+            source: convert_imm_var_name(&source, coallesced_name, lookup, all_fields),
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
+        }],
+        Instruction::ThreeOp {
+            source1,
+            source2,
+            dest,
+            op,
+        } => vec![Instruction::ThreeOp {
+            source1: convert_imm_var_name(&source1, coallesced_name, lookup, all_fields),
+            source2: convert_imm_var_name(&source2, coallesced_name, lookup, all_fields),
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
+            op: op.clone(),
+        }],
+        Instruction::TwoOp { source1, dest, op } => vec![Instruction::TwoOp {
+            source1: convert_imm_var_name(&source1, coallesced_name, lookup, all_fields),
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
+            op: op.clone(),
+        }],
+        Instruction::PhiExpr { dest, .. } => vec![Instruction::PhiExpr {
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
+            sources: vec![], // don't care about these anymore
+        }],
+        Instruction::Ret(opt_ret_val) => match opt_ret_val {
+            Some(var) => vec![Instruction::Ret(Some(convert_imm_var_name(
+                &var,
+                coallesced_name,
+                lookup,
+                all_fields,
+            )))],
+            None => vec![Instruction::Ret(None)],
+        },
+        _ => panic!("Register Allocation not implemented yet"),
+    }
+}
+
+fn to_regs(
+    m: &cfg::CfgMethod<VarLabel>,
+    web_to_reg: HashMap<u32, u32>,
+    webs: Vec<Web>,
+) -> cfg::CfgMethod<Reg> {
+    let new_blocks = m.blocks.iter().map(|(lbl, blk)| {
+        let web_idx = webs
+            .iter()
+            .enumerate()
+            .find(|(web_label, Web { var, defs, uses })| true);
+    });
 }
