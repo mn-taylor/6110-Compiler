@@ -454,12 +454,12 @@ fn spill_web(m: &mut cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLa
                 new_instructions.push(instruction.clone());
                 new_instructions.push(Instruction::Spill {
                     ord_var: var,
-                    mem_var: MemVarLabel { id: var },
+                    mem_var: var,
                 });
             } else if uses.contains(&instr_loc) {
                 new_instructions.push(Instruction::Reload {
                     ord_var: var,
-                    mem_var: MemVarLabel { id: var },
+                    mem_var: var,
                 });
                 new_instructions.push(instruction.clone());
             } else {
@@ -475,7 +475,7 @@ fn spill_web(m: &mut cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLa
                 if uses.contains(&potential_jump_insn_loc) {
                     new_instructions.push(Instruction::Reload {
                         ord_var: var,
-                        mem_var: MemVarLabel { id: var },
+                        mem_var: var,
                     });
                 }
             }
@@ -514,6 +514,5 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>,
             }
         }
     }
-    panic!("should not get here");
     return (new_method, hashmap! {}, vec![]);
 }

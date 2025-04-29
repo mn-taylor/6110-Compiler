@@ -489,7 +489,7 @@ fn rewrite_instr(
 
             Instruction::ArrayAccess {
                 dest: new_dest,
-                name: new_name,
+                name: *name,
                 idx: new_idx,
             }
         }

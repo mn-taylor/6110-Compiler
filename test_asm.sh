@@ -38,7 +38,7 @@ for file in "$INPUT_DIR"/*.dcf; do
                 gcc -O0 -m64 "$ASM_FILE" -o "$EXE_FILE" 2>>"$OUTPUT_FILE"
             fi
 
-            if [ -x "$EXE_FILE" ]; then
+            if [ $? -eq 0 ]; then
                 "$EXE_FILE" > "$OUTPUT_FILE" 2>>"$OUTPUT_FILE"
                 if cmp -s "$OUTPUT_FILE" "$EXPECTED_FILE"; then
                     echo "$file: ✅ Output matches"

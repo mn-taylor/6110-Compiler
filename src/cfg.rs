@@ -146,12 +146,12 @@ pub enum Instruction<VarLabel> {
     },
     ArrayAccess {
         dest: VarLabel,
-        name: VarLabel,
+        name: MemVarLabel,
         idx: ImmVar<VarLabel>,
     },
     ArrayStore {
         source: ImmVar<VarLabel>,
-        arr: VarLabel,
+        arr: MemVarLabel,
         idx: ImmVar<VarLabel>,
     },
     Ret(Option<ImmVar<VarLabel>>),
@@ -249,10 +249,7 @@ pub enum ImmVar<VarLabel> {
     Imm(i64),
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct MemVarLabel {
-    pub id: u32,
-}
+pub type MemVarLabel = u32;
 
 pub trait GetNameVer {
     fn get_name_ver(&self) -> Option<(u32, u32)>;

@@ -173,7 +173,7 @@ fn destruct_instruction(
         }
         Instruction::ArrayAccess { dest, name, idx } => vec![Instruction::ArrayAccess {
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
-            name: convert_name(&name, coallesced_name, lookup, all_fields),
+            name: name,
             idx: convert_imm_var_name(&idx, coallesced_name, lookup, all_fields),
         }],
         Instruction::ArrayStore { source, arr, idx } => vec![Instruction::ArrayStore {
