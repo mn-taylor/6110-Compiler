@@ -315,7 +315,6 @@ fn find_inter_instructions(
                             .iter()
                             .map(|c| InsnLoc { blk: *bid, idx: *c }),
                     );
-                    start = i + 1;
                 } else {
                     // check if the remaining instruction are on a path to a use.
                     let children = g.get(bid).unwrap();

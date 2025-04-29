@@ -1,17 +1,18 @@
 use crate::cfg::{self, GetNameVer};
 use crate::cfg::{BlockLabel, CfgType, ImmVar, Instruction, IsImmediate};
-use crate::deadcode::get_dest;
+use crate::deadcode::{get_dest, get_sources};
 use crate::ir::{Bop, UnOp};
+use crate::parse::Primitive;
 use crate::scan::{AddOp, EqOp, MulOp, RelOp};
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
-use maplit::hashmap;
+use maplit::{hashmap, hashset};
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 
 // convention, in commuatitive expressions containing immediates, immediate will always go on right.
 // for expressions containing two variables that commute, the variable with the smaller label will be on the left.
 // Ties are broken by version number, with smaller version number on the left.
-#[derive(Eq, Hash, PartialEq, Clone)]
+#[derive(Eq, Hash, PartialEq, Clone, Debug)]
 pub enum CSEHash<T> {
     Add(ImmVar<T>, ImmVar<T>),
     Sub(ImmVar<T>, ImmVar<T>),
@@ -69,7 +70,7 @@ fn generate_hash(i: Instruction<SSAVarLabel>) -> Option<CSEHash<SSAVarLabel>> {
             Bop::MulBop(mop) => match mop {
                 MulOp::Mul => {
                     let (var1, var2) = get_commutative_ordering(source1, source2);
-                    Some(CSEHash::Add(var1, var2))
+                    Some(CSEHash::Mul(var1, var2))
                 }
                 MulOp::Div => Some(CSEHash::Div(source1, source2)),
                 MulOp::Mod => Some(CSEHash::Mod(source1, source2)),
@@ -175,48 +176,64 @@ fn convert_hash_to_instr(
 
 fn find_common_subexpressions(
     m: &cfg::CfgMethod<SSAVarLabel>,
-) -> HashMap<CSEHash<SSAVarLabel>, Vec<(BlockLabel, usize, (CfgType, String))>> {
-    // easier to keep the type information of the sub expression that to compute it later.
-    let mut subexprs: HashMap<CSEHash<SSAVarLabel>, Vec<(BlockLabel, usize, (CfgType, String))>> =
-        hashmap! {};
+) -> (
+    HashMap<CSEHash<SSAVarLabel>, Vec<(BlockLabel, usize)>>,
+    HashMap<CSEHash<SSAVarLabel>, CfgType>,
+) {
+    let mut all_sub_expr_types: HashMap<CSEHash<SSAVarLabel>, CfgType> = hashmap! {};
+    let mut sub_exprs: HashMap<CSEHash<SSAVarLabel>, Vec<(BlockLabel, usize)>> = hashmap! {};
 
-    todo!("Fix to handle assignments to global variables");
-    for (id, block) in m.blocks.iter() {
-        for (idx, instruction) in block.body.iter().enumerate() {
-            match generate_hash(instruction.clone()) {
-                Some(hash) => {
-                    if !m.fields.contains_key(&get_dest(instruction).unwrap().name) {
-                        println!("{}", instruction);
+    for (bid, block) in m.blocks.iter() {
+        for (iid, instruction) in block.body.iter().enumerate() {
+            // check if any of the source operands are global variables
+            let sources = get_sources(instruction);
+            let mut is_global = false;
+            let _ = sources
+                .iter()
+                .map(|c| {
+                    if !m.fields.contains_key(&c.name) {
+                        is_global = true
                     }
+                })
+                .collect::<Vec<_>>();
 
-                    if !subexprs.contains_key(&hash) {
-                        subexprs.insert(
-                            hash,
-                            vec![(
-                                *id,
-                                idx,
-                                m.fields
-                                    .get(&get_dest(instruction).unwrap().name)
-                                    .unwrap()
-                                    .clone(),
-                            )],
-                        );
-                    } else {
-                        subexprs.get_mut(&hash).unwrap().push((
-                            *id,
-                            idx,
-                            m.fields
-                                .get(&get_dest(instruction).unwrap().name)
-                                .unwrap()
-                                .clone(),
-                        ))
+            // compute the type of the expression
+            let expr_type = match get_dest(instruction) {
+                Some(var) => {
+                    // If this var is global then we cannot look up its type in the global scope so we have no easy way of concluding the type. Assume if var is global, type is long
+                    match m.fields.get(&var.name) {
+                        Some((var_type, _)) => var_type.clone(),
+                        None => CfgType::Scalar(Primitive::LongType),
                     }
                 }
-                None => (),
-            }
+                None => continue,
+            };
+
+            // if the instruction is hashable, add to the hashmaps
+            match generate_hash(instruction.clone()) {
+                Some(hash) => {
+                    let hash = &hash.clone();
+                    all_sub_expr_types.insert(hash.clone(), expr_type);
+
+                    if !sub_exprs.contains_key(&hash.clone()) {
+                        sub_exprs.insert(hash.clone(), vec![]);
+                    }
+                    sub_exprs.get_mut(&hash.clone()).unwrap().push((*bid, iid));
+                }
+                None => {}
+            };
         }
     }
-    subexprs
+
+    // keep only the subexpressions that occur more than once
+    let mut common_sub_exprs: HashMap<CSEHash<SSAVarLabel>, Vec<(usize, usize)>> = hashmap! {};
+    for (key, vec) in sub_exprs {
+        if vec.len() > 1 {
+            common_sub_exprs.insert(key, vec);
+        }
+    }
+
+    (common_sub_exprs, all_sub_expr_types)
 }
 
 fn invert_dom_tree(dom_tree: HashMap<usize, HashSet<usize>>) -> HashMap<usize, usize> {
@@ -231,116 +248,139 @@ fn invert_dom_tree(dom_tree: HashMap<usize, HashSet<usize>>) -> HashMap<usize, u
     return new_tree;
 }
 
+fn invert_dom_sets(dom_sets: HashMap<usize, HashSet<usize>>) -> HashMap<usize, HashSet<usize>> {
+    let mut new_sets: HashMap<usize, HashSet<usize>> = hashmap! {};
+
+    for (bid, dom_set) in dom_sets.iter() {
+        for dom in dom_set.iter() {
+            if !new_sets.contains_key(dom) {
+                new_sets.insert(*dom, hashset! {});
+            }
+            new_sets.get_mut(dom).unwrap().insert(*bid);
+        }
+    }
+
+    return new_sets;
+}
+
 pub fn eliminate_common_subexpressions(
     m: &mut cfg::CfgMethod<SSAVarLabel>,
 ) -> cfg::CfgMethod<SSAVarLabel> {
-    let subexprs = find_common_subexpressions(m);
+    let (common_sub_exprs, expr_types) = find_common_subexpressions(m);
+    println!("{:?}", common_sub_exprs);
 
     let g = &get_graph(m);
     println!("{:?}\n\n", g);
     let dominator_sets = dominator_sets(0, g);
     println!("{:?}", dominator_sets);
     let dominator_tree = dominator_tree(m, &dominator_sets);
+    let inverted_dom_sets = invert_dom_sets(dominator_sets.clone());
     let inverted_tree = invert_dom_tree(dominator_tree);
+
+    println!("{:?}", inverted_tree);
 
     let mut hash_conversions: HashMap<CSEHash<SSAVarLabel>, SSAVarLabel> = hashmap! {};
 
-    for (hash, block_labels) in subexprs.iter() {
-        // check if there are multiple occurrences of the hash
-        if block_labels.len() < 2 {
-            continue;
-        }
+    // iterate over all common sub expressions {
+    for (hash, bid_iid) in common_sub_exprs.iter() {
+        //      We want to find the first block that dominates all of the uses of the subexpressions
+        //      this means just following the parent points in the inverted dominator tree
 
-        // if there are multiple occurences of the hash and the blocks are different, go up dominator tree to find first block that dominates all of them
-        let (block_id, instr_id, typ) = block_labels.get(0).unwrap();
-        let mut all_the_same = true;
+        let (mut curr_bid, _) = &bid_iid.iter().next().unwrap();
+        loop {
+            let mut dominates_all = true;
+            let curr_dominates = inverted_dom_sets.get(&curr_bid).unwrap();
 
-        let _ = block_labels
-            .iter()
-            .map(|(bid, _, _)| {
-                if bid != block_id {
-                    all_the_same = false;
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let mut curr = block_id;
-        while *curr != 0 {
-            // if current dominates all of the children then we should place the instruction there
-            let dom_set = dominator_sets.get(&curr).unwrap();
-            let dominates_all: bool = block_labels
+            let _ = bid_iid
                 .iter()
-                .map(|(bid, _, _)| dom_set.contains(bid))
-                .all(|c| c);
+                .map(|(bid, iid)| {
+                    if !curr_dominates.contains(bid) {
+                        dominates_all = false
+                    }
+                })
+                .collect::<Vec<_>>();
 
             if dominates_all {
                 break;
             } else {
-                curr = inverted_tree.get(curr).unwrap()
+                curr_bid = *inverted_tree.get(&curr_bid).unwrap_or(&0);
             }
         }
 
-        // compute where to put the instruction
-        let mut min_idx = m.blocks.get(curr).unwrap().body.len();
-        for (bid, iid, _) in block_labels {
-            if bid == curr {
-                min_idx = min(min_idx, *iid);
-            }
-        }
+        //      Once we've found the block that dominates all of the subexpression uses, we need to find out where to place it
+        //      set the instruction location to be the length of the block, then iterate over all of the uses of the subexpression, and update the min accordingly
 
-        // make new variable
-        let new_var = SSAVarLabel {
-            name: m.fields.keys().max().unwrap() + 1,
+        let mut curr_block = m.blocks.get(&curr_bid).unwrap().clone();
+        let mut instr_loc = curr_block.body.len();
+
+        let _ = bid_iid
+            .iter()
+            .map(|(bid, iid)| {
+                if *bid == curr_bid {
+                    instr_loc = min(instr_loc, *iid);
+                    println!("{} {}", instr_loc, *iid);
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // make new variable add it method fields
+        let var_name = m.fields.keys().max().unwrap() + 1;
+        let ssa_var_name = SSAVarLabel {
+            name: var_name,
             version: 1,
         };
-        m.fields.insert(new_var.name, typ.clone());
-        hash_conversions.insert(hash.clone(), new_var);
+        let var_type = expr_types.get(hash).unwrap().clone();
 
-        let new_instruction = convert_hash_to_instr(hash, new_var);
+        m.fields.insert(var_name, (var_type, "temp".to_string()));
 
-        m.blocks
-            .get_mut(&curr)
-            .unwrap()
+        // insert the instruction in the correct place
+        curr_block
             .body
-            .insert(min_idx, new_instruction)
-    }
+            .insert(instr_loc, convert_hash_to_instr(hash, ssa_var_name));
 
-    let mut new_method = m.clone();
-    // modify instructions using hash conversions
-    for (id, block) in m.blocks.iter() {
-        let mut new_instructions = vec![];
-        for instruction in block.body.iter() {
-            let dest = match get_dest(instruction) {
-                Some(v) => v,
-                None => {
+        m.blocks.insert(curr_bid, curr_block);
+
+        let blocks_of_interest = bid_iid
+            .iter()
+            .map(|(bid, _)| *bid)
+            .collect::<HashSet<usize>>();
+
+        let mut new_method = m.clone();
+        for (bid, block) in m.blocks.iter_mut() {
+            let mut new_block = block.clone();
+            let mut new_instructions = vec![];
+
+            if !blocks_of_interest.contains(bid) {
+                new_method.blocks.insert(*bid, new_block);
+                continue;
+            }
+
+            for (iid, instruction) in block.body.iter_mut().enumerate() {
+                if *bid == curr_bid && iid == instr_loc {
                     new_instructions.push(instruction.clone());
                     continue;
                 }
-            };
 
-            match generate_hash(instruction.clone()) {
-                Some(hash) => match hash_conversions.get(&hash) {
-                    Some(var) => {
-                        if *var != dest {
-                            // want to skip over the defining subexpression and replace its successors
-                            new_instructions.push(Instruction::MoveOp {
-                                source: ImmVar::Var(var.clone()),
-                                dest: dest,
-                            })
-                        } else {
-                            new_instructions.push(instruction.clone())
-                        }
+                // check the hash
+                if generate_hash(instruction.clone()) == Some(hash.clone()) {
+                    println!("found a match");
+                    match get_dest(instruction) {
+                        Some(var) => new_instructions.push(Instruction::MoveOp {
+                            source: ImmVar::Var(ssa_var_name),
+                            dest: var,
+                        }),
+                        None => panic!("instructions without destinations are not hashable"),
                     }
-                    None => new_instructions.push(instruction.clone()),
-                },
-                None => new_instructions.push(instruction.clone()),
+                } else {
+                    new_instructions.push(instruction.clone());
+                }
             }
+            new_block.body = new_instructions;
+            new_method.blocks.insert(*bid, new_block);
         }
 
-        let mut new_block = block.clone();
-        new_block.body = new_instructions;
-        new_method.blocks.insert(new_block.block_id, new_block);
+        m.blocks = new_method.blocks.clone();
     }
 
-    new_method
+    m.clone()
 }
