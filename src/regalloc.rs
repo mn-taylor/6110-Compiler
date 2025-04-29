@@ -487,14 +487,14 @@ fn spill_web(m: &mut cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLa
     return new_method;
 }
 
-fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<VarLabel, u32>) {
+fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>, Vec<Web>) {
     let mut new_method = m.clone();
     // try to color the graph
     loop {
         let (webs, interfer_graph) = interference_graph(&mut new_method);
         match color(interfer_graph.clone(), num_regs) {
             Ok(web_coloring) => {
-                return (new_method.clone(), web_coloring);
+                return (new_method.clone(), web_coloring, webs);
             }
             Err(_) => {
                 if interfer_graph.len() < 1 {
@@ -514,6 +514,6 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<VarLabel, 
             }
         }
     }
-
-    return (new_method, hashmap! {});
+    panic!("should not get here");
+    return (new_method, hashmap! {}, vec![]);
 }
