@@ -644,7 +644,7 @@ fn store_from_reg_arr_imm_imm(
             instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
             instructions.push(format!("\taddq {}, {}", Reg::R9, Reg::R10));
             instructions.push(format!("\tmovq ${imm}, {}", Reg::R9));
-            instructions.push(format!("\tmovq ${}, -0({}) ", Reg::R9, Reg::R10));
+            instructions.push(format!("\tmovq {}, -0({}) ", Reg::R9, Reg::R10));
         }
     }
     instructions

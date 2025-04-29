@@ -1,18 +1,71 @@
+import atoi;
+import exit;
+import getenv;
 import printf;
+import strcmp;
 
-void do_print(){
-    // Store some arrays to attempt to get it out of alignment
-    int a[5];
+int base_cases[2];
+int memoization[100];
+bool is_memoized[100];
 
-    a[0] = 1;
-    a[1] = 2;
-    a[2] = 3;
-    a[3] = 4;
-    a[4] = 5;
+int fib_recursive(int n) {
+  if (n == 0 || n == 1) {
+    return base_cases[n];
+  } else {
+    int l, r;
+    l = fib_recursive(n-1);
+    r = fib_recursive(n-2);
+    return l + r;
+  }
+}
 
-    printf("Hello Decaf\n");
+int fib_memoized(int n) {
+  if (is_memoized[n]) {
+    return memoization[n];
+  } else {
+    int res;
+    if (n == 0 || n == 1) {
+      res = n;
+    } else {
+      int l, r;
+      l = fib_memoized(n - 1);
+      r = fib_memoized(n - 2);
+      res = l + r;
+    }
+    memoization[n] = res;
+    is_memoized[n] = true;
+    return res;
+  }
+}
+
+int fib_iterative(int n) {
+  int a, b, i;
+
+  a = 0;
+  b = 1;
+
+  for (i = 2; i <= n; i++) {
+    int c;
+    c = a + b;
+    a = b;
+    b = c;
+  }
+  return b;
 }
 
 void main() {
-    do_print();
+  int n, res;
+
+  n = 8;
+  res = 0;
+
+  base_cases[0] = 0;
+  base_cases[1] = 1;
+
+  res = fib_recursive(n);
+  printf("recursive: %d\n", res);
+  res = fib_memoized(n);
+  printf("memoized: %d\n", res);
+  res = fib_iterative(n);
+  printf("iterative: %d\n", res);
 }

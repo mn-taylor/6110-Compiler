@@ -16,6 +16,12 @@ pub struct InsnLoc {
     pub idx: usize,
 }
 
+pub struct Web {
+    pub var: VarLabel,
+    pub defs: Vec<(Insnloc)>,
+    pub uses: Vec<(InsnLoc)>,
+}
+
 fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<InsnLoc>> {
     let mut defs: HashMap<VarLabel, HashSet<InsnLoc>> = HashMap::new();
 
@@ -409,4 +415,12 @@ fn color(
         // return nodes that could not be colored
         Err(g.into_keys().collect())
     }
+}
+
+fn spill_web(m: &mut cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLabel> {
+    todo!();
+}
+
+fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<VarLabel, u32>) {
+    todo!();
 }
