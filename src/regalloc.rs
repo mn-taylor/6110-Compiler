@@ -1,8 +1,8 @@
 use crate::cfg_build::{BasicBlock, VarLabel};
 use crate::ssa_construct::get_graph;
 use crate::{cfg, deadcode, scan};
-use cfg::{BlockLabel, ImmVar};
-use maplit::hashset;
+use cfg::{BlockLabel, ImmVar, MemVarLabel};
+use maplit::{hashmap, hashset};
 use scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -429,7 +429,54 @@ fn color(
 }
 
 fn spill_web(m: &mut cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLabel> {
-    todo!();
+    let mut new_method = m.clone();
+    let Web { var, defs, uses } = web;
+
+    for (bid, block) in m.blocks.iter() {
+        let mut new_instructions = vec![];
+        let mut new_block = block.clone();
+        for (iid, instruction) in block.body.iter().enumerate() {
+            let instr_loc = InsnLoc {
+                blk: *bid,
+                idx: iid,
+            };
+
+            if defs.contains(&instr_loc) {
+                // define variable then spill
+                new_instructions.push(instruction.clone());
+                new_instructions.push(Instruction::Spill {
+                    ord_var: var,
+                    mem_var: MemVarLabel { id: var },
+                });
+            } else if uses.contains(&instr_loc) {
+                new_instructions.push(Instruction::Reload {
+                    ord_var: var,
+                    mem_var: MemVarLabel { id: var },
+                });
+                new_instructions.push(instruction.clone());
+            } else {
+                new_instructions.push(instruction.clone());
+            }
+
+            if iid == block.body.len() - 1 {
+                let potential_jump_insn_loc = InsnLoc {
+                    blk: *bid,
+                    idx: iid + 1,
+                };
+
+                if uses.contains(&potential_jump_insn_loc) {
+                    new_instructions.push(Instruction::Reload {
+                        ord_var: var,
+                        mem_var: MemVarLabel { id: var },
+                    });
+                }
+            }
+        }
+        new_block.body = new_instructions;
+        new_method.blocks.insert(*bid, new_block);
+    }
+
+    return new_method;
 }
 
 fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<VarLabel, u32>) {

@@ -251,7 +251,7 @@ pub enum ImmVar<VarLabel> {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct MemVarLabel {
-    id: u32,
+    pub id: u32,
 }
 
 pub trait GetNameVer {
