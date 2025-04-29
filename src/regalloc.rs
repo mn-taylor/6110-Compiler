@@ -16,6 +16,7 @@ pub struct InsnLoc {
     pub idx: usize,
 }
 
+#[derive(Clone)]
 pub struct Web {
     pub var: VarLabel,
     pub defs: Vec<InsnLoc>,
@@ -487,5 +488,32 @@ fn spill_web(m: &mut cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLa
 }
 
 fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<VarLabel, u32>) {
-    todo!();
+    let mut new_method = m.clone();
+    // try to color the graph
+    loop {
+        let (webs, interfer_graph) = interference_graph(&mut new_method);
+        match color(interfer_graph.clone(), num_regs) {
+            Ok(web_coloring) => {
+                return (new_method.clone(), web_coloring);
+            }
+            Err(_) => {
+                if interfer_graph.len() < 1 {
+                    // not sure about this case
+                    break;
+                }
+
+                let (to_spill, _) = interfer_graph
+                    .iter()
+                    .max_by(|(_, set1), (_, set2)| set1.len().cmp(&set2.len()))
+                    .unwrap();
+
+                new_method = spill_web(
+                    &mut new_method,
+                    webs.get(*to_spill as usize).unwrap().clone(),
+                );
+            }
+        }
+    }
+
+    return (new_method, hashmap! {});
 }
