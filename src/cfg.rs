@@ -154,6 +154,12 @@ pub enum Instruction<VarLabel> {
         arr: MemVarLabel,
         idx: ImmVar<VarLabel>,
     },
+    // TODO: have representation of method parameters like this.
+    // LoadParam {
+    //     param: u32,
+    //     dest: VarLabel,
+    // }
+    // ,
     Ret(Option<ImmVar<VarLabel>>),
     Call(String, Vec<Arg<VarLabel>>, Option<VarLabel>),
 }
