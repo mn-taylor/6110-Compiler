@@ -497,25 +497,14 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>,
             Ok(web_coloring) => {
                 return (new_method.clone(), web_coloring, webs);
             }
-            Err(_) => {
-                if interfer_graph.len() < 1 {
-                    // not sure about this case
-                    break;
-                }
-
-                let (to_spill, _) = interfer_graph
-                    .iter()
-                    .max_by(|(_, set1), (_, set2)| set1.len().cmp(&set2.len()))
-                    .unwrap();
-
+            Err(thing_to_spill) => {
                 new_method = spill_web(
                     &mut new_method,
-                    webs.get(*to_spill as usize).unwrap().clone(),
+                    webs.get(thing_to_spill as usize).unwrap().clone(),
                 );
             }
         }
     }
-    return (new_method, hashmap! {}, vec![]);
 }
 
 fn imm_map<T, U>(iv: ImmVar<T>, f: impl Fn(T) -> U) -> ImmVar<U> {
@@ -694,4 +683,15 @@ fn to_regs(
             .collect(),
         return_type: m.return_type,
     }
+}
+
+fn regalloc_phase(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
+    // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
+    let regs = vec![Reg::R12, Reg::R13];
+    let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, regs.len() as u32);
+    let web_to_reg = web_to_regnum
+        .into_iter()
+        .map(|(k, n)| (k, *regs.get(n as usize).unwrap()))
+        .collect();
+    to_regs(spilled_method, web_to_reg, webs)
 }
