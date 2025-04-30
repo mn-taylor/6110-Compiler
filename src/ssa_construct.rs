@@ -507,14 +507,9 @@ fn rewrite_instr(
                 ImmVar::Imm(i) => ImmVar::Imm(*i),
             };
 
-            let new_arr = SSAVarLabel {
-                name: *arr,
-                version: 0,
-            }; // arrays all get the same version
-
             Instruction::ArrayStore {
                 source: new_source,
-                arr: new_arr,
+                arr: *arr,
                 idx: new_idx,
             }
         }

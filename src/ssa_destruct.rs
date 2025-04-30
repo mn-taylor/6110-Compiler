@@ -127,7 +127,7 @@ fn destruct_instruction(
         }],
         Instruction::ArrayStore { source, arr, idx } => vec![Instruction::ArrayStore {
             source: convert_imm_var_name(&source, coallesced_name, lookup, all_fields),
-            arr: convert_name(&arr, coallesced_name, lookup, all_fields),
+            arr: arr,
             idx: convert_imm_var_name(&idx, coallesced_name, lookup, all_fields),
         }],
         Instruction::Call(string, args, opt_ret_val) => {
