@@ -481,10 +481,6 @@ fn rewrite_instr(
                 }
                 ImmVar::Imm(i) => ImmVar::Imm(*i),
             };
-            let new_name = SSAVarLabel {
-                name: *name,
-                version: 0,
-            }; // arrays all get the same version
             let new_dest = rewrite_dest(*dest, reaching_defs, latest_defs, all_fields, block_id);
 
             Instruction::ArrayAccess {

@@ -1,9 +1,9 @@
 use crate::cfg_build::{BasicBlock, VarLabel};
 use crate::ssa_construct::get_graph;
-use crate::{asm, cfg, deadcode, scan};
-use asm::Reg;
+use crate::{cfg, deadcode, reg_asm, scan};
 use cfg::{Arg, BlockLabel, CfgType, ImmVar, MemVarLabel};
-use maplit::{hashmap, hashset};
+use maplit::hashset;
+use reg_asm::Reg;
 use scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -685,7 +685,7 @@ fn to_regs(
     }
 }
 
-fn regalloc_phase(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
+pub fn regalloc_phase(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let regs = vec![Reg::R12, Reg::R13];
     let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, regs.len() as u32);

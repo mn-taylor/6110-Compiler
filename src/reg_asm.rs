@@ -7,7 +7,7 @@ use std::fmt;
 
 use std::collections::HashMap;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum Reg {
     Rax,
     Rbx,

@@ -222,12 +222,10 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
                 Ok(())
             }
             Instruction::Spill { ord_var, mem_var } => {
-                write!(f, "Spill t{ord_var} into t{:?}", mem_var);
-                Ok(())
+                write!(f, "Spill t{ord_var} into t{:?}", mem_var)
             }
             Instruction::Reload { ord_var, mem_var } => {
-                write!(f, "Reload t{:?} into t{ord_var}", mem_var);
-                Ok(())
+                write!(f, "Reload t{:?} into t{ord_var}", mem_var)
             }
             Instruction::MemPhiExpr { dest, sources } => {
                 let sources_str = sources

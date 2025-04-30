@@ -189,12 +189,12 @@ pub fn constant_propagation(
     for (_, block) in method.blocks.iter() {
         for instr in block.body.iter() {
             match instr {
-                Instruction::PhiExpr { dest, sources } => {
+                Instruction::PhiExpr { sources, .. } => {
                     let new_forbidden: HashSet<SSAVarLabel> = sources
                         .iter()
                         .map(|(_, var)| match var {
                             Sum::Inl(v) => *v,
-                            Sum::Inr(mv) => panic!(),
+                            Sum::Inr(_) => panic!(),
                         })
                         .collect();
 
@@ -230,7 +230,7 @@ pub fn constant_propagation(
         let mut new_instructions = vec![];
         for instr in block.body.iter() {
             match instr {
-                Instruction::Constant { dest, constant } => {
+                Instruction::Constant { dest, .. } => {
                     if !forbidden.contains(dest) && method.fields.contains_key(&dest.name) {
                         continue;
                     }

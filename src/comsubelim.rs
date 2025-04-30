@@ -57,7 +57,7 @@ fn generate_hash(i: Instruction<SSAVarLabel>) -> Option<CSEHash<SSAVarLabel>> {
         Instruction::ThreeOp {
             source1,
             source2,
-            dest,
+            dest: _,
             op,
         } => match op {
             Bop::AddBop(aop) => match aop {
@@ -93,7 +93,7 @@ fn generate_hash(i: Instruction<SSAVarLabel>) -> Option<CSEHash<SSAVarLabel>> {
             },
             _ => None,
         },
-        Instruction::TwoOp { source1, dest, op } => match op {
+        Instruction::TwoOp { source1, op, .. } => match op {
             UnOp::Neg => Some(CSEHash::Neg(source1)),
             UnOp::Not => Some(CSEHash::Not(source1)),
             _ => None,
@@ -279,7 +279,8 @@ pub fn eliminate_common_subexpressions(
 
     println!("{:?}", inverted_tree);
 
-    let mut hash_conversions: HashMap<CSEHash<SSAVarLabel>, SSAVarLabel> = hashmap! {};
+    // TODO use this?
+    // let mut hash_conversions: HashMap<CSEHash<SSAVarLabel>, SSAVarLabel> = hashmap! {};
 
     // iterate over all common sub expressions {
     for (hash, bid_iid) in common_sub_exprs.iter() {
@@ -293,7 +294,7 @@ pub fn eliminate_common_subexpressions(
 
             let _ = bid_iid
                 .iter()
-                .map(|(bid, iid)| {
+                .map(|(bid, _)| {
                     if !curr_dominates.contains(bid) {
                         dominates_all = false
                     }

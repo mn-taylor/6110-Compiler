@@ -46,16 +46,11 @@ fn sum_distill_variable(
 ) -> Option<Vec<PosNeg>> {
     // check if we are at a sum atomic variable
     let can_recurse = match &i {
-        Instruction::ThreeOp {
-            source1,
-            source2,
-            dest,
-            op,
-        } => match op {
+        Instruction::ThreeOp { op, .. } => match op {
             Bop::AddBop(_) => true,
             _ => false,
         },
-        Instruction::TwoOp { source1, dest, op } => match op {
+        Instruction::TwoOp { op, .. } => match op {
             UnOp::Neg => true,
             _ => false,
         },
@@ -214,7 +209,6 @@ fn sum_distill_variable(
                     seen.insert(*dest, Some(pns.clone()));
                     return Some(pns);
                 }
-                _ => (),
             },
             _ => (),
         },
@@ -270,8 +264,8 @@ fn get_sum_reducible_defintions(
     let defs = get_def(m);
     let mut seen = hashmap! {};
 
-    for (bid, block) in m.blocks.iter() {
-        for (iid, instruction) in block.body.iter().enumerate() {
+    for (_, block) in m.blocks.iter() {
+        for (_, instruction) in block.body.iter().enumerate() {
             sum_distill_variable(instruction.clone(), &defs, &mut seen);
         }
     }
