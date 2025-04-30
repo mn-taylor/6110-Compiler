@@ -197,6 +197,10 @@ fn find_common_subexpressions(
                 })
                 .collect::<Vec<_>>();
 
+            if is_global {
+                continue;
+            }
+
             // compute the type of the expression
             let expr_type = match get_dest(instruction) {
                 Some(var) => {
