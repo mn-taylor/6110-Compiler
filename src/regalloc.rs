@@ -2,13 +2,13 @@ use crate::cfg_build::{BasicBlock, VarLabel};
 use crate::ssa_construct::get_graph;
 use crate::{asm, cfg, deadcode, scan};
 use asm::Reg;
-use cfg::{BlockLabel, ImmVar, MemVarLabel};
+use cfg::{Arg, BlockLabel, CfgType, ImmVar, MemVarLabel};
 use maplit::{hashmap, hashset};
 use scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
+type VInstruction = cfg::Instruction<VarLabel>;
 type CfgMethod = cfg::CfgMethod<VarLabel>;
-type Instruction = cfg::Instruction<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
@@ -42,7 +42,7 @@ fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<InsnLoc>> {
     defs
 }
 
-fn get_insn(m: &CfgMethod, i: InsnLoc) -> Sum<&Instruction, &Jump> {
+fn get_insn(m: &CfgMethod, i: InsnLoc) -> Sum<&VInstruction, &Jump> {
     let blk = m.blocks.get(&i.blk).unwrap();
     if blk.body.len() == i.idx {
         Sum::Inr(&blk.jump_loc)
@@ -83,21 +83,21 @@ fn get_children(m: &CfgMethod, i: InsnLoc) -> Vec<InsnLoc> {
     }
 }
 
-fn get_sources(insn: &Sum<&Instruction, &Jump>) -> HashSet<VarLabel> {
+fn get_sources(insn: &Sum<&VInstruction, &Jump>) -> HashSet<VarLabel> {
     match insn {
         Sum::Inl(i) => deadcode::get_sources(i),
         Sum::Inr(j) => deadcode::get_jump_sources(j),
     }
 }
 
-fn get_dest(insn: &Sum<&Instruction, &Jump>) -> Option<VarLabel> {
+fn get_dest(insn: &Sum<&VInstruction, &Jump>) -> Option<VarLabel> {
     match insn {
         Sum::Inl(i) => get_insn_dest(i),
         Sum::Inr(_) => None,
     }
 }
 
-fn get_insn_dest(insn: &Instruction) -> Option<VarLabel> {
+fn get_insn_dest(insn: &VInstruction) -> Option<VarLabel> {
     match insn {
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::MemPhiExpr { .. } => panic!(),
@@ -518,98 +518,180 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>,
     return (new_method, hashmap! {}, vec![]);
 }
 
-// returns index of web
-fn get_src_web(v: VarLabel, i: InsnLoc, webs: Vec<Web>) -> u32 {}
+fn imm_map<T, U>(iv: ImmVar<T>, f: impl Fn(T) -> U) -> ImmVar<U> {
+    match iv {
+        ImmVar::Var(u) => ImmVar::Var(f(u)),
+        ImmVar::Imm(i) => ImmVar::Imm(i),
+    }
+}
 
-fn get_dst_web(v: VarLabel, i: InsnLoc, webs: Vec<Web>) -> u32 {}
+fn arg_map<T, U>(a: Arg<T>, f: impl Fn(T) -> U) -> Arg<U> {
+    match a {
+        Arg::StrArg(s) => Arg::StrArg(s),
+        Arg::VarArg(v) => Arg::VarArg(imm_map(v, f)),
+    }
+}
 
 use cfg::Instruction;
 fn insn_map<T, U>(
     instr: cfg::Instruction<T>,
-    src_fun: Fn(T) -> U,
-    dst_fun: Fn(T) -> U,
+    src_fun: impl Fn(T) -> U,
+    dst_fun: impl Fn(T) -> U,
 ) -> cfg::Instruction<U> {
     match instr {
-        Instruction::ParMov(_) => panic!(),
-        Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
+        cfg::Instruction::ParMov(_) => panic!(),
+        cfg::Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
             dest: dst_fun(dest),
             name,
-            idx: src_fun(idx),
+            idx: imm_map(idx, src_fun),
         },
-        Instruction::ArrayStore { source, arr, idx } => Instruction::ArrayStore {
-            source: src_fun(source),
+        cfg::Instruction::ArrayStore { source, arr, idx } => Instruction::ArrayStore {
+            source: imm_map(source, &src_fun),
             arr,
-            idx: src_fun(idx),
+            idx: imm_map(idx, &src_fun),
         },
-        Instruction::Call(string, args, opt_ret_val) => {
-            let new_args = args
-                .iter()
-                .map(|arg| match arg {
-                    Arg::StrArg(string) => Arg::StrArg(string.to_string()),
-                    Arg::VarArg(var) => Arg::VarArg(convert_imm_var_name(
-                        &var.clone(),
-                        coallesced_name,
-                        lookup,
-                        all_fields,
-                    )),
-                })
-                .collect::<Vec<_>>();
-            let new_ret_val = match opt_ret_val {
-                Some(ret_var) => Some(convert_name(&ret_var, coallesced_name, lookup, all_fields)),
-                None => None,
-            };
-            vec![Instruction::Call(string, new_args, new_ret_val)]
-        }
-        Instruction::Constant { dest, constant } => vec![Instruction::Constant {
-            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
-            constant: constant,
-        }],
-        Instruction::MoveOp { source, dest } => vec![Instruction::MoveOp {
-            source: convert_imm_var_name(&source, coallesced_name, lookup, all_fields),
-            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
-        }],
+        Instruction::Call(string, args, opt_ret_val) => Instruction::Call(
+            string,
+            args.into_iter()
+                .map(|a| arg_map(a, &src_fun))
+                .collect::<Vec<_>>(),
+            opt_ret_val.map(&src_fun),
+        ),
+        Instruction::Constant { dest, constant } => Instruction::Constant {
+            dest: dst_fun(dest),
+            constant,
+        },
+        Instruction::MoveOp { source, dest } => Instruction::MoveOp {
+            source: imm_map(source, src_fun),
+            dest: dst_fun(dest),
+        },
         Instruction::ThreeOp {
             source1,
             source2,
             dest,
             op,
-        } => vec![Instruction::ThreeOp {
-            source1: convert_imm_var_name(&source1, coallesced_name, lookup, all_fields),
-            source2: convert_imm_var_name(&source2, coallesced_name, lookup, all_fields),
-            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
-            op: op.clone(),
-        }],
-        Instruction::TwoOp { source1, dest, op } => vec![Instruction::TwoOp {
-            source1: convert_imm_var_name(&source1, coallesced_name, lookup, all_fields),
-            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
-            op: op.clone(),
-        }],
-        Instruction::PhiExpr { dest, .. } => vec![Instruction::PhiExpr {
-            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
-            sources: vec![], // don't care about these anymore
-        }],
-        Instruction::Ret(opt_ret_val) => match opt_ret_val {
-            Some(var) => vec![Instruction::Ret(Some(convert_imm_var_name(
-                &var,
-                coallesced_name,
-                lookup,
-                all_fields,
-            )))],
-            None => vec![Instruction::Ret(None)],
+        } => Instruction::ThreeOp {
+            source1: imm_map(source1, &src_fun),
+            source2: imm_map(source2, &src_fun),
+            dest: dst_fun(dest),
+            op,
         },
-        _ => panic!("Register Allocation not implemented yet"),
+        Instruction::TwoOp { source1, dest, op } => Instruction::TwoOp {
+            source1: imm_map(source1, src_fun),
+            dest: dst_fun(dest),
+            op,
+        },
+        Instruction::PhiExpr { .. } => panic!(),
+        Instruction::Ret(opt_ret_val) => Instruction::Ret(opt_ret_val.map(|x| imm_map(x, src_fun))),
+        _ => panic!("?"),
+    }
+}
+
+fn jump_map<T, U>(jmp: cfg::Jump<T>, src_fun: impl Fn(T) -> U) -> cfg::Jump<U> {
+    match jmp {
+        cfg::Jump::Uncond(lbl) => cfg::Jump::Uncond(lbl),
+        cfg::Jump::Nowhere => cfg::Jump::Nowhere,
+        cfg::Jump::Cond {
+            source,
+            true_block,
+            false_block,
+        } => cfg::Jump::Cond {
+            source: imm_map(source, src_fun),
+            true_block,
+            false_block,
+        },
+    }
+}
+
+// returns index of web, None if v is global
+fn get_src_web(v: VarLabel, i: InsnLoc, webs: &Vec<Web>) -> Option<u32> {
+    webs.iter()
+        .enumerate()
+        .find(|(_, Web { var, uses, .. })| *var == v && uses.contains(&i))
+        .map(|(i, _)| i as u32)
+}
+
+fn get_dst_web(v: VarLabel, i: InsnLoc, webs: &Vec<Web>) -> Option<u32> {
+    webs.iter()
+        .enumerate()
+        .find(|(_, Web { var, defs, .. })| *var == v && defs.contains(&i))
+        .map(|(i, _)| i as u32)
+}
+
+fn src_reg(
+    v: VarLabel,
+    i: InsnLoc,
+    webs: &Vec<Web>,
+    web_to_reg: &HashMap<u32, Reg>,
+) -> Sum<Reg, MemVarLabel> {
+    match get_src_web(v, i, webs) {
+        Some(j) => Sum::Inl(*web_to_reg.get(&j).unwrap()),
+        None => Sum::Inr(v),
+    }
+}
+
+fn dst_reg(
+    v: VarLabel,
+    i: InsnLoc,
+    webs: &Vec<Web>,
+    web_to_reg: &HashMap<u32, Reg>,
+) -> Sum<Reg, MemVarLabel> {
+    match get_dst_web(v, i, webs) {
+        Some(j) => Sum::Inl(*web_to_reg.get(&j).unwrap()),
+        None => Sum::Inr(v),
     }
 }
 
 fn to_regs(
-    m: &cfg::CfgMethod<VarLabel>,
-    web_to_reg: HashMap<u32, u32>,
+    m: cfg::CfgMethod<VarLabel>,
+    web_to_reg: HashMap<u32, Reg>,
     webs: Vec<Web>,
-) -> cfg::CfgMethod<Reg> {
-    let new_blocks = m.blocks.iter().map(|(lbl, blk)| {
-        let web_idx = webs
-            .iter()
-            .enumerate()
-            .find(|(web_label, Web { var, defs, uses })| true);
+) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
+    let new_blocks = m.blocks.into_iter().map(|(lbl, blk)| {
+        (
+            lbl,
+            cfg::BasicBlock::<Sum<Reg, MemVarLabel>> {
+                parents: vec![],
+                block_id: blk.block_id,
+                jump_loc: jump_map(blk.jump_loc, |v| {
+                    src_reg(
+                        v,
+                        InsnLoc {
+                            blk: lbl,
+                            idx: blk.body.len(),
+                        },
+                        &webs,
+                        &web_to_reg,
+                    )
+                }),
+                body: blk
+                    .body
+                    .clone()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(idx, insn)| {
+                        insn_map(
+                            insn,
+                            |v| dst_reg(v, InsnLoc { blk: lbl, idx }, &webs, &web_to_reg),
+                            |v| src_reg(v, InsnLoc { blk: lbl, idx }, &webs, &web_to_reg),
+                        )
+                    })
+                    .collect(),
+            },
+        )
     });
+    cfg::CfgMethod::<Sum<Reg, MemVarLabel>> {
+        name: m.name,
+        params: m.params, // TODO i dont think we're handling these correctly at all... maybe just try testing some no-parameter methods first.
+        blocks: new_blocks.collect(),
+        fields: m
+            .fields
+            .into_iter()
+            .filter_map(|(v, (t, hl_name))| match t {
+                CfgType::Scalar(_) => None,
+                CfgType::Array(_, _) => Some((v, (t, hl_name))),
+            })
+            .collect(),
+        return_type: m.return_type,
+    }
 }

@@ -1,14 +1,11 @@
-use crate::cfg::{self, GetNameVer};
-use crate::cfg::{BlockLabel, CfgType, ImmVar, Instruction, IsImmediate};
-use crate::deadcode::{get_dest, get_sources};
+use crate::cfg::{self};
+use crate::cfg::{ImmVar, Instruction, IsImmediate};
+use crate::deadcode::get_dest;
 use crate::ir::{Bop, UnOp};
-use crate::parse::Primitive;
-use crate::regalloc::InsnLoc;
-use crate::scan::{AddOp, EqOp, MulOp, RelOp};
-use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
-use maplit::{hashmap, hashset};
-use std::cmp::min;
-use std::collections::{HashMap, HashSet};
+use crate::scan::AddOp;
+use crate::ssa_construct::SSAVarLabel;
+use maplit::hashmap;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 enum PosNeg {
@@ -29,8 +26,8 @@ fn negate(v: Vec<PosNeg>) -> Vec<PosNeg> {
 fn get_def(m: &mut cfg::CfgMethod<SSAVarLabel>) -> HashMap<SSAVarLabel, Instruction<SSAVarLabel>> {
     let mut defs: HashMap<SSAVarLabel, Instruction<SSAVarLabel>> = hashmap! {};
 
-    for (bid, block) in m.blocks.iter() {
-        for (iid, instruction) in block.body.iter().enumerate() {
+    for (_, block) in m.blocks.iter() {
+        for (_, instruction) in block.body.iter().enumerate() {
             if let Some(dest) = get_dest(instruction) {
                 if m.fields.contains_key(&dest.name) {
                     // no global variables

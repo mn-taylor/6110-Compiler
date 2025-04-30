@@ -3,7 +3,6 @@ use crate::cfg::{Arg, BasicBlock, CfgType, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
 use crate::scan::Sum;
 use crate::ssa_construct::SSAVarLabel;
-use maplit::hashset;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
