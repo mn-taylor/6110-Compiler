@@ -238,6 +238,7 @@ fn main() {
 
                     if args.get_opts().contains(&Optimization::Cse) {
                         ssa_method = comsubelim::eliminate_common_subexpressions(&mut ssa_method);
+                        ssa_method = copyprop::copy_propagation(&mut ssa_method);
                         ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
                     }
                     if args.debug && args.get_opts().contains(&Optimization::Cse) {
