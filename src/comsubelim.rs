@@ -164,7 +164,7 @@ fn convert_hash_to_instr(
         CSEHash::Neg(s1) => Instruction::TwoOp {
             source1: s1,
             dest: dest,
-            op: UnOp::Not,
+            op: UnOp::Neg,
         },
         CSEHash::Not(s1) => Instruction::TwoOp {
             source1: s1,
