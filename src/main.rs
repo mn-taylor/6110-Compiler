@@ -213,7 +213,7 @@ fn main() {
                     }
 
                     if args.get_opts().contains(&Optimization::Cp) {
-                        ssa_method = copyprop::copy_propagation(&mut ssa_method);
+                        //  ssa_method = copyprop::copy_propagation(&mut ssa_method);
                     }
                     if args.debug && args.get_opts().contains(&Optimization::Cp) {
                         // println!("method after copy propagation: \n{}", ssa_method);
@@ -224,7 +224,7 @@ fn main() {
                     }
 
                     if args.get_opts().contains(&Optimization::Cop) {
-                        ssa_method = constprop::constant_propagation(&mut ssa_method);
+                        // ssa_method = constprop::constant_propagation(&mut ssa_method);
                     }
                     if args.debug && args.get_opts().contains(&Optimization::Cop) {
                         // println!("method after constant propagation: \n{}", ssa_method);
@@ -235,10 +235,7 @@ fn main() {
                     }
 
                     if args.get_opts().contains(&Optimization::Cse) {
-                        // this gets rid of the
                         // ssa_method = comsubelim::eliminate_common_subexpressions(&mut ssa_method);
-                        ssa_method = copyprop::copy_propagation(&mut ssa_method);
-                        ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
                     }
                     if args.debug && args.get_opts().contains(&Optimization::Cse) {
                         println!("method after CSE: \n{}", ssa_method);

@@ -1,0 +1,73 @@
+int a;
+
+int foo2() {
+    return a;
+}
+
+int foo1() {
+    int b;
+    b = 0;
+    return b;
+}
+
+void bar(int c) {
+    return;
+}
+
+void main() {
+    int x;
+    int y;
+    int z;
+    bool j;
+    int w[5];
+    a = 1;
+
+    x = 1;
+    y = 1; 
+
+    // add ops
+    z = x + y;
+    z = a + x;
+    z = x + a;
+    z = x - y;
+    z = a - x;
+    z = x - a;
+
+    // mul ops
+    z = x * y;
+    z = x * a;
+    z = a * x;
+    z = x / y;
+    z = x / a;
+    z = a / x;
+    z = x % y;
+    z = x % a;
+    z = a % x;
+
+    // rel ops
+    j = x < y;
+    j = x < a;
+    j = a < x;
+
+    // unops
+    z = -x;
+    z = -a;        
+
+    // moveops
+    z = a;
+    z = x;
+
+    // array operations
+    w[x] = a;
+    w[a] = x;
+    w[a] = a;
+    w[x] = x;
+    z = w[a];
+    z = w[x];
+
+    // calls
+    bar(a);
+    bar(x);
+}
+
+
