@@ -32,7 +32,11 @@ fn binary_operation(imm1: i64, imm2: i64, bop: &Bop) -> i64 {
     }
 }
 
-fn simplify(i: Instruction<SSAVarLabel>) -> Instruction<SSAVarLabel> {
+fn simplify(
+    i: Instruction<SSAVarLabel>,
+    const_lookup: &mut HashMap<ImmVar<SSAVarLabel>, ImmVar<SSAVarLabel>>,
+    locals: &HashSet<u32>,
+) -> Instruction<SSAVarLabel> {
     match &i {
         Instruction::MoveOp { source, dest } => {
             if source.is_immediate() {
@@ -40,6 +44,10 @@ fn simplify(i: Instruction<SSAVarLabel>) -> Instruction<SSAVarLabel> {
                     ImmVar::Imm(i) => i,
                     ImmVar::Var(_) => panic!(),
                 };
+
+                if locals.contains(&dest.name) && valid_i32(*imm) {
+                    const_lookup.insert(ImmVar::Var(*dest), ImmVar::Imm(*imm));
+                }
 
                 Instruction::Constant {
                     dest: *dest,
@@ -66,6 +74,10 @@ fn simplify(i: Instruction<SSAVarLabel>) -> Instruction<SSAVarLabel> {
                     UnOp::IntCast => (*imm as i32) as i64,
                     UnOp::LongCast => *imm,
                 };
+
+                if locals.contains(&dest.name) && valid_i32(new_imm) {
+                    const_lookup.insert(ImmVar::Var(*dest), ImmVar::Imm(new_imm));
+                }
 
                 Instruction::Constant {
                     dest: *dest,
@@ -116,7 +128,8 @@ fn check_const(
 
 fn prop_const(
     i: Instruction<SSAVarLabel>,
-    const_lookup: &HashMap<ImmVar<SSAVarLabel>, ImmVar<SSAVarLabel>>,
+    const_lookup: &mut HashMap<ImmVar<SSAVarLabel>, ImmVar<SSAVarLabel>>,
+    locals: &HashSet<u32>,
 ) -> Instruction<SSAVarLabel> {
     let new_instruction = match i {
         Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
@@ -167,8 +180,15 @@ fn prop_const(
         _ => i, // covers phi expressions, parallel moves, and constant loads
     };
 
-    // use_identities(simplify(new_instruction))
-    simplify(new_instruction)
+    simplify(new_instruction, const_lookup, locals)
+}
+
+fn valid_i32(imm: i64) -> bool {
+    if imm <= i32::MAX as i64 && imm >= i32::MIN as i64 {
+        true
+    } else {
+        false
+    }
 }
 
 pub fn constant_propagation(
@@ -184,6 +204,7 @@ pub fn constant_propagation(
 
     // should take imm_var::vars to imm_var::imm
     let mut const_lookup: HashMap<ImmVar<SSAVarLabel>, ImmVar<SSAVarLabel>> = HashMap::new();
+    let locals = method.fields.keys().map(|C| *C).collect::<HashSet<_>>();
 
     // variables that appear inside of phi nodes should not be replaced by constants. If we replaced them, it is unclear what the behavior of the phi node is
     let mut forbidden: HashSet<SSAVarLabel> = hashset! {};
@@ -204,16 +225,16 @@ pub fn constant_propagation(
         }
     }
 
-    let mut found_constant_load = false;
-
     // find all constants
     for (_, block) in method.blocks.iter() {
         for instr in block.body.iter() {
             match instr {
                 Instruction::Constant { dest, constant } => {
-                    if !forbidden.contains(dest) && method.fields.contains_key(&dest.name) {
+                    if !forbidden.contains(dest)
+                        && method.fields.contains_key(&dest.name)
+                        && valid_i32(*constant)
+                    {
                         const_lookup.insert(ImmVar::Var(*dest), ImmVar::Imm(*constant));
-                        found_constant_load = true;
                     }
                 }
                 _ => (),
@@ -221,19 +242,12 @@ pub fn constant_propagation(
         }
     }
 
+    let num_constants = const_lookup.len();
     // update new_instructions
     for (i, block) in method.blocks.iter() {
         let mut new_instructions = vec![];
         for instr in block.body.iter() {
-            match instr {
-                Instruction::Constant { dest, .. } => {
-                    if !forbidden.contains(dest) && method.fields.contains_key(&dest.name) {
-                        continue;
-                    }
-                }
-                _ => (), // remove constant loads
-            }
-            new_instructions.push(prop_const(instr.clone(), &const_lookup))
+            new_instructions.push(prop_const(instr.clone(), &mut const_lookup, &locals))
         }
 
         let new_block: BasicBlock<SSAVarLabel> = BasicBlock {
@@ -244,7 +258,8 @@ pub fn constant_propagation(
         new_method.blocks.insert(*i, new_block);
     }
 
-    if found_constant_load {
+    // if we found more constants
+    if const_lookup.len() != num_constants {
         // get_parents(&mut method.blocks); // parents might change after prop const jump
         constant_propagation(&mut new_method)
     } else {
