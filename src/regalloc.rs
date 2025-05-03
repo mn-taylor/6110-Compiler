@@ -83,9 +83,55 @@ fn get_children(m: &CfgMethod, i: InsnLoc) -> Vec<InsnLoc> {
     }
 }
 
+fn imm_var_sources(iv: &ImmVar<VarLabel>) -> Vec<VarLabel> {
+    match *iv {
+        ImmVar::Var(a) => vec![a],
+        ImmVar::Imm(_) => vec![],
+    }
+}
+
+fn get_arg_sources(arg: &Arg<VarLabel>) -> Vec<VarLabel> {
+    match arg {
+        Arg::VarArg(a) => imm_var_sources(a),
+        Arg::StrArg(_) => vec![],
+    }
+}
+
+fn get_insn_sources(insn: &VInstruction) -> HashSet<VarLabel> {
+    match insn {
+        Instruction::PhiExpr { .. } => panic!(),
+        Instruction::MemPhiExpr { .. } => panic!(),
+        Instruction::ParMov(_) => panic!(),
+        Instruction::ArrayAccess { idx, .. } => imm_var_sources(idx).into_iter().collect(),
+        Instruction::Call(_, args, _) => {
+            args.into_iter().flat_map(|a| get_arg_sources(a)).collect()
+        }
+        Instruction::Constant { .. } => hashset! {},
+        Instruction::MoveOp { source, .. } => imm_var_sources(source).into_iter().collect(),
+        Instruction::ThreeOp {
+            source1, source2, ..
+        } => imm_var_sources(source1)
+            .into_iter()
+            .chain(imm_var_sources(source2).into_iter())
+            .collect(),
+        Instruction::TwoOp { source1, .. } => imm_var_sources(source1).into_iter().collect(),
+        Instruction::ArrayStore { source, idx, .. } => imm_var_sources(source)
+            .into_iter()
+            .chain(imm_var_sources(idx).into_iter())
+            .collect(),
+        Instruction::Spill { ord_var, .. } => hashset! {*ord_var},
+        Instruction::Reload { .. } => hashset! {},
+        Instruction::Ret(r) => match r {
+            Some(ImmVar::Var(x)) => hashset! {*x},
+            Some(ImmVar::Imm(_)) => hashset! {},
+            None => hashset! {},
+        },
+    }
+}
+
 fn get_sources(insn: &Sum<&VInstruction, &Jump>) -> HashSet<VarLabel> {
     match insn {
-        Sum::Inl(i) => deadcode::get_sources(i),
+        Sum::Inl(i) => get_insn_sources(i),
         Sum::Inr(j) => deadcode::get_jump_sources(j),
     }
 }
@@ -111,20 +157,18 @@ fn get_insn_dest(insn: &VInstruction) -> Option<VarLabel> {
         Instruction::ArrayStore { .. } => None,
         Instruction::Spill { .. } => None,
         Instruction::Reload { ord_var, .. } => Some(*ord_var),
-        Instruction::Ret(r) => match r {
-            Some(ImmVar::Var(x)) => Some(*x),
-            Some(ImmVar::Imm(_)) => None,
-            None => None,
-        },
+        Instruction::Ret(_) => None,
     }
 }
 
 fn get_uses(m: &CfgMethod, x: VarLabel, i: InsnLoc) -> HashSet<InsnLoc> {
     let mut uses = HashSet::new();
-    let mut seen = HashSet::new();
-    let mut next: Vec<_> = get_children(m, i).into_iter().filter(|c| *c != i).collect();
+    let mut seen = hashset! {i};
+    let mut next: Vec<_> = get_children(m, i)
+        .into_iter()
+        .filter(|i| !seen.contains(i))
+        .collect();
     while let Some(v) = next.pop() {
-        println!("next: {next:?}");
         seen.insert(v);
         let insn = get_insn(m, v);
         if get_sources(&insn).contains(&x) {
@@ -353,7 +397,9 @@ fn distinct_pairs<'a, T>(l: &'a Vec<T>) -> Vec<(u32, &'a T, u32, &'a T)> {
     let mut ret = Vec::new();
     for i in 0..l.len() {
         for j in 0..l.len() {
-            ret.push((i as u32, l.get(i).unwrap(), j as u32, l.get(j).unwrap()));
+            if i != j {
+                ret.push((i as u32, l.get(i).unwrap(), j as u32, l.get(j).unwrap()));
+            }
         }
     }
     ret
@@ -499,6 +545,8 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>,
                 return (new_method.clone(), web_coloring, webs);
             }
             Err(thing_to_spill) => {
+                println!("spilling {thing_to_spill}");
+                println!("method is {new_method}");
                 new_method = spill_web(
                     &mut new_method,
                     webs.get(thing_to_spill as usize).unwrap().clone(),
@@ -761,8 +809,8 @@ mod tests {
             get_uses(&m, 1, InsnLoc { blk: 0, idx: 0 }),
             hashset! {InsnLoc { blk: 0, idx: 3 }, InsnLoc { blk: 0, idx: 2 }, InsnLoc { blk: 0, idx: 4 }}
         );
-        // println!("graph: {:?}", interference_graph(&mut m.clone()));
-        // println!("coloring: {:?}", reg_alloc(&mut m.clone(), 2));
+        println!("graph: {:?}", interference_graph(&mut m.clone()));
+        println!("coloring: {:?}", reg_alloc(&mut m.clone(), 2));
         // println!("{:?}", regalloc_method(m));
     }
 }
