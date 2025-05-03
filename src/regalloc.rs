@@ -685,7 +685,7 @@ fn to_regs(
     }
 }
 
-pub fn regalloc_phase(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
+fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let regs = vec![Reg::R12, Reg::R13];
     let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, regs.len() as u32);
@@ -694,4 +694,12 @@ pub fn regalloc_phase(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg
         .map(|(k, n)| (k, *regs.get(n as usize).unwrap()))
         .collect();
     to_regs(spilled_method, web_to_reg, webs)
+}
+
+pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<Sum<Reg, MemVarLabel>> {
+    cfg::CfgProgram {
+        externals: p.externals,
+        global_fields: p.global_fields,
+        methods: p.methods.into_iter().map(regalloc_method).collect(),
+    }
 }

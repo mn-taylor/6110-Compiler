@@ -1,11 +1,11 @@
-pub mod asm;
+// pub mod asm;
 pub mod cfg;
 pub mod cfg_build;
 pub mod comsubelim;
 pub mod constprop;
 pub mod copyprop;
 pub mod deadcode;
-pub mod deepcse;
+// pub mod deepcse;
 pub mod ir;
 pub mod ir_build;
 pub mod metrics;

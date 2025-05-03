@@ -1,6 +1,6 @@
 use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, BlockLabel, ImmVar, Instruction, Jump};
-use crate::cfg_build::{CfgMethod, VarLabel};
+use crate::cfg_build::{get_parents, CfgMethod, VarLabel};
 use crate::scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -226,7 +226,7 @@ pub fn dominance_frontiers(
 
 pub fn get_graph<T>(m: &mut cfg::CfgMethod<T>) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut g: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
-
+    get_parents(&mut m.blocks);
     for (label, block) in m.blocks.iter() {
         if block.parents.len() == 0 && *label != 0 {
             // these nodes are never accessed by the program and confuse the computation of dominance sets

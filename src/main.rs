@@ -1,6 +1,5 @@
 mod utils;
 
-use decaf_skeleton_rust::asm;
 use decaf_skeleton_rust::cfg_build;
 use decaf_skeleton_rust::comsubelim;
 use decaf_skeleton_rust::constprop;
@@ -10,6 +9,8 @@ use decaf_skeleton_rust::deadcode::dead_code_elimination;
 use decaf_skeleton_rust::ir_build;
 use decaf_skeleton_rust::metrics::num_intstructions;
 use decaf_skeleton_rust::parse;
+use decaf_skeleton_rust::reg_asm;
+use decaf_skeleton_rust::regalloc;
 use decaf_skeleton_rust::scan;
 use decaf_skeleton_rust::semantics;
 use decaf_skeleton_rust::ssa_construct;
@@ -270,7 +271,6 @@ fn main() {
                         println!("Optimization Metrics for {}", c.name);
                         metrics_string.iter().for_each(|c| println!("{}", c));
                     }
-
                     result
                 })
                 .collect::<Vec<_>>();
@@ -279,7 +279,8 @@ fn main() {
             //     println!("{}", p);
             // }
 
-            for l in asm::asm_program(&p, args.mac) {
+            let p = regalloc::regalloc_prog(p);
+            for l in reg_asm::asm_program(&p, args.mac) {
                 writeln!(writer, "{}", l).unwrap();
             }
         }

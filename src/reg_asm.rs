@@ -416,21 +416,13 @@ pub fn asm_program(p: &CfgProgram<Sum<Reg, MemVarLabel>>, mac: bool) -> Vec<Insn
     insns.push(Special(".data".to_string()));
     for (varname, (typ, _)) in glob_fields {
         match typ {
-            CfgType::Array(_, len) => {
-                match varname {
-                    Sum::Inr(v) => {
-                        insns.push(Special(format!("global_var{}:\n\t.zero {}", v, len * 8)))
-                    }
-                    _ => (),
-                }
-                // insns.push(format!("global_var{}:\n\t.zero {}", varname, len * 8))
-            }
-            CfgType::Scalar(_) => {
-                match varname {
-                    Sum::Inr(v) => insns.push(Special(format!("global_var{}:\n\t.zero 8", v))),
-                    _ => (),
-                } /*8 bytes*/
-            }
+            CfgType::Array(_, len) => insns.push(Special(format!(
+                "global_var{}:\n\t.zero {}",
+                varname,
+                len * 8
+            ))),
+            CfgType::Scalar(_) => insns.push(Special(format!("global_var{}:\n\t.zero 8", varname))),
+            /*8 bytes*/
         }
     }
 

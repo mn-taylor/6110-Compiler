@@ -32,7 +32,7 @@ impl<VarLabel: fmt::Debug + fmt::Display> fmt::Display for CfgMethod<VarLabel> {
 pub struct CfgProgram<VarLabel> {
     pub externals: Vec<String>,
     pub methods: Vec<CfgMethod<VarLabel>>,
-    pub global_fields: HashMap<VarLabel, (CfgType, String)>,
+    pub global_fields: HashMap<u32, (CfgType, String)>,
 }
 
 impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for CfgProgram<VarLabel> {
