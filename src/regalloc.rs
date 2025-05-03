@@ -11,13 +11,13 @@ type VInstruction = cfg::Instruction<VarLabel>;
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Debug, Eq, Hash, Clone, Copy)]
 pub struct InsnLoc {
     pub blk: BlockLabel,
     pub idx: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Web {
     pub var: VarLabel,
     pub defs: Vec<InsnLoc>,
@@ -613,6 +613,7 @@ fn src_reg(
     webs: &Vec<Web>,
     web_to_reg: &HashMap<u32, Reg>,
 ) -> Sum<Reg, MemVarLabel> {
+    println!("v, i, webs: {v:?}, {i:?}, {webs:?}");
     match get_src_web(v, i, webs) {
         Some(j) => Sum::Inl(*web_to_reg.get(&j).unwrap()),
         None => Sum::Inr(v),
@@ -625,6 +626,8 @@ fn dst_reg(
     webs: &Vec<Web>,
     web_to_reg: &HashMap<u32, Reg>,
 ) -> Sum<Reg, MemVarLabel> {
+    println!("v, i, webs: {v:?}, {i:?}, {webs:?}");
+    println!("get_dst_web(v, i, webs): {:?}", get_dst_web(v, i, webs));
     match get_dst_web(v, i, webs) {
         Some(j) => Sum::Inl(*web_to_reg.get(&j).unwrap()),
         None => Sum::Inr(v),
@@ -661,8 +664,8 @@ fn to_regs(
                     .map(|(idx, insn)| {
                         insn_map(
                             insn,
-                            |v| dst_reg(v, InsnLoc { blk: lbl, idx }, &webs, &web_to_reg),
                             |v| src_reg(v, InsnLoc { blk: lbl, idx }, &webs, &web_to_reg),
+                            |v| dst_reg(v, InsnLoc { blk: lbl, idx }, &webs, &web_to_reg),
                         )
                     })
                     .collect(),
@@ -693,6 +696,7 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, M
         .into_iter()
         .map(|(k, n)| (k, *regs.get(n as usize).unwrap()))
         .collect();
+    println!("web_to_reg: {:?}", web_to_reg);
     to_regs(spilled_method, web_to_reg, webs)
 }
 
@@ -701,5 +705,36 @@ pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<Sum<Reg, M
         externals: p.externals,
         global_fields: p.global_fields,
         methods: p.methods.into_iter().map(regalloc_method).collect(),
+    }
+}
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn easy() {
+        let m = cfg::CfgMethod {
+            name: "".to_string(),
+            params: vec![],
+            blocks: vec![(
+                0,
+                BasicBlock {
+                    parents: vec![],
+                    block_id: 0,
+                    jump_loc: Jump::Nowhere,
+                    body: vec![Instruction::Constant {
+                        dest: 1,
+                        constant: 17,
+                    }],
+                },
+            )]
+            .into_iter()
+            .collect(),
+            fields: HashMap::new(),
+            return_type: None,
+        };
+        println!("graph: {:?}", interference_graph(&mut m.clone()));
+        println!("coloring: {:?}", reg_alloc(&mut m.clone(), 2));
+        println!("{:?}", regalloc_method(m));
     }
 }

@@ -9,7 +9,7 @@ use std::fmt;
 
 pub type BlockLabel = usize;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CfgMethod<VarLabel> {
     pub name: String,
     pub params: Vec<u32>, // was var label but that was unnecessary
@@ -50,7 +50,7 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for CfgProgram<VarLabel> 
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BasicBlock<VarLabel> {
     pub parents: Vec<usize>,
     pub block_id: BlockLabel,
@@ -71,7 +71,7 @@ impl<VarLabel: fmt::Debug + fmt::Display> fmt::Display for BasicBlock<VarLabel> 
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Jump<VarLabel> {
     Uncond(BlockLabel),
     Cond {

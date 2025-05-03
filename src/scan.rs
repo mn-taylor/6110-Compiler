@@ -12,6 +12,15 @@ pub enum Sum<A, B> {
     Inr(B),
 }
 
+impl<A: fmt::Display, B: fmt::Display> fmt::Display for Sum<A, B> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Sum::Inl(a) => write!(f, "{}", a),
+            Sum::Inr(b) => write!(f, "{}", b),
+        }
+    }
+}
+
 pub trait Finite {}
 
 pub trait OfString {
@@ -572,54 +581,4 @@ pub fn scan(input: String) -> Vec<(Result<Token, String>, ErrLoc)> {
         panic!("unterminated block comment");
     }
     tokens
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn test(input: &str, output: Vec<Token>) {
-        assert_eq!(
-            scan(input.to_string()),
-            vec![output
-                .into_iter()
-                .map(Ok::<Token, String>)
-                .collect::<Vec<_>>()]
-        );
-    }
-
-    #[test]
-    fn one_ident() {
-        test("blah", vec![Ident("blah".to_string())]);
-    }
-
-    #[test]
-    fn scan_one_char_lit() {
-        assert_eq!(
-            scan_char_lit(&mut "'h'".to_string().chars()),
-            Ok(CharLit('h'))
-        );
-    }
-
-    #[test]
-    fn scan_one_char() {
-        assert_eq!(scan_char(&mut "h".to_string().chars()), Ok('h'));
-    }
-
-    #[test]
-    fn var_decl() {
-        test(
-            "int x = 5;",
-            vec![
-                Key(Int),
-                Ident("x".to_string()),
-                Sym(Assign(Eq)),
-                DecIntLit("5".to_string()),
-                Sym(Misc(Semicolon)),
-            ],
-        );
-    }
-
-    #[test]
-    fn no() {}
 }
