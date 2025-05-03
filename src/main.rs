@@ -204,7 +204,7 @@ fn main() {
                         ));
                     }
 
-                    for _ in 0..1 {
+                    for _ in 0..5 {
                         if args.get_opts().contains(&Optimization::Dce) {
                             ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
                         }
