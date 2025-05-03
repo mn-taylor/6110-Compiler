@@ -1,0 +1,18 @@
+import printf;
+
+int f() { return 1; }
+
+void main() {
+     printf("%d\n", f() * 4294967296);
+     printf("%d\n", 4294967296 * f());
+     printf("%d\n", 4294967296 / f());
+     printf("%d\n", f() / 4294967296);
+     printf("%d\n", 4294967296 + f());
+     printf("%d\n", f() + 4294967296);
+     printf("%d\n", f() - 4294967296);
+     printf("%d\n", 4294967296 - f());
+     printf("%d\n", f() < 4294967296);
+     printf("%d\n", 4294967296 < f());
+     printf("%d\n", f() == 4294967296);
+     printf("%d\n", 4294967296 == f());
+}

@@ -227,7 +227,7 @@ fn main() {
                         }
 
                         if args.get_opts().contains(&Optimization::Cop) {
-                            // ssa_method = constprop::constant_propagation(&mut ssa_method);
+                            ssa_method = constprop::constant_propagation(&mut ssa_method);
                             ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
                         }
                         if args.debug && args.get_opts().contains(&Optimization::Cop) {
