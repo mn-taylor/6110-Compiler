@@ -122,8 +122,9 @@ fn get_insn_dest(insn: &VInstruction) -> Option<VarLabel> {
 fn get_uses(m: &CfgMethod, x: VarLabel, i: InsnLoc) -> HashSet<InsnLoc> {
     let mut uses = HashSet::new();
     let mut seen = HashSet::new();
-    let mut next = vec![i];
+    let mut next: Vec<_> = get_children(m, i).into_iter().filter(|c| *c != i).collect();
     while let Some(v) = next.pop() {
+        println!("next: {next:?}");
         seen.insert(v);
         let insn = get_insn(m, v);
         if get_sources(&insn).contains(&x) {
@@ -710,6 +711,7 @@ pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<Sum<Reg, M
 
 mod tests {
     use super::*;
+    use ImmVar::Var;
 
     #[test]
     fn easy() {
@@ -722,10 +724,32 @@ mod tests {
                     parents: vec![],
                     block_id: 0,
                     jump_loc: Jump::Nowhere,
-                    body: vec![Instruction::Constant {
-                        dest: 1,
-                        constant: 17,
-                    }],
+                    body: vec![
+                        Instruction::Constant {
+                            dest: 1,
+                            constant: 17,
+                        },
+                        Instruction::MoveOp {
+                            source: Var(2),
+                            dest: 3,
+                        },
+                        Instruction::MoveOp {
+                            source: Var(1),
+                            dest: 2,
+                        },
+                        Instruction::MoveOp {
+                            source: Var(1),
+                            dest: 3,
+                        },
+                        Instruction::MoveOp {
+                            source: Var(1),
+                            dest: 1,
+                        },
+                        Instruction::MoveOp {
+                            source: Var(1),
+                            dest: 2,
+                        },
+                    ],
                 },
             )]
             .into_iter()
@@ -733,8 +757,12 @@ mod tests {
             fields: HashMap::new(),
             return_type: None,
         };
-        println!("graph: {:?}", interference_graph(&mut m.clone()));
-        println!("coloring: {:?}", reg_alloc(&mut m.clone(), 2));
-        println!("{:?}", regalloc_method(m));
+        assert_eq!(
+            get_uses(&m, 1, InsnLoc { blk: 0, idx: 0 }),
+            hashset! {InsnLoc { blk: 0, idx: 3 }, InsnLoc { blk: 0, idx: 2 }, InsnLoc { blk: 0, idx: 4 }}
+        );
+        // println!("graph: {:?}", interference_graph(&mut m.clone()));
+        // println!("coloring: {:?}", reg_alloc(&mut m.clone(), 2));
+        // println!("{:?}", regalloc_method(m));
     }
 }
