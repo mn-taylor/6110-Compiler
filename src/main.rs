@@ -1,5 +1,6 @@
 mod utils;
 
+use decaf_skeleton_rust::asm;
 use decaf_skeleton_rust::cfg_build;
 use decaf_skeleton_rust::comsubelim;
 use decaf_skeleton_rust::constprop;
@@ -203,7 +204,7 @@ fn main() {
                         ));
                     }
 
-                    for _ in 0..5 {
+                    for _ in 0..1 {
                         if args.get_opts().contains(&Optimization::Dce) {
                             ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
                         }
@@ -279,12 +280,16 @@ fn main() {
             //     println!("{}", p);
             // }
 
-            let p = regalloc::regalloc_prog(p);
-            println!("after regalloc:");
-            println!("{}", p);
-            for l in reg_asm::asm_program(&p, args.mac) {
+            for l in asm::asm_program(&p, args.mac) {
                 writeln!(writer, "{}", l).unwrap();
             }
+
+            // let p = regalloc::regalloc_prog(p);
+            // println!("after regalloc:");
+            // println!("{}", p);
+            // for l in reg_asm::asm_program(&p, args.mac) {
+            //     writeln!(writer, "{}", l).unwrap();
+            // }
         }
     }
 }

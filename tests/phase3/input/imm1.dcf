@@ -3,16 +3,16 @@ import printf;
 long f() { return 1L; }
 
 void main() {
-     printf("%d\n", f() * 4294967296L);
-     printf("%d\n", 4294967296L * f());
-     printf("%d\n", 4294967296L / f());
-     printf("%d\n", f() / 4294967296L);
-     printf("%d\n", 4294967296L + f());
-     printf("%d\n", f() + 4294967296L);
-     printf("%d\n", f() - 4294967296L);
-     printf("%d\n", 4294967296L - f());
-     printf("%d\n", f() < 4294967296L);
-     printf("%d\n", 4294967296L < f());
-     printf("%d\n", f() == 4294967296L);
-     printf("%d\n", 4294967296L == f());
+     printf("%lld\n", 4294967296L);
+     printf("%lld\n", 4294967296L * f());
+     printf("%lld\n", 4294967296L / f());
+     printf("%lld\n", f() / 4294967296L);
+     printf("%lld\n", 4294967296L + f());
+     printf("%lld\n", f() + 4294967296L);
+     printf("%lld\n", f() - 4294967296L);
+     printf("%lld\n", 4294967296L - f());
+     printf("%lld\n", f() < 4294967296L);
+     printf("%lld\n", 4294967296L < f());
+     printf("%lld\n", f() == 4294967296L);
+     printf("%lld\n", 4294967296L == f());
 }

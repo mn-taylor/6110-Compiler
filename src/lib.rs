@@ -1,4 +1,4 @@
-// pub mod asm;
+pub mod asm;
 pub mod cfg;
 pub mod cfg_build;
 pub mod comsubelim;
