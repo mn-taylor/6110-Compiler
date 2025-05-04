@@ -381,6 +381,14 @@ fn get_global_strings(p: &CfgProgram<Sum<Reg, MemVarLabel>>) -> HashMap<String, 
         for block in method.blocks.values() {
             for insn in block.body.iter() {
                 match insn {
+                    Instruction::StoreParam(_, arg) => match arg {
+                        Arg::StrArg(s) => {
+                            if let None = all_strings.get(s) {
+                                all_strings.insert(s.clone(), all_strings.len());
+                            }
+                        }
+                        _ => (),
+                    },
                     Instruction::Call(_, args, _) => {
                         for arg in args {
                             match arg {
