@@ -53,10 +53,8 @@ fn prop_copies(
             };
             Instruction::Call(string, new_args, new_ret_val)
         }
-        Instruction::Constant { dest, constant } => Instruction::Constant {
-            dest: dest,
-            constant,
-        },
+        Instruction::Constant { dest, constant } => Instruction::Constant { dest, constant },
+        Instruction::LoadParam { dest, param } => Instruction::LoadParam { dest, param },
         Instruction::MoveOp { source, dest } => Instruction::MoveOp {
             source: check_imm_var_copy(source, copy_lookup),
             dest,
@@ -101,9 +99,9 @@ fn prop_copies(
             dest,
             op: op.clone(),
         },
-        _ => {
-            panic!("Should not do register allocation before optimizations")
-        }
+        Instruction::Spill { .. } => panic!(),
+        Instruction::Reload { .. } => panic!(),
+        Instruction::MemPhiExpr { .. } => panic!(),
     }
 }
 

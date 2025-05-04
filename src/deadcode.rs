@@ -99,7 +99,12 @@ pub fn get_sources<VarLabel: Eq + Hash + Copy>(
             ImmVar::Var(v) => hashset! {*v},
             _ => hashset! {},
         },
-        _ => hashset! {}, // Excludes phis and constant loads
+        Instruction::Spill { .. } | Instruction::Reload { .. } | Instruction::MemPhiExpr { .. } => {
+            panic!()
+        }
+        Instruction::ParMov(_) | Instruction::Constant { .. } | Instruction::LoadParam { .. } => {
+            hashset! {}
+        }
     }
 }
 
@@ -115,14 +120,20 @@ pub fn get_jump_sources<VarLabel: Eq + Hash + Copy>(j: &Jump<VarLabel>) -> HashS
 
 pub fn get_dest<T: Copy>(instruction: &Instruction<T>) -> Option<T> {
     match *instruction {
-        Instruction::PhiExpr { dest, .. } => Some(dest),
-        Instruction::ArrayAccess { dest, .. } => Some(dest),
+        Instruction::PhiExpr { dest, .. }
+        | Instruction::ArrayAccess { dest, .. }
+        | Instruction::Constant { dest, .. }
+        | Instruction::LoadParam { dest, .. }
+        | Instruction::MoveOp { dest, .. }
+        | Instruction::ThreeOp { dest, .. }
+        | Instruction::TwoOp { dest, .. } => Some(dest),
         Instruction::Call(_, _, _) => None, // We always want to call functions whether or not their return values are used, because they may modify global variables.
-        Instruction::Constant { dest, .. } => Some(dest),
-        Instruction::MoveOp { dest, .. } => Some(dest),
-        Instruction::ThreeOp { dest, .. } => Some(dest),
-        Instruction::TwoOp { dest, .. } => Some(dest),
-        _ => None, // Excludes Array Stores, Returns, and Parallel Moves
+        Instruction::ArrayStore { .. } => None,
+        Instruction::Ret(_) => None,
+        Instruction::Spill { .. }
+        | Instruction::Reload { .. }
+        | Instruction::MemPhiExpr { .. }
+        | Instruction::ParMov { .. } => panic!(),
     }
 }
 
