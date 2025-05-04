@@ -347,8 +347,9 @@ fn round_up(a: u64, factor: u64) -> u64 {
 
 fn build_stack(
     all_fields: HashMap<VarLabel, (CfgType, String)>,
+    extra_offset: u64,
 ) -> (HashMap<VarLabel, (CfgType, u64)>, u64) {
-    let mut offset: u64 = 8;
+    let mut offset: u64 = 8 + extra_offset;
     let mut lookup: HashMap<VarLabel, (CfgType, u64)> = HashMap::new();
 
     let mut fields = all_fields.iter().collect::<Vec<_>>();
@@ -479,11 +480,15 @@ pub fn asm_method(
     instructions.push(insn(("pushq", Rbp)));
     instructions.push(insn(("movq", Rsp, Rbp)));
 
-    let (offsets, total_offset) = build_stack(method.fields.clone());
+    let (offsets, total_offset) = build_stack(method.fields.clone(), 24);
     // println!("offsets: {:?}", offsets);
 
     // allocate space enough space on the stack
     instructions.push(insn(("subq", total_offset as i64, Rsp)));
+    // Should have an even number of regs here for stack alignment
+    instructions.push(insn(("movq", R12, (-8, Rbp))));
+    instructions.push(insn(("movq", R13, (-16, Rbp))));
+    instructions.push(insn(("movq", R14, (-24, Rbp))));
 
     instructions.push(Special(format!("\tjmp {}0", method.name)));
 
@@ -513,6 +518,11 @@ pub fn asm_method(
     // instructions.push(format!("\taddq ${}, {}", total_offset, Reg::Rsp,));
     // instructions.push(format!("\tpopq {}", Reg::Rbp));
     // instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::Rsp));
+
+    // keep in sync wiht prelude
+    instructions.push(insn(("movq", (-8, Rbp), R12)));
+    instructions.push(insn(("movq", (-16, Rbp), R13)));
+    instructions.push(insn(("movq", (-24, Rbp), R14)));
 
     instructions.push(insn("leave"));
 
