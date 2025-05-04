@@ -1,6 +1,7 @@
 use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, BlockLabel, ImmVar, Instruction, Jump};
 use crate::cfg_build::{get_parents, CfgMethod, VarLabel};
+use crate::regalloc::get_dest;
 use crate::scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -681,17 +682,65 @@ pub fn rename_variables(
     ssa_method
 }
 
+fn get_insn_dest<T>(insn: Instruction<T>) -> Option<T> {
+    match insn {
+        Instruction::StoreParam(_, _) => None,
+        Instruction::PhiExpr { .. } => panic!(),
+        Instruction::MemPhiExpr { .. } => panic!(),
+        Instruction::ParMov(_) => panic!(),
+        Instruction::NoArgsCall(_, dest) => dest,
+        Instruction::LoadParam { dest, .. } => Some(dest),
+        Instruction::ArrayAccess { dest, .. } => Some(dest),
+        Instruction::Call(_, _, ret_val) => ret_val,
+        Instruction::Constant { dest, .. } => Some(dest),
+        Instruction::MoveOp { dest, .. } => Some(dest),
+        Instruction::ThreeOp { dest, .. } => Some(dest),
+        Instruction::TwoOp { dest, .. } => Some(dest),
+        Instruction::ArrayStore { .. } => None,
+        Instruction::Spill { .. } => None,
+        Instruction::Reload { ord_var, .. } => Some(ord_var),
+        Instruction::Ret(_) => None,
+    }
+}
+
 fn prune_phis(m: &mut cfg::CfgMethod<SSAVarLabel>) {
     // get all variables defined
-    let defns = HashSet<SSAVarLabel>
+    let mut defns: HashSet<SSAVarLabel> = HashSet::new();
     for (id, block) in m.blocks.iter() {
-        for (instr) in block.body  {
-            let dest = get_dest<SSAVarLabel>(instr);
-
+        for (instr) in block.body.iter() {
+            match get_insn_dest(instr.clone()) {
+                Some(dest) => {
+                    defns.insert(dest);
+                }
+                _ => (),
+            }
         }
     }
 
-    // remove variables that are never defined from phi webs
+    for (id, block) in m.blocks.iter_mut() {
+        let mut new_instructions = vec![];
+        for (instr) in block.body.iter_mut() {
+            new_instructions.push(match instr {
+                Instruction::PhiExpr { dest, sources } => {
+                    let mut new_sources: Vec<(BlockLabel, Sum<SSAVarLabel, u32>)> = vec![];
+                    sources.iter().for_each(|(bid, var)| match var {
+                        Sum::Inl(v) => {
+                            if defns.contains(v) {
+                                new_sources.push((*bid, Sum::Inl(*v)));
+                            }
+                        }
+                        _ => (),
+                    });
+                    Instruction::PhiExpr {
+                        dest: dest.clone(),
+                        sources: new_sources,
+                    }
+                }
+                _ => instr.clone(),
+            })
+        }
+        block.body = new_instructions;
+    }
 }
 
 pub fn construct(m: &mut CfgMethod) -> cfg::CfgMethod<SSAVarLabel> {
@@ -704,8 +753,10 @@ pub fn construct(m: &mut CfgMethod) -> cfg::CfgMethod<SSAVarLabel> {
     insert_phis(m);
 
     // Rename Variable
-    rename_variables(m, &dominance_tree);
+    let mut new_method = rename_variables(m, &dominance_tree);
 
-    // prune phis: Remove all variables 
+    // prune phis: Remove all variables
+    prune_phis(&mut new_method);
 
+    new_method
 }

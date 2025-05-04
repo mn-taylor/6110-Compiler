@@ -138,7 +138,7 @@ fn get_sources(insn: &Sum<&VInstruction, &Jump>) -> HashSet<VarLabel> {
     }
 }
 
-fn get_dest(insn: &Sum<&VInstruction, &Jump>) -> Option<VarLabel> {
+pub fn get_dest(insn: &Sum<&VInstruction, &Jump>) -> Option<VarLabel> {
     match insn {
         Sum::Inl(i) => get_insn_dest(i),
         Sum::Inr(_) => None,
