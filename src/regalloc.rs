@@ -28,13 +28,15 @@ fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<InsnLoc>> {
 
     for (bid, block) in m.blocks.iter() {
         for (iid, instruction) in block.body.iter().enumerate() {
-            if let Some(dest) = get_dest(&Sum::Inl(&instruction.clone())) {
-                defs.entry(dest)
-                    .or_insert_with(HashSet::new)
-                    .insert(InsnLoc {
-                        blk: *bid,
-                        idx: iid,
-                    });
+            if let Some(dest) = get_insn_dest(&instruction) {
+                if m.fields.keys().any(|x| *x == dest) {
+                    defs.entry(dest)
+                        .or_insert_with(HashSet::new)
+                        .insert(InsnLoc {
+                            blk: *bid,
+                            idx: iid,
+                        });
+                }
             }
         }
     }
@@ -406,7 +408,7 @@ fn color(
         Ok(colors)
     } else {
         // return the nodes that could not be colored, sorted in order of how nice it'd be to color them
-        println!("could not color this: {g:?}");
+        println!("could not color this many nodes: {}", g.len());
         let mut to_color: Vec<_> = g.keys().map(|x| *x).collect();
         to_color.sort_by_key(|x| g.get(x).unwrap().len() as u32);
         Err(to_color)
@@ -480,8 +482,8 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>,
     // try to color the graph
     loop {
         let (webs, interfer_graph) = interference_graph(&mut new_method);
-        println!("AAAAA interfer_graph: {interfer_graph:?}");
-        println!("AAAAA webs: {webs:?}");
+        // println!("AAAAA interfer_graph: {interfer_graph:?}");
+        // println!("AAAAA webs: {webs:?}");
         match color(interfer_graph.clone(), num_regs) {
             Ok(web_coloring) => {
                 return (new_method.clone(), web_coloring, webs);
@@ -490,14 +492,15 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>,
                 let mut spillable = None;
                 for web_to_spill in things_to_spill {
                     if !is_trivial(webs.get(web_to_spill as usize).unwrap()) {
+                        println!("spilling web number {web_to_spill}");
                         spillable = Some(webs.get(web_to_spill as usize).unwrap());
                         break;
                     }
                 }
                 match spillable {
                     Some(spillable) => {
-                        println!("spilling {spillable:?}");
-                        println!("method is {new_method}");
+                        // println!("spilling {spillable:?}");
+                        // println!("method is {new_method}");
                         new_method = spill_web(&mut new_method, spillable.clone());
                     }
                     None => panic!("nothing to spill"),
@@ -629,7 +632,7 @@ fn src_reg(
     webs: &Vec<Web>,
     web_to_reg: &HashMap<u32, Reg>,
 ) -> Sum<Reg, MemVarLabel> {
-    println!("v, i, webs: {v:?}, {i:?}, {webs:?}");
+    // println!("v, i, webs: {v:?}, {i:?}, {webs:?}");
     match get_src_web(v, i, webs) {
         Some(j) => Sum::Inl(*web_to_reg.get(&j).unwrap()),
         None => Sum::Inr(v),
@@ -642,8 +645,8 @@ fn dst_reg(
     webs: &Vec<Web>,
     web_to_reg: &HashMap<u32, Reg>,
 ) -> Sum<Reg, MemVarLabel> {
-    println!("v, i, webs: {v:?}, {i:?}, {webs:?}");
-    println!("get_dst_web(v, i, webs): {:?}", get_dst_web(v, i, webs));
+    // println!("v, i, webs: {v:?}, {i:?}, {webs:?}");
+    // println!("get_dst_web(v, i, webs): {:?}", get_dst_web(v, i, webs));
     match get_dst_web(v, i, webs) {
         Some(j) => Sum::Inl(*web_to_reg.get(&j).unwrap()),
         None => Sum::Inr(v),
@@ -709,9 +712,16 @@ fn all_mem_vars(m: &cfg::CfgMethod<VarLabel>) -> HashMap<u32, (CfgType, String)>
     for (_, blk) in m.blocks.iter() {
         for insn in blk.body.iter() {
             match insn {
-                Instruction::Spill { mem_var, ord_var } => {
-                    ret.insert(*mem_var, m.fields.get(ord_var).unwrap().clone());
-                }
+                Instruction::Spill { mem_var, ord_var } => match m.fields.get(ord_var) {
+                    Some(stuff) => {
+                        ret.insert(*mem_var, stuff.clone());
+                    }
+                    None => {
+                        println!("the variable {ord_var} cant be found");
+                        println!("{}", m);
+                        panic!();
+                    }
+                },
                 _ => (),
             }
         }
@@ -723,14 +733,15 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, M
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let regs = vec![Reg::R12, Reg::R13, Reg::R14];
     let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, regs.len() as u32);
+    println!("webs: {webs:?}");
     let web_to_reg = web_to_regnum
         .into_iter()
         .map(|(k, n)| (k, *regs.get(n as usize).unwrap()))
         .collect();
-    println!("web_to_reg: {:?}", web_to_reg);
-    println!("before renaming: {spilled_method}");
+    // println!("web_to_reg: {:?}", web_to_reg);
+    // println!("before renaming: {spilled_method}");
     let x = to_regs(spilled_method, web_to_reg, webs);
-    println!("after renaming: {x}");
+    // println!("after renaming: {x}");
     x
 }
 
@@ -837,8 +848,8 @@ mod tests {
             get_uses(&m, 1, InsnLoc { blk: 0, idx: 0 }),
             hashset! {InsnLoc { blk: 0, idx: 3 }, InsnLoc { blk: 0, idx: 2 }, InsnLoc { blk: 0, idx: 4 }}
         );
-        println!("graph: {:?}", interference_graph(&mut m.clone()));
-        println!("coloring: {:?}", reg_alloc(&mut m.clone(), 2));
+        // println!("graph: {:?}", interference_graph(&mut m.clone()));
+        // println!("coloring: {:?}", reg_alloc(&mut m.clone(), 2));
         // println!("{:?}", regalloc_method(m));
     }
 }
