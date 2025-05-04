@@ -729,7 +729,39 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, M
     x
 }
 
+fn lower_calls_insn(i: VInstruction) -> Vec<VInstruction> {
+    if let Instruction::Call(name, args, dest) = i {
+        todo!()
+    } else {
+        vec![i]
+    }
+}
+
+fn method_map(
+    mut m: cfg::CfgMethod<VarLabel>,
+    f: impl Fn(VInstruction) -> Vec<VInstruction>,
+) -> cfg::CfgMethod<VarLabel> {
+    m.blocks = m
+        .blocks
+        .into_iter()
+        .map(|(lbl, mut blk)| {
+            blk.body = blk.body.into_iter().flat_map(&f).collect();
+            (lbl, blk)
+        })
+        .collect();
+    m
+}
+
+fn prog_map(
+    mut p: cfg::CfgProgram<VarLabel>,
+    f: impl Fn(cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<VarLabel>,
+) -> cfg::CfgProgram<VarLabel> {
+    p.methods = p.methods.into_iter().map(f).collect();
+    p
+}
+
 pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<Sum<Reg, MemVarLabel>> {
+    let p = prog_map(p, |m| method_map(m, lower_calls_insn));
     cfg::CfgProgram {
         externals: p.externals,
         global_fields: p.global_fields,
