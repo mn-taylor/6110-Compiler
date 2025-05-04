@@ -367,17 +367,10 @@ fn color_not_in_set(num_colors: u32, s: HashSet<u32>) -> u32 {
     *all_colors.difference(&s).collect::<Vec<_>>().pop().unwrap()
 }
 
-fn argmax<T>(mut l: impl Iterator<Item = T>, f: impl Fn(&T) -> u32) -> T {
-    let mut arg = l.next().unwrap();
-    for new_arg in l {
-        if f(&new_arg) > f(&arg) {
-            arg = new_arg;
-        }
-    }
-    arg
-}
-
-fn color(mut g: HashMap<u32, HashSet<u32>>, num_colors: u32) -> Result<HashMap<u32, u32>, u32> {
+fn color(
+    mut g: HashMap<u32, HashSet<u32>>,
+    num_colors: u32,
+) -> Result<HashMap<u32, u32>, Vec<u32>> {
     let mut color_later = Vec::new();
 
     loop {
@@ -407,8 +400,10 @@ fn color(mut g: HashMap<u32, HashSet<u32>>, num_colors: u32) -> Result<HashMap<u
         // return an assignment of colors
         Ok(colors)
     } else {
-        // of the nodes that could not be colored, return the one with the highest degree
-        Err(*argmax(g.keys(), |x| g.get(x).unwrap().len() as u32))
+        // return the nodes that could not be colored, sorted in order of how nice it'd be to color them
+        let mut to_color: Vec<_> = g.keys().map(|x| *x).collect();
+        to_color.sort_by_key(|x| g.get(x).unwrap().len() as u32);
+        Err(to_color)
     }
 }
 
@@ -463,6 +458,17 @@ fn spill_web(m: &mut cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLa
     return new_method;
 }
 
+fn is_trivial(w: &Web) -> bool {
+    if w.uses.len() == 1 && w.defs.len() == 1 {
+        let the_use = w.uses.clone().pop().unwrap();
+        let the_def = w.defs.clone().pop().unwrap();
+        the_use.blk == the_def.blk
+            && (the_use.idx == the_def.idx + 1 || the_use.idx == the_def.idx + 2)
+    } else {
+        false
+    }
+}
+
 fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>, Vec<Web>) {
     let mut new_method = m.clone();
     // try to color the graph
@@ -472,15 +478,24 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>,
             Ok(web_coloring) => {
                 return (new_method.clone(), web_coloring, webs);
             }
-            Err(thing_to_spill) => {
-                println!("spilling {thing_to_spill}");
-                println!("webs: {webs:?}");
-                println!("interfer_graph: {interfer_graph:?}");
-                println!("method is {new_method}");
-                new_method = spill_web(
-                    &mut new_method,
-                    webs.get(thing_to_spill as usize).unwrap().clone(),
-                );
+            Err(things_to_spill) => {
+                let mut spillable = None;
+                for web_to_spill in things_to_spill {
+                    if !is_trivial(webs.get(web_to_spill as usize).unwrap()) {
+                        spillable = Some(webs.get(web_to_spill as usize).unwrap());
+                        break;
+                    }
+                }
+                match spillable {
+                    Some(spillable) => {
+                        println!("spilling {spillable:?}");
+                        println!("webs: {webs:?}");
+                        println!("interfer_graph: {interfer_graph:?}");
+                        println!("method is {new_method}");
+                        new_method = spill_web(&mut new_method, spillable.clone());
+                    }
+                    None => panic!("nothing to spill"),
+                }
             }
         }
     }
