@@ -22,8 +22,8 @@ impl<VarLabel: fmt::Debug + fmt::Display> fmt::Display for CfgMethod<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Method: {}", self.name)?;
         // writeln!(f, "Fields: {:?}", self.fields)?;
-        for block in self.blocks.values() {
-            writeln!(f, "{}", block)?;
+        for (lbl, block) in self.blocks.iter() {
+            writeln!(f, "block {lbl}:\n{}", block)?;
         }
         Ok(())
     }
