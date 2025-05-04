@@ -731,11 +731,15 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, M
 
 fn lower_calls_insn(i: VInstruction) -> Vec<VInstruction> {
     if let Instruction::Call(name, args, dest) = i {
-        let mut insns: Vec<_> = args
-            .into_iter()
-            .enumerate()
-            .map(|(n, arg)| Instruction::StoreParam(n as u16, arg))
-            .collect();
+        let mut insns: Vec<_> = vec![];
+        if args.len() % 2 == 1 && args.len() >= 6 {
+            insns.push(Instruction::StoreParam(7, Arg::VarArg(ImmVar::Imm(0))))
+        }
+        insns.extend(
+            args.into_iter()
+                .enumerate()
+                .map(|(n, arg)| Instruction::StoreParam(n as u16, arg)),
+        );
         insns.push(Instruction::NoArgsCall(name, dest));
         insns
     } else {
