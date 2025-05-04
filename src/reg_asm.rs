@@ -1251,8 +1251,20 @@ fn asm_instruction(
 
             instructions
         }
-        Instruction::Spill { .. } => panic!(),
-        Instruction::Reload { .. } => panic!(),
+        Instruction::Spill { ord_var, mem_var } => {
+            let ord_var = match ord_var {
+                Sum::Inl(ord_var) => ord_var,
+                Sum::Inr(_) => panic!("should be local"),
+            };
+            vec![store_from_reg(ord_var, mem_var, stack_lookup)]
+        }
+        Instruction::Reload { ord_var, mem_var } => {
+            let ord_var = match ord_var {
+                Sum::Inl(ord_var) => ord_var,
+                Sum::Inr(_) => panic!("should be local"),
+            };
+            vec![load_into_reg(ord_var, mem_var, stack_lookup)]
+        }
         Instruction::MemPhiExpr { .. } => panic!(),
         Instruction::LoadParam { param, dest } => {
             // read parameters from registers and/or stack

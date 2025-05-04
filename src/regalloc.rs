@@ -629,8 +629,14 @@ fn insn_map<T, U>(
         },
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::Ret(opt_ret_val) => Instruction::Ret(opt_ret_val.map(|x| imm_map(x, src_fun))),
-        Instruction::Spill { .. } => panic!(),
-        Instruction::Reload { .. } => panic!(),
+        Instruction::Spill { ord_var, mem_var } => Instruction::Spill {
+            ord_var: src_fun(ord_var),
+            mem_var,
+        },
+        Instruction::Reload { ord_var, mem_var } => Instruction::Reload {
+            ord_var: dst_fun(ord_var),
+            mem_var,
+        },
         Instruction::MemPhiExpr { .. } => panic!(),
     }
 }
@@ -698,6 +704,7 @@ fn to_regs(
     web_to_reg: HashMap<u32, Reg>,
     webs: Vec<Web>,
 ) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
+    let new_fields = all_mem_vars(&m);
     let new_blocks = m.blocks.into_iter().map(|(lbl, blk)| {
         (
             lbl,
@@ -736,13 +743,29 @@ fn to_regs(
         fields: m
             .fields
             .into_iter()
-            .filter_map(|(v, (t, hl_name))| match t {
-                CfgType::Scalar(_) => None,
-                CfgType::Array(_, _) => Some((v, (t, hl_name))),
+            .filter(|(_, (t, _))| match t {
+                CfgType::Scalar(_) => false,
+                CfgType::Array(_, _) => true,
             })
+            .chain(new_fields.into_iter())
             .collect(),
         return_type: m.return_type,
     }
+}
+
+fn all_mem_vars(m: &cfg::CfgMethod<VarLabel>) -> HashMap<u32, (CfgType, String)> {
+    let mut ret = HashMap::new();
+    for (_, blk) in m.blocks.iter() {
+        for insn in blk.body.iter() {
+            match insn {
+                Instruction::Spill { mem_var, ord_var } => {
+                    ret.insert(*mem_var, m.fields.get(ord_var).unwrap().clone());
+                }
+                _ => (),
+            }
+        }
+    }
+    ret
 }
 
 fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
