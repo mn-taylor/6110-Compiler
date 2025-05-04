@@ -1163,7 +1163,7 @@ fn asm_instruction(
         }
         Instruction::Call(func_name, args, ret_dest) => {
             let mut instructions = vec![];
-            let mut argument_registers: Vec<Reg> = vec![R9, R8, Rcx, Rdx, Rsi, Rdi];
+            let mut argument_registers = vec![R9, R8, Rcx, Rdx, Rsi, Rdi];
 
             if args.len() % 2 == 1 && args.len() >= 6 {
                 instructions.push(insn(("subq", 8, Rsp)));
@@ -1256,7 +1256,7 @@ fn asm_instruction(
         Instruction::MemPhiExpr { .. } => panic!(),
         Instruction::LoadParam { param, dest } => {
             // read parameters from registers and/or stack
-            let argument_registers = vec![R9, R8, Rcx, Rdx, Rsi, Rdi];
+            let argument_registers = vec![Rdi, Rsi, Rdx, Rcx, R8, R9];
             if param < 6 {
                 let reg: Reg = *argument_registers.get(param as usize).unwrap();
                 vec![store_from_reg_var(reg, dest, &stack_lookup)]
