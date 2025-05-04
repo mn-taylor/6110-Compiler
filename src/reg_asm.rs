@@ -1052,7 +1052,7 @@ fn asm_instruction(
         }
         Instruction::StoreParam(param_num, arg) => {
             let mut instructions = vec![];
-            let mut argument_registers = vec![R9, R8, Rcx, Rdx, Rsi, Rdi];
+            let mut argument_registers = vec![Rdi, Rsi, Rdx, Rcx, R8, R9];
 
             match arg {
                 Arg::VarArg(label) => {
@@ -1084,7 +1084,7 @@ fn asm_instruction(
                     }
                 }
                 Arg::StrArg(string) => {
-                    let arg_reg = argument_registers.pop();
+                    let arg_reg = argument_registers.get(param_num as usize).copied();
 
                     match arg_reg {
                         Some(reg) => {
