@@ -1,5 +1,4 @@
 use crate::cfg_build::{BasicBlock, VarLabel};
-use crate::ssa_construct::get_graph;
 use crate::{cfg, deadcode, reg_asm, scan};
 use cfg::{Arg, BlockLabel, CfgType, ImmVar, MemVarLabel};
 use maplit::hashset;
@@ -165,11 +164,8 @@ fn get_insn_dest(insn: &VInstruction) -> Option<VarLabel> {
 
 fn get_uses(m: &CfgMethod, x: VarLabel, i: InsnLoc) -> HashSet<InsnLoc> {
     let mut uses = HashSet::new();
-    let mut seen = hashset! {i};
-    let mut next: Vec<_> = get_children(m, i)
-        .into_iter()
-        .filter(|i| !seen.contains(i))
-        .collect();
+    let mut seen = hashset! {};
+    let mut next: Vec<_> = get_children(m, i);
     while let Some(v) = next.pop() {
         seen.insert(v);
         let insn = get_insn(m, v);
@@ -249,150 +245,80 @@ fn get_webs(m: &CfgMethod) -> Vec<Web> {
     webs
 }
 
-fn contains_def(block: &BasicBlock, var: VarLabel, after: usize) -> bool {
-    for (i, instr) in block.body.iter().enumerate() {
-        if i <= after {
-            continue;
-        }
-        match get_insn_dest(instr) {
-            Some(v) => {
-                if var == v {
-                    return true;
-                }
-            }
-            None => (),
+fn all_insn_locs(m: &CfgMethod) -> HashSet<InsnLoc> {
+    let mut ret = HashSet::new();
+    for (bid, blk) in m.blocks.iter() {
+        for i in 0..(blk.body.len() + 1) {
+            ret.insert(InsnLoc { blk: *bid, idx: i });
         }
     }
-    return false;
+    ret
+}
+
+fn insn_loc_graph_reversed(m: &CfgMethod) -> HashMap<InsnLoc, HashSet<InsnLoc>> {
+    let mut ret = HashMap::new();
+    for iloc in all_insn_locs(m) {
+        ret.insert(iloc, HashSet::new());
+    }
+    for iloc in all_insn_locs(m) {
+        for child in get_children(m, iloc) {
+            ret.get_mut(&child).unwrap().insert(iloc);
+        }
+    }
+    ret
+}
+
+fn reachable_from_defs(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
+    let mut reachable = HashSet::new();
+    let mut next: Vec<_> = web
+        .defs
+        .iter()
+        .map(|i| get_children(m, *i))
+        .flatten()
+        .collect();
+    let mut seen = HashSet::new();
+    while let Some(v) = next.pop() {
+        seen.insert(v);
+        // let insn = get_insn(m, v);
+        reachable.insert(v);
+        // if get_dest(&insn) != Some(web.var) {
+        next.append(
+            &mut get_children(m, v)
+                .into_iter()
+                .filter(|i| !seen.contains(i))
+                .collect(),
+        );
+        // }
+    }
+    reachable
+}
+
+fn reaches_a_use(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
+    let mut reaches_a_use = HashSet::new();
+    let g = insn_loc_graph_reversed(m);
+    let mut next: Vec<_> = web.uses.clone();
+    let mut seen = HashSet::new();
+    while let Some(v) = next.pop() {
+        seen.insert(v);
+        reaches_a_use.insert(v);
+        next.append(
+            &mut g
+                .get(&v)
+                .unwrap()
+                .into_iter()
+                .map(|i| *i)
+                .filter(|i| !seen.contains(i))
+                .collect(),
+        );
+    }
+    reaches_a_use
 }
 
 fn find_inter_instructions(m: &mut CfgMethod, web: &Web) -> HashSet<InsnLoc> {
-    let g = get_graph(m);
-
-    let mut all_instructions = hashset! {};
-    let target_blocks: HashSet<usize> = web.uses.iter().map(|InsnLoc { blk, .. }| *blk).collect();
-
-    // find all instructions/blocks that lie on some path from a def to a use.
-    // find all blocks that are reachable from the def, then find all blocks that can reach a use.
-    let mut reachable_from_defs = hashset! {}; // blocks to consider
-
-    for def in web.defs.iter() {
-        let InsnLoc { blk: bid, idx: iid } = def;
-
-        let mut agenda: Vec<(usize, usize)> = vec![(*bid, *iid)];
-        let mut seen: HashSet<usize> = hashset! {};
-        while agenda.len() != 0 {
-            let (curr_block, curr_instr) = agenda.pop().unwrap();
-            if seen.contains(&curr_block) {
-                continue;
-            };
-            reachable_from_defs.insert(curr_block);
-
-            // check if curr contains a redifinition of
-            if !contains_def(m.blocks.get(&curr_block).unwrap(), web.var, curr_instr) {
-                let children: Vec<(usize, usize)> = g
-                    .get(&curr_block)
-                    .unwrap()
-                    .iter()
-                    .map(|c| (*c, 0))
-                    .collect(); // start at the top of child blocks
-                agenda.extend(children)
-            }
-
-            seen.insert(curr_block);
-        }
-    }
-
-    let mut can_reach_use: HashSet<BlockLabel> = hashset! {};
-    for block in reachable_from_defs.iter() {
-        if can_reach_use.contains(&block) {
-            continue;
-        };
-
-        let mut agenda = vec![block];
-        let mut seen = hashset! {};
-        while agenda.len() != 0 {
-            let curr_block = agenda.pop().unwrap();
-            if seen.contains(&curr_block) {
-                continue;
-            } else {
-                seen.insert(curr_block);
-            }
-
-            if target_blocks.contains(&curr_block) {
-                can_reach_use.insert(*block);
-                break;
-            } else {
-                let children = g.get(&curr_block).unwrap().iter().collect::<Vec<_>>();
-                agenda.extend(children)
-            }
-        }
-    }
-
-    let blocks_of_interest: HashSet<usize> = reachable_from_defs
-        .intersection(&can_reach_use)
-        .cloned()
-        .collect();
-
-    for bid in blocks_of_interest.iter() {
-        // check if it contains a def
-        let potential_start = web
-            .defs
-            .iter()
-            .find(|InsnLoc { blk, .. }| blk == bid)
-            .cloned();
-
-        let starting_idx = match potential_start {
-            Some(InsnLoc { blk: _, idx: iid }) => iid,
-            None => 0,
-        };
-
-        let mut start = starting_idx;
-        for (i, _) in m.blocks.get(bid).unwrap().body.iter().enumerate() {
-            if i < starting_idx {
-                continue;
-            }
-
-            if web.uses.contains(&InsnLoc { blk: *bid, idx: i }) {
-                all_instructions.extend(
-                    (start..i + 1)
-                        .collect::<Vec<_>>()
-                        .iter()
-                        .map(|c| InsnLoc { blk: *bid, idx: *c }),
-                );
-                start = i + 1;
-            }
-
-            if i == m.blocks.get(bid).unwrap().body.len() - 1 {
-                if web.uses.contains(&InsnLoc {
-                    blk: *bid,
-                    idx: i + 1,
-                }) {
-                    // jump instruction
-                    all_instructions.extend(
-                        (start..i + 2)
-                            .collect::<Vec<_>>()
-                            .iter()
-                            .map(|c| InsnLoc { blk: *bid, idx: *c }),
-                    );
-                } else {
-                    // check if the remaining instruction are on a path to a use.
-                    let children = g.get(bid).unwrap();
-                    if !children.is_disjoint(&can_reach_use) {
-                        // add all of the remaining instructions
-                        all_instructions.extend(
-                            (start..i + 2)
-                                .collect::<Vec<_>>()
-                                .iter()
-                                .map(|c| InsnLoc { blk: *bid, idx: *c }),
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    all_instructions
+    reaches_a_use(m, web)
+        .intersection(&reachable_from_defs(m, web))
+        .map(|i| *i)
+        .collect()
 }
 
 fn distinct_pairs<'a, T>(l: &'a Vec<T>) -> Vec<(u32, &'a T, u32, &'a T)> {
