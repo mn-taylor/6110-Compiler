@@ -8,6 +8,7 @@ pub mod deadcode;
 // pub mod deepcse;
 pub mod ir;
 pub mod ir_build;
+pub mod licm;
 pub mod metrics;
 pub mod parse;
 pub mod reg_asm;
