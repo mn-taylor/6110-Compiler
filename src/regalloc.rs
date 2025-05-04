@@ -595,7 +595,7 @@ fn insn_map<T, U>(
             args.into_iter()
                 .map(|a| arg_map(a, &src_fun))
                 .collect::<Vec<_>>(),
-            opt_ret_val.map(&src_fun),
+            opt_ret_val.map(&dst_fun),
         ),
         Instruction::Constant { dest, constant } => Instruction::Constant {
             dest: dst_fun(dest),
@@ -752,7 +752,10 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, M
         .map(|(k, n)| (k, *regs.get(n as usize).unwrap()))
         .collect();
     println!("web_to_reg: {:?}", web_to_reg);
-    to_regs(spilled_method, web_to_reg, webs)
+    println!("before renaming: {spilled_method}");
+    let x = to_regs(spilled_method, web_to_reg, webs);
+    println!("after renaming: {x}");
+    x
 }
 
 pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<Sum<Reg, MemVarLabel>> {

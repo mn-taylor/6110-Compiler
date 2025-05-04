@@ -1262,11 +1262,14 @@ fn asm_instruction(
                 vec![store_from_reg_var(reg, dest, &stack_lookup)]
             } else {
                 // read parameters off of the stack
-                vec![insn((
-                    "movq",
-                    (16 + 8 * (num_params as i64 - 1 - param as i64), Rbp),
-                    Rax,
-                ))]
+                vec![
+                    insn((
+                        "movq",
+                        (16 + 8 * (num_params as i64 - 1 - param as i64), Rbp),
+                        Rax,
+                    )),
+                    store_from_reg_var(Rax, dest, &stack_lookup),
+                ]
             }
         }
     }
