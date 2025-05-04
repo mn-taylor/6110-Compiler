@@ -279,16 +279,16 @@ fn reachable_from_defs(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
     let mut seen = HashSet::new();
     while let Some(v) = next.pop() {
         seen.insert(v);
-        // let insn = get_insn(m, v);
         reachable.insert(v);
-        // if get_dest(&insn) != Some(web.var) {
-        next.append(
-            &mut get_children(m, v)
-                .into_iter()
-                .filter(|i| !seen.contains(i))
-                .collect(),
-        );
-        // }
+        let insn = get_insn(m, v);
+        if get_dest(&insn) != Some(web.var) {
+            next.append(
+                &mut get_children(m, v)
+                    .into_iter()
+                    .filter(|i| !seen.contains(i))
+                    .collect(),
+            );
+        }
     }
     reachable
 }
@@ -301,15 +301,18 @@ fn reaches_a_use(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
     while let Some(v) = next.pop() {
         seen.insert(v);
         reaches_a_use.insert(v);
-        next.append(
-            &mut g
-                .get(&v)
-                .unwrap()
-                .into_iter()
-                .map(|i| *i)
-                .filter(|i| !seen.contains(i))
-                .collect(),
-        );
+        let insn = get_insn(m, v);
+        if get_dest(&insn) != Some(web.var) {
+            next.append(
+                &mut g
+                    .get(&v)
+                    .unwrap()
+                    .into_iter()
+                    .map(|i| *i)
+                    .filter(|i| !seen.contains(i))
+                    .collect(),
+            );
+        }
     }
     reaches_a_use
 }
@@ -401,6 +404,7 @@ fn color(
         Ok(colors)
     } else {
         // return the nodes that could not be colored, sorted in order of how nice it'd be to color them
+        println!("could not color this: {g:?}");
         let mut to_color: Vec<_> = g.keys().map(|x| *x).collect();
         to_color.sort_by_key(|x| g.get(x).unwrap().len() as u32);
         Err(to_color)
