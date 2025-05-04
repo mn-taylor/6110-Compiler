@@ -601,6 +601,10 @@ fn insn_map<T, U>(
             dest: dst_fun(dest),
             constant,
         },
+        Instruction::LoadParam { dest, param } => Instruction::LoadParam {
+            dest: dst_fun(dest),
+            param,
+        },
         Instruction::MoveOp { source, dest } => Instruction::MoveOp {
             source: imm_map(source, src_fun),
             dest: dst_fun(dest),
@@ -623,7 +627,9 @@ fn insn_map<T, U>(
         },
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::Ret(opt_ret_val) => Instruction::Ret(opt_ret_val.map(|x| imm_map(x, src_fun))),
-        _ => panic!("?"),
+        Instruction::Spill { .. } => panic!(),
+        Instruction::Reload { .. } => panic!(),
+        Instruction::MemPhiExpr { .. } => panic!(),
     }
 }
 

@@ -161,6 +161,10 @@ fn destruct_instruction(
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
             constant: constant,
         }],
+        Instruction::LoadParam { dest, param } => vec![Instruction::LoadParam {
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
+            param,
+        }],
         Instruction::MoveOp { source, dest } => vec![Instruction::MoveOp {
             source: convert_imm_var_name(&source, coallesced_name, lookup, all_fields),
             dest: convert_name(&dest, coallesced_name, lookup, all_fields),
@@ -194,7 +198,9 @@ fn destruct_instruction(
             )))],
             None => vec![Instruction::Ret(None)],
         },
-        _ => panic!("Register Allocation not implemented yet"),
+        Instruction::Spill { .. } => panic!(),
+        Instruction::Reload { .. } => panic!(),
+        Instruction::MemPhiExpr { .. } => panic!(),
     }
 }
 

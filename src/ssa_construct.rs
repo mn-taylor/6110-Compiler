@@ -570,7 +570,17 @@ fn rewrite_instr(
                 sources: new_sources,
             }
         }
-        _ => panic!("Should not do register allocation before performing optimizations"),
+        Instruction::LoadParam { param, dest } => {
+            let new_dest = rewrite_dest(*dest, reaching_defs, latest_defs, all_fields, block_id);
+
+            Instruction::LoadParam {
+                dest: new_dest,
+                param: *param,
+            }
+        }
+        Instruction::Spill { .. } => panic!(),
+        Instruction::Reload { .. } => panic!(),
+        Instruction::MemPhiExpr { .. } => panic!(),
     }
 }
 
