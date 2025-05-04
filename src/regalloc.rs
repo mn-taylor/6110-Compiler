@@ -102,6 +102,7 @@ fn get_insn_sources(insn: &VInstruction) -> HashSet<VarLabel> {
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::MemPhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
+        Instruction::LoadParam { .. } => hashset! {},
         Instruction::ArrayAccess { idx, .. } => imm_var_sources(idx).into_iter().collect(),
         Instruction::Call(_, args, _) => {
             args.into_iter().flat_map(|a| get_arg_sources(a)).collect()
@@ -148,6 +149,7 @@ fn get_insn_dest(insn: &VInstruction) -> Option<VarLabel> {
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::MemPhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
+        Instruction::LoadParam { dest, .. } => Some(*dest),
         Instruction::ArrayAccess { dest, .. } => Some(*dest),
         Instruction::Call(_, _, dest) => *dest,
         Instruction::Constant { dest, .. } => Some(*dest),
@@ -692,8 +694,6 @@ fn to_regs(
         (
             lbl,
             cfg::BasicBlock::<Sum<Reg, MemVarLabel>> {
-                parents: vec![],
-                block_id: blk.block_id,
                 jump_loc: jump_map(blk.jump_loc, |v| {
                     src_reg(
                         v,
@@ -723,7 +723,7 @@ fn to_regs(
     });
     cfg::CfgMethod::<Sum<Reg, MemVarLabel>> {
         name: m.name,
-        params: m.params, // TODO i dont think we're handling these correctly at all... maybe just try testing some no-parameter methods first.
+        num_params: m.num_params,
         blocks: new_blocks.collect(),
         fields: m
             .fields
@@ -765,12 +765,9 @@ mod tests {
     fn easy() {
         let m = cfg::CfgMethod {
             name: "".to_string(),
-            params: vec![],
             blocks: vec![(
                 0,
                 BasicBlock {
-                    parents: vec![],
-                    block_id: 0,
                     jump_loc: Jump::Nowhere,
                     body: vec![
                         Instruction::Constant {
@@ -796,6 +793,10 @@ mod tests {
                         Instruction::MoveOp {
                             source: Var(1),
                             dest: 2,
+                        },
+                        Instruction::MoveOp {
+                            source: Var(2),
+                            dest: 1,
                         },
                     ],
                 },

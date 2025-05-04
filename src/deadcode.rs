@@ -129,7 +129,7 @@ pub fn get_dest<T: Copy>(instruction: &Instruction<T>) -> Option<T> {
 pub fn dead_code_elimination(m: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMethod<SSAVarLabel> {
     let mut new_method: cfg::CfgMethod<SSAVarLabel> = cfg::CfgMethod {
         name: m.name.clone(),
-        params: m.params.clone(),
+        num_params: m.num_params,
         blocks: hashmap! {},
         fields: m.fields.clone(),
         return_type: m.return_type.clone(),

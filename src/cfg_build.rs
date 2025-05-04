@@ -16,6 +16,7 @@ pub type Arg = cfg::Arg<VarLabel>;
 pub type Instruction = cfg::Instruction<VarLabel>;
 pub type CfgMethod = cfg::CfgMethod<VarLabel>;
 pub type CfgProgram = cfg::CfgProgram<VarLabel>;
+use maplit::hashset;
 use std::collections::VecDeque;
 
 struct State {
@@ -28,9 +29,8 @@ struct State {
 }
 
 impl State {
-    fn add_block(&mut self, mut b: BasicBlock) -> BlockLabel {
+    fn add_block(&mut self, b: BasicBlock) -> BlockLabel {
         let id = self.all_blocks.len();
-        b.block_id = id;
         let not_already_in = self.all_blocks.insert(id, b).is_none();
         assert!(not_already_in, "should be generating a unique label (you should not be calling this function after removing some blocks)");
         id
@@ -65,7 +65,7 @@ impl State {
 }
 
 pub fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>) {
-    get_parents(blks);
+    let parents = get_parents(blks);
 
     let mut lbls_set: HashSet<BlockLabel> = blks.keys().map(|x| *x).collect();
     // for each parent, see if we can glue parent with its child
@@ -78,7 +78,7 @@ pub fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>) {
         match parent.jump_loc {
             Jump::Uncond(child_lbl) => {
                 let child = blks.get_mut(&child_lbl).unwrap();
-                if parent_lbl != child_lbl && child.parents.len() == 1 {
+                if parent_lbl != child_lbl && parents.get(&child_lbl).unwrap().len() == 1 {
                     // glue parent with child
                     let mut parent_and_child = parent;
                     parent_and_child.body.append(&mut child.body);
@@ -96,9 +96,6 @@ pub fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>) {
             }
         }
     }
-
-    // fix screwed-up parents
-    get_parents(blks);
 
     // delete disconnected components from blks
     let mut agenda: VecDeque<usize> = VecDeque::from([0]);
@@ -123,34 +120,30 @@ pub fn collapse_jumps(blks: &mut HashMap<BlockLabel, BasicBlock>) {
         }
     }
     blks.retain(|b, _| visited.contains(b));
-
-    // fix screwed-up parents
-    get_parents(blks);
 }
 
-// might be prettier to have parents separate from cfg.  fewer things to worry about.  debatable.
-pub fn get_parents<T>(blocks: &mut HashMap<BlockLabel, cfg::BasicBlock<T>>) {
+pub fn get_parents<T>(
+    blocks: &HashMap<BlockLabel, cfg::BasicBlock<T>>,
+) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut parents = HashMap::new();
     for lbl in blocks.keys() {
-        parents.insert(*lbl, vec![]);
+        parents.insert(*lbl, hashset! {});
     }
     for (parent_label, parent) in blocks.iter() {
         let children = match parent.jump_loc {
-            Jump::Nowhere => vec![],
-            Jump::Uncond(c1) => vec![c1],
+            Jump::Nowhere => hashset! {},
+            Jump::Uncond(c1) => hashset! {c1},
             Jump::Cond {
                 source: _,
                 true_block,
                 false_block,
-            } => vec![true_block, false_block],
+            } => hashset! {true_block, false_block},
         };
         for child in children {
-            parents.get_mut(&child).unwrap().push(*parent_label);
+            parents.get_mut(&child).unwrap().insert(*parent_label);
         }
     }
-    for (child, child_parents) in parents {
-        blocks.get_mut(&child).unwrap().parents = child_parents;
-    }
+    parents
 }
 
 fn type_to_prim(t: Type) -> Primitive {
@@ -165,8 +158,6 @@ fn type_to_prim(t: Type) -> Primitive {
 
 fn new_noop(st: &mut State) -> BlockLabel {
     st.add_block(BasicBlock {
-        parents: vec![],
-        block_id: 0,
         body: vec![],
         jump_loc: Jump::Nowhere,
     })
@@ -223,8 +214,6 @@ pub fn lin_program(program: &Program) -> CfgProgram {
 
 fn block_with_instr(instr: Instruction) -> BasicBlock {
     BasicBlock {
-        parents: vec![],
-        block_id: 0,
         body: vec![instr],
         jump_loc: Jump::Nowhere,
     }
@@ -245,9 +234,25 @@ pub fn lin_method(
         global_fields: global_fields.clone(),
     };
 
-    let fst: usize = new_noop(&mut st);
-    let mut last = fst;
     let method_scope = method.scope(Some(&scope), &mut st.last_name, &mut st.all_fields);
+
+    let params = method.params.iter().map(|c| {
+        let (_, ll_name) = method_scope.lookup(&c.name.val).unwrap();
+        *ll_name
+    });
+
+    let fst: usize = st.add_block(BasicBlock {
+        body: params
+            .enumerate()
+            .map(|(i, name)| Instruction::LoadParam {
+                param: i as u32,
+                dest: name,
+            })
+            .collect(),
+        jump_loc: Jump::Nowhere,
+    });
+
+    let mut last = fst;
 
     for s in method.stmts.iter() {
         let (start, end) = lin_stmt(s, &mut st, &method_scope);
@@ -255,23 +260,12 @@ pub fn lin_method(
         last = end;
     }
 
-    // get low_level_names of all parameters so we can lookup stack offsets at start of method when we asm
-    let params = method
-        .params
-        .iter()
-        .map(|c| {
-            let (_, ll_name) = method_scope.lookup(&c.name.val).unwrap();
-            *ll_name
-        })
-        .collect::<Vec<_>>();
-
     collapse_jumps(&mut st.all_blocks);
-    // get_parents(&mut st.all_blocks);
     CfgMethod {
         name: method.name.val.to_string(),
+        num_params: method.params.len() as u32,
         blocks: st.all_blocks,
         fields: st.all_fields,
-        params: params,
         return_type: method.meth_type.clone(),
     }
 }
@@ -314,8 +308,6 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                 let end = new_noop(st);
                 let temp = st.gen_temp(Primitive::BoolType);
                 let true_branch = st.add_block(BasicBlock {
-                    parents: vec![],
-                    block_id: 0,
                     body: vec![Instruction::Constant {
                         dest: temp.clone(),
                         constant: 1,
@@ -323,16 +315,12 @@ fn lin_expr(e: &Expr, st: &mut State, scope: &Scope) -> (VarLabel, BlockLabel, B
                     jump_loc: Jump::Uncond(end),
                 });
                 let false_branch = st.add_block(BasicBlock {
-                    parents: vec![],
-                    block_id: 0,
                     body: vec![Instruction::Constant {
                         dest: temp.clone(),
                         constant: 0,
                     }],
                     jump_loc: Jump::Uncond(end),
                 });
-
-                print!("{}", end);
 
                 let start = lin_branch(true_branch, false_branch, e, st, scope);
                 (temp, start, end)

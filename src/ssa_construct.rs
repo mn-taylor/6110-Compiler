@@ -136,15 +136,16 @@ pub fn dominator_tree<T>(
     dom_sets: &HashMap<BlockLabel, HashSet<BlockLabel>>,
 ) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut dom_tree: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
+    let parents = get_parents(&m.blocks);
     let blocks = m.blocks.iter();
 
-    for (label, block) in blocks {
+    for (label, _) in blocks {
         // compute the immediate dominator of the block
 
         let mut agenda = vec![];
-        for parent in block.parents.iter() {
+        for parent in parents.get(label).unwrap() {
             if dom_sets.contains_key(&parent) {
-                agenda.push(*parent);
+                agenda.push(parent);
             }
         }
 
@@ -170,16 +171,16 @@ pub fn dominator_tree<T>(
 
                 new_set.insert(*label);
 
-                dom_tree.insert(curr, new_set.clone());
+                dom_tree.insert(*curr, new_set.clone());
                 break;
             }
 
-            seen.insert(curr);
+            seen.insert(*curr);
 
             // add the new parents
-            for parent in m.blocks.get(&curr).unwrap().parents.iter() {
+            for parent in parents.get(&curr).unwrap() {
                 if dom_sets.contains_key(&parent) {
-                    agenda.push(*parent);
+                    agenda.push(parent);
                 }
             }
         }
@@ -226,9 +227,9 @@ pub fn dominance_frontiers(
 
 pub fn get_graph<T>(m: &mut cfg::CfgMethod<T>) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut g: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
-    get_parents(&mut m.blocks);
+    let parents = get_parents(&mut m.blocks);
     for (label, block) in m.blocks.iter() {
-        if block.parents.len() == 0 && *label != 0 {
+        if parents.get(label).unwrap().len() == 0 && *label != 0 {
             // these nodes are never accessed by the program and confuse the computation of dominance sets
             panic!("ssa construction was given a disconnected graph");
         }
@@ -591,7 +592,7 @@ pub fn rename_variables(
 
     let mut ssa_method: cfg::CfgMethod<SSAVarLabel> = cfg::CfgMethod {
         name: method.name.clone(),
-        params: method.params.clone(),
+        num_params: method.num_params,
         fields: method.fields.clone(),
         blocks: HashMap::new(),
         return_type: method.return_type.clone(),
@@ -624,8 +625,6 @@ pub fn rename_variables(
             .collect::<Vec<_>>();
 
         let ssa_block = BasicBlock {
-            parents: curr_block.parents.clone(),
-            block_id: curr,
             body: new_instructions,
             jump_loc: rewrite_jump(
                 curr_block.jump_loc.clone(),
@@ -651,13 +650,15 @@ pub fn rename_variables(
         }
     }
 
+    let parents = get_parents(&ssa_method.blocks);
     // after the loop, we must still indicate the sources for each of the phi nodes.
-    for block in ssa_method.blocks.values_mut() {
+    for (bid, block) in ssa_method.blocks.iter_mut() {
         for instruction in block.body.iter_mut() {
             match instruction {
                 Instruction::PhiExpr { dest, sources } => {
-                    let new_sources = block
-                        .parents
+                    let new_sources = parents
+                        .get(bid)
+                        .unwrap()
                         .iter()
                         .map(|parent| {
                             (

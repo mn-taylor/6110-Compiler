@@ -12,7 +12,7 @@ pub type BlockLabel = usize;
 #[derive(Clone, Debug)]
 pub struct CfgMethod<VarLabel> {
     pub name: String,
-    pub params: Vec<u32>, // was var label but that was unnecessary
+    pub num_params: u32,
     pub blocks: HashMap<BlockLabel, BasicBlock<VarLabel>>,
     pub fields: HashMap<u32, (CfgType, String)>, // ws var label but that was unnecessary
     pub return_type: Option<Primitive>,
@@ -52,8 +52,6 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for CfgProgram<VarLabel> 
 
 #[derive(Clone, Debug)]
 pub struct BasicBlock<VarLabel> {
-    pub parents: Vec<usize>,
-    pub block_id: BlockLabel,
     pub body: Vec<Instruction<VarLabel>>,
     pub jump_loc: Jump<VarLabel>,
 }
@@ -61,8 +59,6 @@ pub struct BasicBlock<VarLabel> {
 impl<VarLabel: fmt::Debug + fmt::Display> fmt::Display for BasicBlock<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "------------------------- \n")?;
-        write!(f, "BasicBlock {} \n", &self.block_id)?;
-        writeln!(f, "  Parents: {:?}", self.parents)?;
         for instr in &self.body {
             writeln!(f, "| {} |", instr)?;
         }
@@ -154,12 +150,10 @@ pub enum Instruction<VarLabel> {
         arr: MemVarLabel,
         idx: ImmVar<VarLabel>,
     },
-    // TODO: have representation of method parameters like this.
-    // LoadParam {
-    //     param: u32,
-    //     dest: VarLabel,
-    // }
-    // ,
+    LoadParam {
+        param: u32,
+        dest: VarLabel,
+    },
     Ret(Option<ImmVar<VarLabel>>),
     Call(String, Vec<Arg<VarLabel>>, Option<VarLabel>),
 }
@@ -226,6 +220,9 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
             }
             Instruction::Reload { ord_var, mem_var } => {
                 write!(f, "Reload t{:?} into t{ord_var}", mem_var)
+            }
+            Instruction::LoadParam { param, dest } => {
+                write!(f, "{dest} <- arg #{param}")
             }
             Instruction::MemPhiExpr { dest, sources } => {
                 let sources_str = sources

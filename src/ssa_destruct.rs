@@ -303,7 +303,7 @@ pub fn destruct(ssa_method: &mut cfg::CfgMethod<SSAVarLabel>) -> CfgMethod {
 
     let mut de_ssa_method: cfg::CfgMethod<VarLabel> = cfg::CfgMethod {
         name: ssa_method.name.clone(),
-        params: ssa_method.params.clone(),
+        num_params: ssa_method.num_params,
         fields: ssa_method.fields.clone(),
         blocks: HashMap::new(),
         return_type: ssa_method.return_type.clone(),
@@ -343,8 +343,6 @@ pub fn destruct(ssa_method: &mut cfg::CfgMethod<SSAVarLabel>) -> CfgMethod {
         }
 
         let mut new_block: BasicBlock<VarLabel> = cfg::BasicBlock {
-            parents: block.parents.clone(),
-            block_id: block.block_id.clone(),
             body: vec![],
             jump_loc: destruct_jump(
                 block.jump_loc.clone(),
@@ -382,11 +380,11 @@ fn change_parent<T>(old: BlockLabel, new: BlockLabel, blk_insns: &mut Vec<Instru
 // algorithm 3.5 of SSA book
 pub fn split_crit_edges(method: &mut cfg::CfgMethod<SSAVarLabel>) {
     let cfg = &mut method.blocks;
-    cfg_build::get_parents(cfg);
+    let parents = cfg_build::get_parents(cfg);
     let all_lbls: HashSet<BlockLabel> = cfg.keys().map(|x| *x).collect();
     for lbl in all_lbls {
         let mut blk = cfg.get(&lbl).unwrap().clone();
-        for parent in blk.parents.iter() {
+        for parent in parents.get(&lbl).unwrap().iter() {
             let new_par_name = cfg.keys().max().unwrap_or(&0) + 1;
             match &mut cfg.get_mut(parent).unwrap().jump_loc {
                 Jump::Nowhere => panic!("parent jumping nowhere?"),
@@ -397,8 +395,6 @@ pub fn split_crit_edges(method: &mut cfg::CfgMethod<SSAVarLabel>) {
                     ..
                 } => {
                     let new_par = BasicBlock::<SSAVarLabel> {
-                        parents: vec![],
-                        block_id: new_par_name,
                         body: vec![],
                         jump_loc: Jump::Uncond(lbl),
                     };

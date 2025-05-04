@@ -175,7 +175,7 @@ pub fn constant_propagation(
 ) -> cfg::CfgMethod<SSAVarLabel> {
     let mut new_method: cfg::CfgMethod<SSAVarLabel> = cfg::CfgMethod {
         name: method.name.clone(),
-        params: method.params.clone(),
+        num_params: method.num_params,
         blocks: HashMap::new(),
         fields: method.fields.clone(),
         return_type: method.return_type.clone(),
@@ -241,8 +241,6 @@ pub fn constant_propagation(
         }
 
         let new_block: BasicBlock<SSAVarLabel> = BasicBlock {
-            parents: block.parents.clone(),
-            block_id: *i,
             body: new_instructions,
             jump_loc: prop_const_jump(block.jump_loc.clone(), &const_lookup),
         };

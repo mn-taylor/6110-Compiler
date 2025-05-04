@@ -485,42 +485,20 @@ pub fn asm_method(
     // allocate space enough space on the stack
     instructions.push(insn(("subq", total_offset as i64, Rsp)));
 
-    // read parameters from registers and/or stack
-    let mut argument_registers: Vec<Reg> =
-        vec![Reg::R9, Reg::R8, Reg::Rcx, Reg::Rdx, Reg::Rsi, Reg::Rdi];
-    for (i, llname) in method.params.iter().enumerate() {
-        if i < 6 {
-            let reg = argument_registers.pop().unwrap();
-            instructions.push(store_from_reg(reg, *llname, &offsets));
-        } else {
-            break;
-        }
-    }
-
-    // read parameters off of the stack
-    for (i, llname) in method.params.iter().enumerate() {
-        if i >= 6 {
-            instructions.push(insn((
-                "movq",
-                (16 + 8 * (method.params.len() as i64 - 1 - i as i64), Rbp),
-                Rax,
-            )));
-            instructions.push(store_from_reg(Reg::Rax, *llname, &offsets));
-        }
-    }
-
     instructions.push(Special(format!("\tjmp {}0", method.name)));
 
     // assemble blocks
-    let mut blocks: Vec<&BasicBlock<Sum<Reg, MemVarLabel>>> =
-        method.blocks.values().collect::<Vec<_>>();
-    blocks.sort_by_key(|c| c.block_id);
+    let mut blocks: Vec<(&usize, &BasicBlock<Sum<Reg, MemVarLabel>>)> =
+        method.blocks.iter().collect::<Vec<_>>();
+    blocks.sort_by_key(|(id, _)| *id);
 
-    for block in blocks {
+    for (id, block) in blocks {
+        instructions.push(Special(format!("{}{}:", &method.name, id)));
         instructions.extend(asm_block(
             block,
             &offsets,
             &method.name,
+            method.num_params,
             method.return_type.clone(),
             external_funcs,
             mac,
@@ -551,6 +529,7 @@ fn asm_block(
     b: &BasicBlock<Sum<Reg, MemVarLabel>>,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
     root: &String,
+    num_params: u32,
     return_type: Option<Primitive>,
     external_funcs: &Vec<String>,
     mac: bool,
@@ -558,15 +537,13 @@ fn asm_block(
 ) -> Vec<Insn> {
     let mut instructions = vec![];
 
-    // make label
-    instructions.push(Special(format!("{}{}:", root, b.block_id)));
-
     // perform instructions
     for instruction in &b.body {
         instructions.extend(asm_instruction(
             stack_lookup,
             instruction.clone(),
             root,
+            num_params,
             external_funcs,
             mac,
             global_strings,
@@ -1035,6 +1012,7 @@ fn asm_instruction(
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
     instr: Instruction<Sum<Reg, MemVarLabel>>,
     root: &String,
+    num_params: u32,
     external_funcs: &Vec<String>,
     mac: bool,
     global_strings: &HashMap<String, usize>,
@@ -1273,6 +1251,23 @@ fn asm_instruction(
 
             instructions
         }
-        _ => panic!("Spills and reloads not implemented"),
+        Instruction::Spill { .. } => panic!(),
+        Instruction::Reload { .. } => panic!(),
+        Instruction::MemPhiExpr { .. } => panic!(),
+        Instruction::LoadParam { param, dest } => {
+            // read parameters from registers and/or stack
+            let argument_registers = vec![R9, R8, Rcx, Rdx, Rsi, Rdi];
+            if param < 6 {
+                let reg: Reg = *argument_registers.get(param as usize).unwrap();
+                vec![store_from_reg_var(reg, dest, &stack_lookup)]
+            } else {
+                // read parameters off of the stack
+                vec![insn((
+                    "movq",
+                    (16 + 8 * (num_params as i64 - 1 - param as i64), Rbp),
+                    Rax,
+                ))]
+            }
+        }
     }
 }

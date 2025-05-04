@@ -110,7 +110,7 @@ fn prop_copies(
 pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMethod<SSAVarLabel> {
     let mut new_method: cfg::CfgMethod<SSAVarLabel> = cfg::CfgMethod {
         name: method.name.clone(),
-        params: method.params.clone(),
+        num_params: method.num_params,
         blocks: HashMap::new(),
         fields: method.fields.clone(),
         return_type: method.return_type.clone(),
@@ -179,8 +179,6 @@ pub fn copy_propagation(method: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
 
         // make new block and add it to new_method
         let new_block: BasicBlock<SSAVarLabel> = cfg::BasicBlock {
-            parents: curr_block.parents.clone(),
-            block_id: curr_block.block_id.clone(),
             body: new_instructions,
             jump_loc: new_jmp,
         };
