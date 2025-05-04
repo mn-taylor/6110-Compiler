@@ -103,9 +103,8 @@ fn get_insn_sources(insn: &VInstruction) -> HashSet<VarLabel> {
         Instruction::ParMov(_) => panic!(),
         Instruction::LoadParam { .. } => hashset! {},
         Instruction::ArrayAccess { idx, .. } => imm_var_sources(idx).into_iter().collect(),
-        Instruction::Call(_, args, _) => {
-            args.into_iter().flat_map(|a| get_arg_sources(a)).collect()
-        }
+        Instruction::Call(_, _, _) => panic!(),
+        Instruction::NoArgsCall(_, _) => hashset! {},
         Instruction::Constant { .. } => hashset! {},
         Instruction::MoveOp { source, .. } => imm_var_sources(source).into_iter().collect(),
         Instruction::ThreeOp {
@@ -148,9 +147,10 @@ fn get_insn_dest(insn: &VInstruction) -> Option<VarLabel> {
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::MemPhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
+        Instruction::NoArgsCall(_, dest) => *dest,
         Instruction::LoadParam { dest, .. } => Some(*dest),
         Instruction::ArrayAccess { dest, .. } => Some(*dest),
-        Instruction::Call(_, _, dest) => *dest,
+        Instruction::Call(_, _, _) => panic!(),
         Instruction::Constant { dest, .. } => Some(*dest),
         Instruction::MoveOp { dest, .. } => Some(*dest),
         Instruction::ThreeOp { dest, .. } => Some(*dest),
@@ -478,6 +478,8 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>,
     // try to color the graph
     loop {
         let (webs, interfer_graph) = interference_graph(&mut new_method);
+        println!("AAAAA interfer_graph: {interfer_graph:?}");
+        println!("AAAAA webs: {webs:?}");
         match color(interfer_graph.clone(), num_regs) {
             Ok(web_coloring) => {
                 return (new_method.clone(), web_coloring, webs);
@@ -493,8 +495,6 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>,
                 match spillable {
                     Some(spillable) => {
                         println!("spilling {spillable:?}");
-                        println!("webs: {webs:?}");
-                        println!("interfer_graph: {interfer_graph:?}");
                         println!("method is {new_method}");
                         new_method = spill_web(&mut new_method, spillable.clone());
                     }
@@ -544,6 +544,7 @@ fn insn_map<T, U>(
                 .collect::<Vec<_>>(),
             opt_ret_val.map(&dst_fun),
         ),
+        Instruction::NoArgsCall(name, dest) => Instruction::NoArgsCall(name, dest.map(dst_fun)),
         Instruction::Constant { dest, constant } => Instruction::Constant {
             dest: dst_fun(dest),
             constant,

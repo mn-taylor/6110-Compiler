@@ -27,6 +27,7 @@ fn prop_copies(
     copy_lookup: &HashMap<SSAVarLabel, SSAVarLabel>,
 ) -> Instruction<SSAVarLabel> {
     match instr {
+        Instruction::NoArgsCall(_, _) => panic!(),
         Instruction::ParMov(_) => todo!(),
         // can be smarter and not call check copy when we know there cant be a copy
         Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {

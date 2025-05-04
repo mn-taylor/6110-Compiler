@@ -480,7 +480,7 @@ pub fn asm_method(
     instructions.push(insn(("pushq", Rbp)));
     instructions.push(insn(("movq", Rsp, Rbp)));
 
-    let (offsets, total_offset) = build_stack(method.fields.clone(), 24);
+    let (offsets, total_offset) = build_stack(method.fields.clone(), 32);
     // println!("offsets: {:?}", offsets);
 
     // allocate space enough space on the stack
@@ -687,7 +687,7 @@ fn store_from_reg_arr(
     match stack_lookup.get(&arrname) {
         Some((_, offset)) => {
             instructions.push(insn(("movq", Rbp, R10)));
-            instructions.push(insn(("subq {}, {}", R9, R10)));
+            instructions.push(insn(("subq", R9, R10)));
             instructions.push(insn(("movq", src, (-(*offset as i64), R10))));
         }
         None => {
@@ -735,18 +735,9 @@ fn store_from_reg_arr_var_imm(
             instructions.push(insn(("salq", 3, R9)));
             instructions.push(insn(("movq", Rbp, R10)));
             instructions.push(insn(("subq", R9, R10)));
-            // instructions.push(format!("\tsubq ${}, {}", index * 8, Reg::R10));
             instructions.push(insn(("movq", src, (-(*offset as i64), R10))));
         }
         None => {
-            // instructions.push(format!(
-            //    "\tleaq (global_var{}(%rip), {}, $16), {}",
-            //    arrname,
-            //    Reg::R9,
-            //    Reg::R9
-            // ));
-            // instructions.push(format!("\tmovq {src}, 0({})", Reg::R9))
-
             instructions.push(insn(("salq", 3, R9)));
             instructions.push(Special(format!(
                 "\tleaq global_var{}(%rip), {}",
@@ -754,9 +745,6 @@ fn store_from_reg_arr_var_imm(
             )));
             instructions.push(insn(("addq", index * 8, R10)));
             instructions.push(insn(("movq", src, (-0, R10))));
-            // instructions.push(format!("\tleaq global_var{}(%rip), {}", arrname, Reg::R10));
-            // instructions.push(format!("\taddq {}, {}", Reg::R10, Reg::R9));
-            // instructions.push(format!("\tmovq {src}, 0({})", Reg::R9))
         }
     }
     instructions
@@ -1030,6 +1018,7 @@ fn asm_instruction(
     match instr {
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
+        Instruction::NoArgsCall(_, _) => panic!(),
         Instruction::ThreeOp {
             source1,
             source2,

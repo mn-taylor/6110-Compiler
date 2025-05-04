@@ -413,6 +413,7 @@ fn rewrite_instr(
     block_id: BlockLabel,
 ) -> Instruction<SSAVarLabel> {
     match instr {
+        Instruction::NoArgsCall(_, _) => panic!(),
         Instruction::ParMov(_) => panic!(),
         Instruction::MoveOp { source, dest } => {
             // replace source by its reaching_def

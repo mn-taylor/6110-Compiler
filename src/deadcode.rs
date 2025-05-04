@@ -10,6 +10,7 @@ pub fn get_sources<VarLabel: Eq + Hash + Copy>(
     instruction: &Instruction<VarLabel>,
 ) -> HashSet<VarLabel> {
     match instruction {
+        Instruction::NoArgsCall(_, _) => panic!(),
         Instruction::PhiExpr { sources, .. } => sources
             .iter()
             .map(|(_, var)| match var {
@@ -133,7 +134,8 @@ pub fn get_dest<T: Copy>(instruction: &Instruction<T>) -> Option<T> {
         Instruction::Spill { .. }
         | Instruction::Reload { .. }
         | Instruction::MemPhiExpr { .. }
-        | Instruction::ParMov { .. } => panic!(),
+        | Instruction::ParMov { .. }
+        | Instruction::NoArgsCall(_, _) => panic!(),
     }
 }
 
