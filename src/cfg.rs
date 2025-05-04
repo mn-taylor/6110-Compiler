@@ -157,6 +157,7 @@ pub enum Instruction<VarLabel> {
     Ret(Option<ImmVar<VarLabel>>),
     Call(String, Vec<Arg<VarLabel>>, Option<VarLabel>),
     NoArgsCall(String, Option<VarLabel>),
+    StoreParam(u16, Arg<VarLabel>),
 }
 
 impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel> {
@@ -237,6 +238,9 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
             }
             Instruction::NoArgsCall(name, dest) => {
                 write!(f, "t{:?} <- call {}", dest, name,)
+            }
+            Instruction::StoreParam(param_num, arg) => {
+                write!(f, "ARG_{param_num} <- {}", arg)
             }
         }
     }

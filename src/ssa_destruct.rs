@@ -120,6 +120,7 @@ fn destruct_instruction(
 ) -> Vec<Instruction<VarLabel>> {
     match instr {
         Instruction::NoArgsCall(_, _) => panic!(),
+        Instruction::StoreParam(_, _) => panic!(),
         Instruction::ParMov(copies) => vec![Instruction::ParMov(
             copies
                 .into_iter()

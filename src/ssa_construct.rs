@@ -414,6 +414,7 @@ fn rewrite_instr(
 ) -> Instruction<SSAVarLabel> {
     match instr {
         Instruction::NoArgsCall(_, _) => panic!(),
+        Instruction::StoreParam(_, _) => panic!(),
         Instruction::ParMov(_) => panic!(),
         Instruction::MoveOp { source, dest } => {
             // replace source by its reaching_def
