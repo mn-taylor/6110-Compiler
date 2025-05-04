@@ -136,16 +136,15 @@ pub fn dominator_tree<T>(
     dom_sets: &HashMap<BlockLabel, HashSet<BlockLabel>>,
 ) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut dom_tree: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
-    let parents = get_parents(&m.blocks);
     let blocks = m.blocks.iter();
 
-    for (label, _) in blocks {
+    for (label, block) in blocks {
         // compute the immediate dominator of the block
 
         let mut agenda = vec![];
-        for parent in parents.get(label).unwrap() {
+        for parent in block.parents.iter() {
             if dom_sets.contains_key(&parent) {
-                agenda.push(parent);
+                agenda.push(*parent);
             }
         }
 
@@ -171,16 +170,16 @@ pub fn dominator_tree<T>(
 
                 new_set.insert(*label);
 
-                dom_tree.insert(*curr, new_set.clone());
+                dom_tree.insert(curr, new_set.clone());
                 break;
             }
 
-            seen.insert(*curr);
+            seen.insert(curr);
 
             // add the new parents
-            for parent in parents.get(&curr).unwrap() {
+            for parent in m.blocks.get(&curr).unwrap().parents.iter() {
                 if dom_sets.contains_key(&parent) {
-                    agenda.push(parent);
+                    agenda.push(*parent);
                 }
             }
         }
@@ -227,9 +226,9 @@ pub fn dominance_frontiers(
 
 pub fn get_graph<T>(m: &mut cfg::CfgMethod<T>) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut g: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
-    let parents = get_parents(&mut m.blocks);
+    get_parents(&mut m.blocks);
     for (label, block) in m.blocks.iter() {
-        if parents.get(label).unwrap().len() == 0 && *label != 0 {
+        if block.parents.len() == 0 && *label != 0 {
             // these nodes are never accessed by the program and confuse the computation of dominance sets
             panic!("ssa construction was given a disconnected graph");
         }
@@ -413,8 +412,6 @@ fn rewrite_instr(
     block_id: BlockLabel,
 ) -> Instruction<SSAVarLabel> {
     match instr {
-        Instruction::NoArgsCall(_, _) => panic!(),
-        Instruction::StoreParam(_, _) => panic!(),
         Instruction::ParMov(_) => panic!(),
         Instruction::MoveOp { source, dest } => {
             // replace source by its reaching_def
@@ -572,17 +569,7 @@ fn rewrite_instr(
                 sources: new_sources,
             }
         }
-        Instruction::LoadParam { param, dest } => {
-            let new_dest = rewrite_dest(*dest, reaching_defs, latest_defs, all_fields, block_id);
-
-            Instruction::LoadParam {
-                dest: new_dest,
-                param: *param,
-            }
-        }
-        Instruction::Spill { .. } => panic!(),
-        Instruction::Reload { .. } => panic!(),
-        Instruction::MemPhiExpr { .. } => panic!(),
+        _ => panic!("Should not do register allocation before performing optimizations"),
     }
 }
 
@@ -604,7 +591,7 @@ pub fn rename_variables(
 
     let mut ssa_method: cfg::CfgMethod<SSAVarLabel> = cfg::CfgMethod {
         name: method.name.clone(),
-        num_params: method.num_params,
+        params: method.params.clone(),
         fields: method.fields.clone(),
         blocks: HashMap::new(),
         return_type: method.return_type.clone(),
@@ -662,15 +649,13 @@ pub fn rename_variables(
         }
     }
 
-    let parents = get_parents(&ssa_method.blocks);
     // after the loop, we must still indicate the sources for each of the phi nodes.
-    for (bid, block) in ssa_method.blocks.iter_mut() {
+    for block in ssa_method.blocks.values_mut() {
         for instruction in block.body.iter_mut() {
             match instruction {
                 Instruction::PhiExpr { dest, sources } => {
-                    let new_sources = parents
-                        .get(bid)
-                        .unwrap()
+                    let new_sources = block
+                        .parents
                         .iter()
                         .map(|parent| {
                             (
@@ -696,6 +681,19 @@ pub fn rename_variables(
     ssa_method
 }
 
+fn prune_phis(m: &mut cfg::CfgMethod<SSAVarLabel>) {
+    // get all variables defined
+    let defns = HashSet<SSAVarLabel>
+    for (id, block) in m.blocks.iter() {
+        for (instr) in block.body  {
+            let dest = get_dest<SSAVarLabel>(instr);
+
+        }
+    }
+
+    // remove variables that are never defined from phi webs
+}
+
 pub fn construct(m: &mut CfgMethod) -> cfg::CfgMethod<SSAVarLabel> {
     // build useful data structures
     let g = get_graph(m);
@@ -706,5 +704,8 @@ pub fn construct(m: &mut CfgMethod) -> cfg::CfgMethod<SSAVarLabel> {
     insert_phis(m);
 
     // Rename Variable
-    rename_variables(m, &dominance_tree)
+    rename_variables(m, &dominance_tree);
+
+    // prune phis: Remove all variables 
+
 }

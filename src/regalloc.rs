@@ -802,6 +802,7 @@ mod tests {
     #[test]
     fn easy() {
         let m = cfg::CfgMethod {
+            num_params: 0,
             name: "".to_string(),
             blocks: vec![(
                 0,
