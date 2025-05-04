@@ -1,4 +1,4 @@
-use crate::cfg_build::{BasicBlock, VarLabel};
+use crate::cfg_build::VarLabel;
 use crate::{cfg, deadcode, reg_asm, scan};
 use cfg::{Arg, BlockLabel, CfgType, ImmVar, MemVarLabel};
 use maplit::hashset;
@@ -98,6 +98,7 @@ fn get_arg_sources(arg: &Arg<VarLabel>) -> Vec<VarLabel> {
 
 fn get_insn_sources(insn: &VInstruction) -> HashSet<VarLabel> {
     match insn {
+        Instruction::StoreParam(_, a) => get_arg_sources(a).into_iter().collect(),
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::MemPhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
@@ -144,6 +145,7 @@ fn get_dest(insn: &Sum<&VInstruction, &Jump>) -> Option<VarLabel> {
 
 fn get_insn_dest(insn: &VInstruction) -> Option<VarLabel> {
     match insn {
+        Instruction::StoreParam(_, _) => None,
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::MemPhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
@@ -526,6 +528,9 @@ fn insn_map<T, U>(
     dst_fun: impl Fn(T) -> U,
 ) -> cfg::Instruction<U> {
     match instr {
+        cfg::Instruction::StoreParam(param, a) => {
+            Instruction::StoreParam(param, arg_map(a, src_fun))
+        }
         cfg::Instruction::ParMov(_) => panic!(),
         cfg::Instruction::ArrayAccess { dest, name, idx } => Instruction::ArrayAccess {
             dest: dst_fun(dest),
