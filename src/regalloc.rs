@@ -548,6 +548,8 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>,
             }
             Err(thing_to_spill) => {
                 println!("spilling {thing_to_spill}");
+                println!("webs: {webs:?}");
+                println!("interfer_graph: {interfer_graph:?}");
                 println!("method is {new_method}");
                 new_method = spill_web(
                     &mut new_method,
@@ -745,7 +747,7 @@ fn to_regs(
 
 fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
-    let regs = vec![Reg::R12, Reg::R13];
+    let regs = vec![Reg::R12, Reg::R13, Reg::R14];
     let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, regs.len() as u32);
     let web_to_reg = web_to_regnum
         .into_iter()
