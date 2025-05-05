@@ -519,6 +519,14 @@ fn rewrite_instr(
                 constant: *constant,
             }
         }
+        Instruction::LoadParam { dest, param } => {
+            let new_dest = rewrite_dest(*dest, reaching_defs, latest_defs, all_fields, block_id);
+
+            Instruction::LoadParam {
+                dest: new_dest,
+                param: *param,
+            }
+        }
         Instruction::Call(func_name, args, opt_dest) => {
             let new_args = args
                 .iter()
@@ -571,7 +579,11 @@ fn rewrite_instr(
                 sources: new_sources,
             }
         }
-        _ => panic!("Should not do register allocation before performing optimizations"),
+        Instruction::Spill { .. }
+        | Instruction::Reload { .. }
+        | Instruction::MemPhiExpr { .. }
+        | Instruction::NoArgsCall(_, _)
+        | Instruction::StoreParam(_, _) => panic!(),
     }
 }
 
@@ -688,7 +700,7 @@ pub fn rename_variables(
 fn get_insn_dest<T>(insn: Instruction<T>) -> Option<T> {
     match insn {
         Instruction::StoreParam(_, _) => None,
-        Instruction::PhiExpr { .. } => panic!(),
+        Instruction::PhiExpr { dest, .. } => Some(dest),
         Instruction::MemPhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
         Instruction::NoArgsCall(_, dest) => dest,
