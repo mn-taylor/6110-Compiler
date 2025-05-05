@@ -224,9 +224,9 @@ pub fn dominance_frontiers(
     df
 }
 
-pub fn get_graph<T>(m: &mut cfg::CfgMethod<T>) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
+pub fn get_graph<T>(m: &cfg::CfgMethod<T>) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
     let mut g: HashMap<BlockLabel, HashSet<BlockLabel>> = HashMap::new();
-    let parents = get_parents(&mut m.blocks);
+    let parents = get_parents(&m.blocks);
     for (label, block) in m.blocks.iter() {
         if parents.get(label).unwrap().len() == 0 && *label != 0 {
             // these nodes are never accessed by the program and confuse the computation of dominance sets

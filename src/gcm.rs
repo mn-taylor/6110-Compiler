@@ -1,6 +1,6 @@
 use crate::regalloc::get_insn;
 // following https://courses.cs.washington.edu/courses/cse501/06wi/reading/click-pldi95.pdf
-use crate::{cfg, regalloc, scan};
+use crate::{cfg, regalloc, scan, ssa_construct};
 use cfg::{BlockLabel, CfgMethod, Instruction};
 use regalloc::InsnLoc;
 use scan::Sum;
@@ -23,6 +23,29 @@ fn insn_pinned<T>(insn: &Instruction<T>) -> bool {
     }
 }
 
+fn dominator_tree<T>(m: &CfgMethod<T>) -> HashMap<BlockLabel, HashSet<BlockLabel>> {
+    let g = ssa_construct::get_graph(m);
+    let dom_sets = ssa_construct::dominator_sets(0, &g);
+    ssa_construct::dominator_tree(m, &dom_sets)
+}
+
+fn dom_depths<T>(m: &CfgMethod<T>) -> HashMap<BlockLabel, u32> {
+    let dom_tree = dominator_tree(m);
+    let mut agenda = vec![0];
+    let mut depths = HashMap::from([(0, 0)]);
+    while agenda.len() > 0 {
+        let mut next_level = vec![];
+        for v in agenda {
+            for child in dom_tree.get(&v).unwrap() {
+                depths.insert(*child, *depths.get(&v).unwrap());
+                next_level.push(*child);
+            }
+        }
+        agenda = next_level;
+    }
+    depths
+}
+
 // see definition of "pinned" on page 249
 fn pinned<T>(insn_loc: InsnLoc, m: &CfgMethod<T>) -> bool {
     match regalloc::get_insn(m, insn_loc) {
@@ -40,12 +63,13 @@ pub fn schedule_all_early<T: Copy + Hash + Eq>(m: &CfgMethod<T>) -> HashMap<Insn
         .iter()
         .filter_map(|iloc| regalloc::get_dest(&regalloc::get_insn(m, *iloc)).map(|v| (v, *iloc)))
         .collect();
+    let depths = dom_depths(m);
     for i in all_locs.iter() {
         if pinned(*i, m) {
             done.insert(*i);
             for x in regalloc::get_sources(&get_insn(m, *i)) {
                 let x = *loc_of_lbl.get(&x).unwrap();
-                schedule_early(x, m, &mut done, &mut schedule, &loc_of_lbl);
+                schedule_early(x, m, &mut done, &mut schedule, &loc_of_lbl, &depths);
             }
         }
     }
@@ -58,6 +82,7 @@ fn schedule_early<T: Hash + Copy + Eq>(
     done: &mut HashSet<InsnLoc>,
     schedule: &mut HashMap<InsnLoc, BlockLabel>,
     loc_of_lbl: &HashMap<T, InsnLoc>,
+    depths: &HashMap<BlockLabel, u32>,
 ) {
     if pinned(i, m) || done.contains(&i) {
         return;
@@ -67,9 +92,9 @@ fn schedule_early<T: Hash + Copy + Eq>(
     schedule.insert(i, 0);
     for x in regalloc::get_sources(&get_insn(m, i)) {
         let x = *loc_of_lbl.get(&x).unwrap();
-        schedule_early(x, m, done, schedule, loc_of_lbl);
-        if false
-        /*TODO define dominator depths; cnoditiion is very very wrong*/
+        schedule_early(x, m, done, schedule, loc_of_lbl, depths);
+        if depths.get(schedule.get(&i).unwrap()).unwrap()
+            < depths.get(schedule.get(&x).unwrap()).unwrap()
         {
             schedule.insert(i, *schedule.get(&x).unwrap());
         }
