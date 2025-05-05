@@ -252,6 +252,7 @@ fn main() {
                         }
                     }
 
+                    ssa_construct::prune_phis(&mut ssa_method);
                     ssa_destruct::split_crit_edges(&mut ssa_method);
 
                     if args.debug {

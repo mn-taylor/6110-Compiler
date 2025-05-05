@@ -718,7 +718,7 @@ fn get_insn_dest<T>(insn: Instruction<T>) -> Option<T> {
     }
 }
 
-fn prune_phis(m: &mut cfg::CfgMethod<SSAVarLabel>) {
+pub fn prune_phis(m: &mut cfg::CfgMethod<SSAVarLabel>) {
     // get all variables defined
     let mut defns: HashSet<SSAVarLabel> = HashSet::new();
     for (id, block) in m.blocks.iter() {
@@ -771,7 +771,6 @@ pub fn construct(m: &mut CfgMethod) -> cfg::CfgMethod<SSAVarLabel> {
     let mut new_method = rename_variables(m, &dominance_tree);
 
     // prune phis: Remove all variables
-    prune_phis(&mut new_method);
 
     new_method
 }
