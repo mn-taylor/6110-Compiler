@@ -731,7 +731,7 @@ fn all_mem_vars(m: &cfg::CfgMethod<VarLabel>) -> HashMap<u32, (CfgType, String)>
 
 fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
-    let regs = vec![Reg::R12, Reg::R13, Reg::R14];
+    let regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
     let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, regs.len() as u32);
     println!("webs: {webs:?}");
     let web_to_reg = web_to_regnum

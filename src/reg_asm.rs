@@ -488,15 +488,17 @@ pub fn asm_method(
     instructions.push(insn(("pushq", Rbp)));
     instructions.push(insn(("movq", Rsp, Rbp)));
 
-    let (offsets, total_offset) = build_stack(method.fields.clone(), 32);
+    let (offsets, total_offset) = build_stack(method.fields.clone(), 40);
     // println!("offsets: {:?}", offsets);
 
     // allocate space enough space on the stack
     instructions.push(insn(("subq", total_offset as i64, Rsp)));
     // Should have an even number of regs here for stack alignment
-    instructions.push(insn(("movq", R12, (-8, Rbp))));
-    instructions.push(insn(("movq", R13, (-16, Rbp))));
-    instructions.push(insn(("movq", R14, (-24, Rbp))));
+    instructions.push(insn(("movq", Rbx, (-8, Rbp))));
+    instructions.push(insn(("movq", R12, (-16, Rbp))));
+    instructions.push(insn(("movq", R13, (-24, Rbp))));
+    instructions.push(insn(("movq", R14, (-32, Rbp))));
+    instructions.push(insn(("movq", R15, (-40, Rbp))));
 
     instructions.push(Special(format!("\tjmp {}0", method.name)));
 
@@ -528,9 +530,11 @@ pub fn asm_method(
     // instructions.push(format!("\tmovq {}, {}", Reg::Rbp, Reg::Rsp));
 
     // keep in sync wiht prelude
-    instructions.push(insn(("movq", (-8, Rbp), R12)));
-    instructions.push(insn(("movq", (-16, Rbp), R13)));
-    instructions.push(insn(("movq", (-24, Rbp), R14)));
+    instructions.push(insn(("movq", (-8, Rbp), Rbx)));
+    instructions.push(insn(("movq", (-16, Rbp), R12)));
+    instructions.push(insn(("movq", (-24, Rbp), R13)));
+    instructions.push(insn(("movq", (-32, Rbp), R14)));
+    instructions.push(insn(("movq", (-40, Rbp), R15)));
 
     instructions.push(insn("leave"));
 
