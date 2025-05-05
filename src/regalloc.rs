@@ -43,7 +43,7 @@ fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<InsnLoc>> {
     defs
 }
 
-fn get_insn(m: &CfgMethod, i: InsnLoc) -> Sum<&VInstruction, &Jump> {
+pub fn get_insn<T>(m: &cfg::CfgMethod<T>, i: InsnLoc) -> Sum<&cfg::Instruction<T>, &cfg::Jump<T>> {
     let blk = m.blocks.get(&i.blk).unwrap();
     if blk.body.len() == i.idx {
         Sum::Inr(&blk.jump_loc)
@@ -137,29 +137,29 @@ fn get_sources(insn: &Sum<&VInstruction, &Jump>) -> HashSet<VarLabel> {
     }
 }
 
-pub fn get_dest(insn: &Sum<&VInstruction, &Jump>) -> Option<VarLabel> {
+pub fn get_dest<T: Copy>(insn: &Sum<&cfg::Instruction<T>, &cfg::Jump<T>>) -> Option<T> {
     match insn {
         Sum::Inl(i) => get_insn_dest(i),
         Sum::Inr(_) => None,
     }
 }
 
-fn get_insn_dest(insn: &VInstruction) -> Option<VarLabel> {
-    match insn {
+fn get_insn_dest<T: Copy>(insn: &Instruction<T>) -> Option<T> {
+    match *insn {
         Instruction::StoreParam(_, _) => None,
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
-        Instruction::NoArgsCall(_, dest) => *dest,
-        Instruction::LoadParam { dest, .. } => Some(*dest),
-        Instruction::ArrayAccess { dest, .. } => Some(*dest),
+        Instruction::NoArgsCall(_, dest) => dest,
+        Instruction::LoadParam { dest, .. } => Some(dest),
+        Instruction::ArrayAccess { dest, .. } => Some(dest),
         Instruction::Call(_, _, _) => panic!(),
-        Instruction::Constant { dest, .. } => Some(*dest),
-        Instruction::MoveOp { dest, .. } => Some(*dest),
-        Instruction::ThreeOp { dest, .. } => Some(*dest),
-        Instruction::TwoOp { dest, .. } => Some(*dest),
+        Instruction::Constant { dest, .. } => Some(dest),
+        Instruction::MoveOp { dest, .. } => Some(dest),
+        Instruction::ThreeOp { dest, .. } => Some(dest),
+        Instruction::TwoOp { dest, .. } => Some(dest),
         Instruction::ArrayStore { .. } => None,
         Instruction::Spill { .. } => None,
-        Instruction::Reload { ord_var, .. } => Some(*ord_var),
+        Instruction::Reload { ord_var, .. } => Some(ord_var),
         Instruction::Ret(_) => None,
     }
 }
