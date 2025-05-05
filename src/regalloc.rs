@@ -6,6 +6,7 @@ use reg_asm::Reg;
 use scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::hash::Hash;
 type VInstruction = cfg::Instruction<VarLabel>;
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
@@ -84,21 +85,21 @@ fn get_children(m: &CfgMethod, i: InsnLoc) -> Vec<InsnLoc> {
     }
 }
 
-fn imm_var_sources(iv: &ImmVar<VarLabel>) -> Vec<VarLabel> {
+fn imm_var_sources<T: Copy>(iv: &ImmVar<T>) -> Vec<T> {
     match *iv {
         ImmVar::Var(a) => vec![a],
         ImmVar::Imm(_) => vec![],
     }
 }
 
-fn get_arg_sources(arg: &Arg<VarLabel>) -> Vec<VarLabel> {
+fn get_arg_sources<T: Copy>(arg: &Arg<T>) -> Vec<T> {
     match arg {
         Arg::VarArg(a) => imm_var_sources(a),
         Arg::StrArg(_) => vec![],
     }
 }
 
-fn get_insn_sources(insn: &VInstruction) -> HashSet<VarLabel> {
+fn get_insn_sources<T: Hash + Eq + Copy>(insn: &Instruction<T>) -> HashSet<T> {
     match insn {
         Instruction::StoreParam(_, a) => get_arg_sources(a).into_iter().collect(),
         Instruction::PhiExpr { .. } => panic!(),
@@ -130,7 +131,9 @@ fn get_insn_sources(insn: &VInstruction) -> HashSet<VarLabel> {
     }
 }
 
-fn get_sources(insn: &Sum<&VInstruction, &Jump>) -> HashSet<VarLabel> {
+pub fn get_sources<T: Copy + Hash + Eq>(
+    insn: &Sum<&cfg::Instruction<T>, &cfg::Jump<T>>,
+) -> HashSet<T> {
     match insn {
         Sum::Inl(i) => get_insn_sources(i),
         Sum::Inr(j) => deadcode::get_jump_sources(j),
