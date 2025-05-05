@@ -1052,7 +1052,7 @@ fn asm_instruction(
         }
         Instruction::StoreParam(param_num, arg) => {
             let mut instructions = vec![];
-            let mut argument_registers = vec![Rdi, Rsi, Rdx, Rcx, R8, R9];
+            let argument_registers = vec![Rdi, Rsi, Rdx, Rcx, R8, R9];
 
             match arg {
                 Arg::VarArg(label) => {
@@ -1353,7 +1353,6 @@ fn asm_instruction(
             };
             vec![load_into_reg(ord_var, mem_var, stack_lookup)]
         }
-        Instruction::MemPhiExpr { .. } => panic!(),
         Instruction::LoadParam { param, dest } => {
             // read parameters from registers and/or stack
             let argument_registers = vec![Rdi, Rsi, Rdx, Rcx, R8, R9];

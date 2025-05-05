@@ -1,7 +1,6 @@
 use crate::cfg::{self, ImmVar};
 use crate::cfg::{Arg, BasicBlock, CfgType, Instruction, Jump};
 use crate::cfg_build::{CfgMethod, VarLabel};
-use crate::scan::Sum;
 use crate::ssa_construct::SSAVarLabel;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -44,14 +43,7 @@ fn get_phi_webs(ssa_method: &cfg::CfgMethod<SSAVarLabel>) -> Vec<HashSet<SSAVarL
             match instruction {
                 Instruction::PhiExpr { dest, sources } => {
                     for (_, var) in sources {
-                        phi_web = union(
-                            *dest,
-                            *match var {
-                                Sum::Inl(v) => v,
-                                _ => panic!("Register allocation not implemented yet"),
-                            },
-                            phi_web,
-                        );
+                        phi_web = union(*dest, *var, phi_web);
                     }
                 }
                 _ => break,
@@ -202,7 +194,6 @@ fn destruct_instruction(
         },
         Instruction::Spill { .. } => panic!(),
         Instruction::Reload { .. } => panic!(),
-        Instruction::MemPhiExpr { .. } => panic!(),
     }
 }
 
@@ -427,17 +418,7 @@ pub fn split_crit_edges(method: &mut cfg::CfgMethod<SSAVarLabel>) {
                     let fresh_var = method.fields.keys().max().unwrap_or(&0) + 1;
                     method.fields.insert(
                         fresh_var as u32,
-                        method
-                            .fields
-                            .get(
-                                &(match var {
-                                    Sum::Inl(v) => v,
-                                    _ => panic!(),
-                                })
-                                .name,
-                            )
-                            .unwrap()
-                            .clone(),
+                        method.fields.get(&var.name).unwrap().clone(),
                     );
                     let fresh_var = SSAVarLabel {
                         name: fresh_var,
@@ -446,13 +427,10 @@ pub fn split_crit_edges(method: &mut cfg::CfgMethod<SSAVarLabel>) {
 
                     let par_copies = copies.entry(*par).or_insert(vec![]);
                     par_copies.push(cfg::OneMove {
-                        src: *match var {
-                            Sum::Inl(v) => v,
-                            _ => panic!("Register Allocation not implemented yet"),
-                        },
+                        src: *var,
                         dest: fresh_var,
                     });
-                    *var = Sum::Inl(fresh_var);
+                    *var = fresh_var;
                 }
             } else {
                 break;

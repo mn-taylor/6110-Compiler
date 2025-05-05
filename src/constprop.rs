@@ -2,7 +2,7 @@ use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction, IsImmediate, Jump};
 use crate::cfg_build::get_parents;
 use crate::ir::{Bop, UnOp};
-use crate::scan::{AddOp, EqOp, MulOp, RelOp, Sum};
+use crate::scan::{AddOp, EqOp, MulOp, RelOp};
 use crate::ssa_construct::{prune_method, SSAVarLabel};
 use maplit::hashset;
 use std::collections::{HashMap, HashSet};
@@ -190,13 +190,8 @@ pub fn constant_propagation(
         for instr in block.body.iter() {
             match instr {
                 Instruction::PhiExpr { sources, .. } => {
-                    let new_forbidden: HashSet<SSAVarLabel> = sources
-                        .iter()
-                        .map(|(_, var)| match var {
-                            Sum::Inl(v) => *v,
-                            Sum::Inr(_) => panic!(),
-                        })
-                        .collect();
+                    let new_forbidden: HashSet<SSAVarLabel> =
+                        sources.iter().map(|(_, x)| *x).collect::<HashSet<_>>();
 
                     forbidden = forbidden
                         .union(&new_forbidden)

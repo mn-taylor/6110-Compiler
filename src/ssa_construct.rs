@@ -1,8 +1,6 @@
 use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, BlockLabel, ImmVar, Instruction, Jump};
 use crate::cfg_build::{get_parents, CfgMethod, VarLabel};
-use crate::regalloc::get_dest;
-use crate::scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
@@ -581,7 +579,6 @@ fn rewrite_instr(
         }
         Instruction::Spill { .. }
         | Instruction::Reload { .. }
-        | Instruction::MemPhiExpr { .. }
         | Instruction::NoArgsCall(_, _)
         | Instruction::StoreParam(_, _) => panic!(),
     }
@@ -676,14 +673,12 @@ pub fn rename_variables(
                         .map(|parent| {
                             (
                                 *parent,
-                                Sum::Inl(
-                                    reaching_defs
-                                        .get(parent)
-                                        .unwrap()
-                                        .get(&dest.name)
-                                        .unwrap()
-                                        .clone(),
-                                ),
+                                reaching_defs
+                                    .get(parent)
+                                    .unwrap()
+                                    .get(&dest.name)
+                                    .unwrap()
+                                    .clone(),
                             )
                         })
                         .collect::<Vec<_>>();
@@ -701,7 +696,6 @@ fn get_insn_dest<T>(insn: Instruction<T>) -> Option<T> {
     match insn {
         Instruction::StoreParam(_, _) => None,
         Instruction::PhiExpr { dest, .. } => Some(dest),
-        Instruction::MemPhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
         Instruction::NoArgsCall(_, dest) => dest,
         Instruction::LoadParam { dest, .. } => Some(dest),
@@ -721,8 +715,8 @@ fn get_insn_dest<T>(insn: Instruction<T>) -> Option<T> {
 pub fn prune_phis(m: &mut cfg::CfgMethod<SSAVarLabel>) {
     // get all variables defined
     let mut defns: HashSet<SSAVarLabel> = HashSet::new();
-    for (id, block) in m.blocks.iter() {
-        for (instr) in block.body.iter() {
+    for (_, block) in m.blocks.iter() {
+        for instr in block.body.iter() {
             match get_insn_dest(instr.clone()) {
                 Some(dest) => {
                     defns.insert(dest);
@@ -732,25 +726,18 @@ pub fn prune_phis(m: &mut cfg::CfgMethod<SSAVarLabel>) {
         }
     }
 
-    for (id, block) in m.blocks.iter_mut() {
+    for (_, block) in m.blocks.iter_mut() {
         let mut new_instructions = vec![];
-        for (instr) in block.body.iter_mut() {
+        for instr in block.body.iter_mut() {
             new_instructions.push(match instr {
-                Instruction::PhiExpr { dest, sources } => {
-                    let mut new_sources: Vec<(BlockLabel, Sum<SSAVarLabel, u32>)> = vec![];
-                    sources.iter().for_each(|(bid, var)| match var {
-                        Sum::Inl(v) => {
-                            if defns.contains(v) {
-                                new_sources.push((*bid, Sum::Inl(*v)));
-                            }
-                        }
-                        _ => (),
-                    });
-                    Instruction::PhiExpr {
-                        dest: dest.clone(),
-                        sources: new_sources,
-                    }
-                }
+                Instruction::PhiExpr { dest, sources } => Instruction::PhiExpr {
+                    dest: dest.clone(),
+                    sources: sources
+                        .into_iter()
+                        .map(|x| *x)
+                        .filter(|(_, var)| defns.contains(var))
+                        .collect::<Vec<_>>(),
+                },
                 _ => instr.clone(),
             })
         }
@@ -768,9 +755,5 @@ pub fn construct(m: &mut CfgMethod) -> cfg::CfgMethod<SSAVarLabel> {
     insert_phis(m);
 
     // Rename Variables
-    let mut new_method = rename_variables(m, &dominance_tree);
-
-    // prune phis: Remove all variables
-
-    new_method
+    rename_variables(m, &dominance_tree)
 }

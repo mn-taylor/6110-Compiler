@@ -102,7 +102,6 @@ fn get_insn_sources(insn: &VInstruction) -> HashSet<VarLabel> {
     match insn {
         Instruction::StoreParam(_, a) => get_arg_sources(a).into_iter().collect(),
         Instruction::PhiExpr { .. } => panic!(),
-        Instruction::MemPhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
         Instruction::LoadParam { .. } => hashset! {},
         Instruction::ArrayAccess { idx, .. } => imm_var_sources(idx).into_iter().collect(),
@@ -149,7 +148,6 @@ fn get_insn_dest(insn: &VInstruction) -> Option<VarLabel> {
     match insn {
         Instruction::StoreParam(_, _) => None,
         Instruction::PhiExpr { .. } => panic!(),
-        Instruction::MemPhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
         Instruction::NoArgsCall(_, dest) => *dest,
         Instruction::LoadParam { dest, .. } => Some(*dest),
@@ -249,7 +247,7 @@ fn get_webs(m: &CfgMethod) -> Vec<Web> {
     webs
 }
 
-fn all_insn_locs(m: &CfgMethod) -> HashSet<InsnLoc> {
+pub fn all_insn_locs<T>(m: &cfg::CfgMethod<T>) -> HashSet<InsnLoc> {
     let mut ret = HashSet::new();
     for (bid, blk) in m.blocks.iter() {
         for i in 0..(blk.body.len() + 1) {
@@ -591,7 +589,6 @@ fn insn_map<T, U>(
             ord_var: dst_fun(ord_var),
             mem_var,
         },
-        Instruction::MemPhiExpr { .. } => panic!(),
     }
 }
 

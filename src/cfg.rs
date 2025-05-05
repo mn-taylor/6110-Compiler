@@ -1,6 +1,5 @@
 use crate::ir;
 use crate::parse;
-use crate::scan::Sum;
 use crate::ssa_construct::SSAVarLabel;
 use ir::{Bop, UnOp};
 use parse::Primitive;
@@ -116,11 +115,7 @@ pub enum Instruction<VarLabel> {
     },
     PhiExpr {
         dest: VarLabel,
-        sources: Vec<(BlockLabel, Sum<VarLabel, MemVarLabel>)>,
-    },
-    MemPhiExpr {
-        dest: MemVarLabel,
-        sources: Vec<(BlockLabel, MemVarLabel)>,
+        sources: Vec<(BlockLabel, VarLabel)>,
     },
     ThreeOp {
         source1: ImmVar<VarLabel>,
@@ -227,16 +222,6 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
             }
             Instruction::LoadParam { param, dest } => {
                 write!(f, "{dest} <- arg #{param}")
-            }
-            Instruction::MemPhiExpr { dest, sources } => {
-                let sources_str = sources
-                    .iter()
-                    .map(|(block, var)| format!("({},  t{:?})", block, var))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-
-                // Final print: "dest = phi [block -> var, block -> var, ...]"
-                write!(f, "t{:?} = phi ({})", dest, sources_str)
             }
             Instruction::NoArgsCall(name, dest) => {
                 write!(f, "t{:?} <- call {}", dest, name,)

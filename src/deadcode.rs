@@ -1,6 +1,5 @@
 use crate::cfg::{self, Jump};
 use crate::cfg::{Arg, ImmVar, Instruction};
-use crate::scan::Sum;
 use crate::ssa_construct::SSAVarLabel;
 use maplit::{hashmap, hashset};
 use std::collections::HashSet;
@@ -12,13 +11,7 @@ pub fn get_sources<VarLabel: Eq + Hash + Copy>(
     match instruction {
         Instruction::NoArgsCall(_, _) => panic!(),
         Instruction::StoreParam(_, _) => panic!(),
-        Instruction::PhiExpr { sources, .. } => sources
-            .iter()
-            .map(|(_, var)| match var {
-                Sum::Inl(v) => *v,
-                _ => panic!("Should not do register allocation before optimizations"),
-            })
-            .collect(),
+        Instruction::PhiExpr { sources, .. } => sources.iter().map(|(_, var)| *var).collect(),
         Instruction::ArrayAccess { idx, .. } => {
             let mut set = hashset! {};
             match idx {
@@ -101,7 +94,7 @@ pub fn get_sources<VarLabel: Eq + Hash + Copy>(
             ImmVar::Var(v) => hashset! {*v},
             _ => hashset! {},
         },
-        Instruction::Spill { .. } | Instruction::Reload { .. } | Instruction::MemPhiExpr { .. } => {
+        Instruction::Spill { .. } | Instruction::Reload { .. } => {
             panic!()
         }
         Instruction::ParMov(_) | Instruction::Constant { .. } | Instruction::LoadParam { .. } => {
@@ -134,7 +127,6 @@ pub fn get_dest<T: Copy>(instruction: &Instruction<T>) -> Option<T> {
         Instruction::Ret(_) => None,
         Instruction::Spill { .. }
         | Instruction::Reload { .. }
-        | Instruction::MemPhiExpr { .. }
         | Instruction::ParMov { .. }
         | Instruction::NoArgsCall(_, _)
         | Instruction::StoreParam(_, _) => panic!(),

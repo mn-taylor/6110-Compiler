@@ -1,6 +1,5 @@
 use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, ImmVar, Instruction};
-use crate::scan::Sum;
 use crate::ssa_construct::{dominator_sets, dominator_tree, get_graph, SSAVarLabel};
 use std::collections::HashMap;
 
@@ -71,20 +70,7 @@ fn prop_copies(
             dest,
             sources: sources
                 .iter()
-                .map(|(block_id, var)| {
-                    (
-                        *block_id,
-                        Sum::Inl(check_copy(
-                            match var {
-                                Sum::Inl(v) => *v,
-                                _ => {
-                                    panic!("Should not do register allocation before optimizations")
-                                }
-                            },
-                            copy_lookup,
-                        )),
-                    )
-                })
+                .map(|(block_id, var)| (*block_id, check_copy(*var, copy_lookup)))
                 .collect::<Vec<_>>(),
         },
         Instruction::Ret(opt_ret_val) => match opt_ret_val {
@@ -109,7 +95,6 @@ fn prop_copies(
         },
         Instruction::Spill { .. } => panic!(),
         Instruction::Reload { .. } => panic!(),
-        Instruction::MemPhiExpr { .. } => panic!(),
     }
 }
 
