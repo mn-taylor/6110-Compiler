@@ -257,8 +257,8 @@ fn convert_multipication_imm_var(
         MulOp::Mod => {
             instructions.push(insn(("movq", optarget, Rax)));
             instructions.push(insn("cqto"));
-            instructions.push(insn(("movq", operand, R12)));
-            instructions.push(insn(("idivq {}", R9)));
+            instructions.push(insn(("movq", operand, R9)));
+            instructions.push(insn(("idivq", R9)));
             instructions.push(store_from_reg_var(Rdx, dest, stack_lookup));
         }
         MulOp::Div => {
@@ -305,7 +305,7 @@ fn convert_multipication_var_imm(
         MulOp::Div => {
             instructions.push(insn(("movq", optarget, Rax)));
             instructions.push(insn("cqto"));
-            instructions.push(insn(("idivq {}", operand)));
+            instructions.push(insn(("idivq", operand)));
             instructions.push(store_from_reg_var(Rax, dest, stack_lookup));
         }
     };

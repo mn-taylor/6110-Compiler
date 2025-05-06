@@ -19,12 +19,10 @@ pub struct CfgMethod<VarLabel> {
 
 impl<VarLabel: fmt::Debug + fmt::Display> fmt::Display for CfgMethod<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.name == "partition" {
-            writeln!(f, "Method: {}", self.name)?;
-            writeln!(f, "Fields: {:?}", self.fields.keys())?;
-            for (lbl, block) in self.blocks.iter() {
-                writeln!(f, "block {lbl}:\n{}", block)?;
-            }
+        writeln!(f, "Method: {}", self.name)?;
+        writeln!(f, "Fields: {:?}", self.fields.keys())?;
+        for (lbl, block) in self.blocks.iter() {
+            writeln!(f, "block {lbl}:\n{}", block)?;
         }
         Ok(())
     }

@@ -485,6 +485,7 @@ fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>,
         let (webs, interfer_graph) = interference_graph(&mut new_method);
         // println!("AAAAA interfer_graph: {interfer_graph:?}");
         // println!("AAAAA webs: {webs:?}");
+
         match color(interfer_graph.clone(), num_regs) {
             Ok(web_coloring) => {
                 return (new_method.clone(), web_coloring, webs);
