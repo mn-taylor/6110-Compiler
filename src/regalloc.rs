@@ -1,7 +1,7 @@
 use crate::cfg_build::VarLabel;
 use crate::{cfg, deadcode, reg_asm, scan};
 use cfg::{Arg, BlockLabel, CfgType, ImmVar, MemVarLabel};
-use maplit::hashset;
+use maplit::{hashmap, hashset};
 use reg_asm::Reg;
 use scan::Sum;
 use std::collections::HashMap;
@@ -341,9 +341,45 @@ fn distinct_pairs<'a, T>(l: &'a Vec<T>) -> Vec<(u32, &'a T, u32, &'a T)> {
     ret
 }
 
+fn get_all_call_instr(m: &mut CfgMethod) -> HashSet<InsnLoc> {
+    let mut call_instrs: HashSet<InsnLoc> = hashset! {};
+
+    for (bid, block) in m.blocks.iter() {
+        for (iid, instruction) in block.body.iter().enumerate() {
+            match instruction {
+                Instruction::Call(..)
+                | Instruction::NoArgsCall(..)
+                | Instruction::LoadParam { .. }
+                | Instruction::StoreParam(..) => {
+                    call_instrs.insert(InsnLoc {
+                        blk: bid.clone(),
+                        idx: iid.clone(),
+                    });
+                }
+                _ => (),
+            }
+        }
+    }
+    call_instrs
+}
+
 // returns a tuple: a list of the phi webs, and the interference graph, where webs are labelled by their indices in the list.
-fn interference_graph(m: &mut CfgMethod) -> (Vec<Web>, HashMap<u32, HashSet<u32>>) {
-    let webs = get_webs(m);
+fn interference_graph(
+    m: &mut CfgMethod,
+    num_caller_saved_regs: u32,
+) -> (Vec<Web>, HashMap<u32, HashSet<u32>>) {
+    let mut webs = (0..num_caller_saved_regs)
+        .collect::<Vec<_>>()
+        .iter()
+        .map(|_| Web {
+            var: u32::MAX,
+            defs: vec![],
+            uses: vec![],
+        })
+        .collect::<Vec<_>>();
+    webs.extend(get_webs(m));
+
+    // first num_caller_saved_regs webs are empty.
 
     let convex_closures_of_webs = webs
         .iter()
@@ -354,11 +390,33 @@ fn interference_graph(m: &mut CfgMethod) -> (Vec<Web>, HashMap<u32, HashSet<u32>
     for (i, _) in webs.iter().enumerate() {
         graph.insert(i as u32, HashSet::new());
     }
+
+    // this should leave the dummy webs isolated since they do not interfere with anything
     for (i, ccwi, j, ccwj) in distinct_pairs(&convex_closures_of_webs) {
         if !ccwi.is_disjoint(ccwj) {
             graph.get_mut(&i).unwrap().insert(j);
         }
     }
+
+    // connect the dummy webs to all webs that contain call instructions
+    let call_instructions = get_all_call_instr(m);
+    for (i, ccw) in convex_closures_of_webs.iter().enumerate() {
+        if !ccw.is_disjoint(&call_instructions) {
+            for j in 0..num_caller_saved_regs {
+                graph.get_mut(&(i as u32)).unwrap().insert(j);
+                graph.get_mut(&j).unwrap().insert(i as u32);
+            }
+        }
+    }
+
+    // make sure all registers interfere with eachother. Make a clique of the dummy registers
+    for i in 0..num_caller_saved_regs {
+        for j in i + 1..num_caller_saved_regs {
+            graph.get_mut(&i).unwrap().insert(j);
+            graph.get_mut(&j).unwrap().insert(i);
+        }
+    }
+
     (webs, graph)
 }
 
@@ -378,6 +436,7 @@ fn color_not_in_set(num_colors: u32, s: HashSet<u32>) -> u32 {
 fn color(
     mut g: HashMap<u32, HashSet<u32>>,
     num_colors: u32,
+    num_caller_saved_regs: u32,
 ) -> Result<HashMap<u32, u32>, Vec<u32>> {
     let mut color_later = Vec::new();
 
@@ -410,9 +469,16 @@ fn color(
     } else {
         // return the nodes that could not be colored, sorted in order of how nice it'd be to color them
         println!("could not color this many nodes: {}", g.len());
-        let mut to_color: Vec<_> = g.keys().map(|x| *x).collect();
-        to_color.sort_by_key(|x| g.get(x).unwrap().len() as u32);
-        Err(to_color)
+        let mut to_color: HashSet<_> = g.keys().map(|x| *x).collect();
+
+        // make sure that we don't try to spill the dummy nodes
+        for i in 0..num_caller_saved_regs {
+            to_color.remove(&i);
+        }
+
+        let mut vec_to_color = to_color.into_iter().collect::<Vec<_>>();
+        vec_to_color.sort_by_key(|x| g.get(x).unwrap().len() as u32);
+        Err(vec_to_color)
     }
 }
 
@@ -478,15 +544,24 @@ fn is_trivial(w: &Web) -> bool {
     }
 }
 
-fn reg_alloc(m: &mut CfgMethod, num_regs: u32) -> (CfgMethod, HashMap<u32, u32>, Vec<Web>) {
+fn reg_alloc(
+    m: &mut CfgMethod,
+    num_regs: u32,
+    num_caller_saved_regs: u32,
+) -> (CfgMethod, HashMap<u32, u32>, Vec<Web>) {
     let mut new_method = m.clone();
     // try to color the graph
     loop {
-        let (webs, interfer_graph) = interference_graph(&mut new_method);
+        let (webs, interfer_graph) = interference_graph(&mut new_method, num_caller_saved_regs);
         // println!("AAAAA interfer_graph: {interfer_graph:?}");
         // println!("AAAAA webs: {webs:?}");
 
-        match color(interfer_graph.clone(), num_regs) {
+        println!("New Method \n{}", new_method);
+        match color(
+            interfer_graph.clone(),
+            num_regs + num_caller_saved_regs,
+            num_caller_saved_regs,
+        ) {
             Ok(web_coloring) => {
                 return (new_method.clone(), web_coloring, webs);
             }
@@ -732,18 +807,68 @@ fn all_mem_vars(m: &cfg::CfgMethod<VarLabel>) -> HashMap<u32, (CfgType, String)>
 
 fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
-    let regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
-    let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, regs.len() as u32);
+    let callee_saved_regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
+    let caller_saved_regs: Vec<Reg> = vec![Reg::Rsi, Reg::Rcx, Reg::R11, Reg::Rdi, Reg::R8];
+
+    let (spilled_method, web_to_regnum, webs) = reg_alloc(
+        &mut m,
+        callee_saved_regs.len() as u32,
+        caller_saved_regs.len() as u32,
+    );
     println!("webs: {webs:?}");
+
+    // define the caller saved registers in relation to their color
+
+    let color_to_register =
+        reg_num_to_register(web_to_regnum.clone(), callee_saved_regs, caller_saved_regs);
+
     let web_to_reg = web_to_regnum
         .into_iter()
-        .map(|(k, n)| (k, *regs.get(n as usize).unwrap()))
+        .map(|(k, n)| (k, *color_to_register.get(&n).unwrap()))
         .collect();
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
     let x = to_regs(spilled_method, web_to_reg, webs);
     // println!("after renaming: {x}");
     x
+}
+
+// maps register number to a register
+fn reg_num_to_register(
+    web_to_regnum: HashMap<u32, u32>,
+    callee_saved_regs: Vec<Reg>,
+    caller_saved_regs: Vec<Reg>,
+) -> HashMap<u32, Reg> {
+    let mut reg_num_to_reg: HashMap<u32, Reg> = hashmap! {};
+
+    // make sure to map the dummy webs to the caller saved registers and the rest can be mapped to the rest
+    for (i, reg) in caller_saved_regs.iter().enumerate() {
+        // find what reg_num colors this dummy variable
+        let reg_num = web_to_regnum.get(&(i as u32)).unwrap();
+        println!("matching Color {reg_num} to {reg}");
+        reg_num_to_reg.insert(*reg_num, *reg);
+    }
+
+    // map remaining colors to caller saved registers
+    let mut callee_regs = callee_saved_regs.clone();
+    for reg_num in web_to_regnum.clone().into_values() {
+        if !reg_num_to_reg.contains_key(&reg_num) {
+            match callee_regs.pop() {
+                Some(reg) => {
+                    println!("matching Color {reg_num} to {reg}");
+                    reg_num_to_reg.insert(reg_num, reg)
+                }
+                None => {
+                    println!("Web to regnum: {:?}", web_to_regnum.clone());
+                    println!("Caller Saved Registers {:?}", caller_saved_regs);
+                    println!("Callee Saved Registers {:?}", callee_saved_regs);
+                    panic!("invalid coloring")
+                }
+            };
+        }
+    }
+
+    reg_num_to_reg
 }
 
 fn lower_calls_insn(i: VInstruction) -> Vec<VInstruction> {

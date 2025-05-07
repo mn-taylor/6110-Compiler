@@ -122,7 +122,7 @@ pub fn get_dest<T: Copy>(instruction: &Instruction<T>) -> Option<T> {
         | Instruction::MoveOp { dest, .. }
         | Instruction::ThreeOp { dest, .. }
         | Instruction::TwoOp { dest, .. } => Some(dest),
-        Instruction::Call(_, _, _) => None, // We always want to call functions whether or not their return values are used, because they may modify global variables.
+        Instruction::Call(_, _, ret_val) => ret_val, // We always want to call functions whether or not their return values are used, because they may modify global variables, but we should remove the return value from the call instruction when it is not used.
         Instruction::ArrayStore { .. } => None,
         Instruction::Ret(_) => None,
         Instruction::Spill { .. }
@@ -167,6 +167,25 @@ pub fn dead_code_elimination(m: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
         for instruction in block.body.iter() {
             match get_dest(instruction) {
                 Some(dest_var) => {
+                    match instruction {
+                        Instruction::Call(func_name, args, _) => {
+                            if !m.fields.contains_key(&dest_var.name)
+                                || all_used_vars.contains(&dest_var)
+                            {
+                                new_instructions.push(instruction.clone());
+                            } else {
+                                new_instructions.push(Instruction::Call(
+                                    func_name.to_string(),
+                                    args.clone(),
+                                    None,
+                                ));
+                                // removed_var = true; Removing a temp derived from the return value of a function will not create more dead code so this line is not needed
+                            }
+                            continue;
+                        }
+                        _ => {}
+                    }
+
                     // add instruction if dest is used later or dest is global
                     if !m.fields.contains_key(&dest_var.name) || all_used_vars.contains(&dest_var) {
                         new_instructions.push(instruction.clone());
