@@ -1056,10 +1056,15 @@ fn asm_instruction(
     global_strings: &HashMap<String, usize>,
 ) -> Vec<Insn> {
     match instr {
-        Instruction::PhiExpr { .. }
-        | Instruction::ParMov(_)
-        | Instruction::Push(_)
-        | Instruction::Pop(_) => panic!(),
+        Instruction::PhiExpr { .. } | Instruction::ParMov(_) => panic!(),
+        Instruction::Pop(var) => match var {
+            Sum::Inl(reg) => vec![insn(("popq", reg))],
+            Sum::Inr(_) => vec![],
+        },
+        Instruction::Push(var) => match var {
+            Sum::Inl(reg) => vec![insn(("pushq", reg))],
+            Sum::Inr(_) => vec![],
+        },
         Instruction::NoArgsCall(func_name, ret_dest) => {
             let mut instructions = vec![];
             // call the function

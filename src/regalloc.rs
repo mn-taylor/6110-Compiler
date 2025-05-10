@@ -1033,10 +1033,10 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
         make_args_easy_to_color(i, &all_regs, &mut fields, &mut reg_of_varname)
     });
 
-    let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, &all_regs, &reg_of_varname);
+    let (mut spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, &all_regs, &reg_of_varname);
     let ccws = webs
         .iter()
-        .map(|web| find_inter_instructions(&mut m, web))
+        .map(|web| find_inter_instructions(&mut spilled_method, web))
         .collect();
     println!("webs: {webs:?}");
 
