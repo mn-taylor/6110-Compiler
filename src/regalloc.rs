@@ -586,7 +586,7 @@ fn reg_alloc(
             }
             Err(things_to_spill) => {
                 let mut spillable = None;
-                for web_to_spill in things_to_spill {
+                for web_to_spill in things_to_spill.into_iter().rev() {
                     if !is_trivial(webs.get(web_to_spill as usize).unwrap()) {
                         println!("max degree: {}", max_degree(interfer_graph));
                         println!("spilling web number {web_to_spill}");
