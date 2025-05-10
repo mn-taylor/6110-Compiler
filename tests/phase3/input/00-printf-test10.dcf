@@ -4,13 +4,13 @@ void do_print(){
     // Store some arrays to attempt to get it out of alignment
     int a[5];
 
-    //a[0] = 1;
-    //a[1] = 2;
-    //a[2] = 3;
-    //a[3] = 4;
+    a[0] = 1;
+    a[1] = 2;
+    a[2] = 3;
+    a[3] = 4;
     a[4] = 5;
 
-    //    printf("Hello Decaf\n");
+    printf("Hello Decaf\n");
 }
 
 void main() {
