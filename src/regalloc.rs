@@ -327,7 +327,7 @@ fn reaches_a_use(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
     reaches_a_use
 }
 
-fn find_inter_instructions(m: &mut CfgMethod, web: &Web) -> HashSet<InsnLoc> {
+fn find_inter_instructions(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
     reaches_a_use(m, web)
         .intersection(&reachable_from_defs(m, web))
         .map(|i| *i)
@@ -892,7 +892,7 @@ fn dst_reg(
 fn to_regs(
     m: cfg::CfgMethod<VarLabel>,
     web_to_reg: HashMap<u32, Reg>,
-    webs: Vec<Web>,
+    webs: &Vec<Web>,
 ) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
     let new_fields = all_mem_vars(&m);
     let new_blocks = m.blocks.into_iter().map(|(lbl, blk)| {
@@ -965,6 +965,59 @@ fn all_mem_vars(m: &cfg::CfgMethod<VarLabel>) -> HashMap<u32, (CfgType, String)>
     ret
 }
 
+fn build_need_to_save(
+    webs: &Vec<Web>,
+    ccws: &Vec<HashSet<InsnLoc>>,
+    m: &cfg::CfgMethod<Sum<Reg, MemVarLabel>>,
+    reg_of_varname: &HashMap<VarLabel, Reg>,
+) -> HashMap<InsnLoc, HashSet<Reg>> {
+    all_insn_locs(m)
+        .into_iter()
+        .filter_map(|i| {
+            if let Sum::Inl(Instruction::NoArgsCall(_, _)) = get_insn(m, i) {
+                let mut regs = HashSet::new();
+                for (web, ccw) in webs.iter().zip(ccws) {
+                    if ccw.contains(&i) {
+                        regs.insert(*reg_of_varname.get(&web.var).unwrap());
+                    }
+                }
+                Some((i, regs))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+// adds pushes and pops of caller-saved regs when necessary
+fn push_and_pop(
+    m: cfg::CfgMethod<Sum<Reg, MemVarLabel>>,
+    caller_saved_regs: &Vec<Reg>,
+    webs: &Vec<Web>,
+    ccws: &Vec<HashSet<InsnLoc>>,
+    reg_of_varname: &HashMap<VarLabel, Reg>,
+) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
+    let need_to_save = build_need_to_save(webs, ccws, &m, reg_of_varname);
+    method_map(m, |i, loc| match need_to_save.get(&loc) {
+        None => vec![i],
+        Some(used) => {
+            let regs = caller_saved_regs.into_iter().filter(|r| used.contains(r));
+            let mut ret: Vec<_> = regs
+                .clone()
+                .map(|reg| Instruction::Push(Sum::Inl(*reg)))
+                .collect();
+            ret.push(i);
+            ret.append(
+                &mut regs
+                    .rev()
+                    .map(|reg| Instruction::Pop(Sum::Inl(*reg)))
+                    .collect(),
+            );
+            ret
+        }
+    })
+}
+
 fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let callee_saved_regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
@@ -976,11 +1029,15 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
 
     let mut reg_of_varname = HashMap::new();
     let mut fields = m.fields.clone();
-    let mut m = method_map(m, |i| {
+    let mut m = method_map(m, |i, _| {
         make_args_easy_to_color(i, &all_regs, &mut fields, &mut reg_of_varname)
     });
 
     let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, &all_regs, &reg_of_varname);
+    let ccws = webs
+        .iter()
+        .map(|web| find_inter_instructions(&mut m, web))
+        .collect();
     println!("webs: {webs:?}");
 
     // define the caller saved registers in relation to their color
@@ -993,9 +1050,10 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
         .collect();
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
-    let x = to_regs(spilled_method, web_to_reg, webs);
+    let m = to_regs(spilled_method, web_to_reg, &webs);
+    let m = push_and_pop(m, &caller_saved_regs, &webs, &ccws, &reg_of_varname);
     // println!("after renaming: {x}");
-    x
+    m
 }
 
 // should this take a
@@ -1015,7 +1073,7 @@ fn reg_num_to_register(web_to_regnum: HashMap<u32, u32>, all_regs: &Vec<Reg>) ->
     reg_num_to_reg
 }
 
-fn lower_calls_insn(i: VInstruction) -> Vec<VInstruction> {
+fn lower_calls_insn<T>(i: VInstruction, _: T) -> Vec<VInstruction> {
     if let Instruction::Call(name, args, dest) = i {
         let mut insns: Vec<_> = vec![];
         if args.len() % 2 == 1 && args.len() >= 6 {
@@ -1033,15 +1091,15 @@ fn lower_calls_insn(i: VInstruction) -> Vec<VInstruction> {
     }
 }
 
-fn method_map(
-    mut m: cfg::CfgMethod<VarLabel>,
-    mut f: impl FnMut(VInstruction) -> Vec<VInstruction>,
-) -> cfg::CfgMethod<VarLabel> {
+fn method_map<T>(
+    mut m: cfg::CfgMethod<T>,
+    mut f: impl FnMut(Instruction<T>, InsnLoc) -> Vec<Instruction<T>>,
+) -> cfg::CfgMethod<T> {
     let mut blocks = Vec::new();
     for (lbl, mut blk) in m.blocks.into_iter() {
         let mut body = Vec::new();
-        for insn in blk.body.into_iter() {
-            body.append(&mut f(insn));
+        for (idx, insn) in blk.body.into_iter().enumerate() {
+            body.append(&mut f(insn, InsnLoc { blk: lbl, idx }));
         }
         blk.body = body;
         blocks.push((lbl, blk));
