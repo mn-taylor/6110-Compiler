@@ -1,6 +1,7 @@
 use crate::cfg_build::VarLabel;
 use crate::{cfg, deadcode, reg_asm, scan};
 use cfg::{Arg, BlockLabel, CfgType, ImmVar, MemVarLabel};
+use core::num;
 use maplit::{hashmap, hashset};
 use reg_asm::Reg;
 use scan::Sum;
@@ -364,12 +365,24 @@ fn get_all_call_instr(m: &mut CfgMethod) -> HashSet<InsnLoc> {
     call_instrs
 }
 
-// returns a tuple: a list of the phi webs, and the interference graph, where webs are labelled by their indices in the list.
-fn interference_graph(
-    m: &mut CfgMethod,
-    num_caller_saved_regs: u32,
+fn add_parameter_constraints(
+    webs: Vec<Web>,
+    all_regs: &Vec<Reg>,
+    arg_reg_lookup: &HashMap<u32, Reg>,
 ) -> (Vec<Web>, HashMap<u32, HashSet<u32>>) {
-    let mut webs = (0..num_caller_saved_regs)
+    // map argument variables to indices of all regs
+    let mut arg_to_idx = HashMap::new();
+    for (var, arg_reg) in arg_reg_lookup {
+        for (i, reg) in all_regs.iter().enumerate() {
+            if reg == arg_reg {
+                arg_to_idx.insert(var, i);
+                break;
+            }
+        }
+    }
+
+    // add dummy vertices for each register
+    let mut all_webs: Vec<Web> = (0..all_regs.len())
         .collect::<Vec<_>>()
         .iter()
         .map(|_| Web {
@@ -378,20 +391,57 @@ fn interference_graph(
             uses: vec![],
         })
         .collect::<Vec<_>>();
-    webs.extend(get_webs(m));
+    all_webs.extend(webs);
 
-    // first num_caller_saved_regs webs are empty.
-    // ln!("webs after null insertion {:?}", webs);
+    // initialize graph
+    let mut graph: HashMap<u32, HashSet<u32>> = HashMap::new();
+    for (i, _) in all_webs.iter().enumerate() {
+        graph.insert(i as u32, HashSet::new());
+    }
 
+    // make sure all registers interfere with eachother. Make a clique of the dummy registers
+    for i in 0..all_regs.len() {
+        for j in i + 1..all_regs.len() {
+            graph.get_mut(&(i as u32)).unwrap().insert(j as u32);
+            graph.get_mut(&(j as u32)).unwrap().insert(i as u32);
+        }
+    }
+
+    // find webs defined over argument variables, and make sure they go into their correct argument
+    for (i, Web { var, defs, uses }) in all_webs.iter().enumerate() {
+        match arg_to_idx.get(&var) {
+            Some(idx) => {
+                for j in (0..all_regs.len()) {
+                    if i == *idx {
+                        continue;
+                    }
+
+                    // all other registers should interfere
+                    graph.get_mut(&(i as u32)).unwrap().insert(j as u32);
+                    graph.get_mut(&(j as u32)).unwrap().insert(i as u32);
+                }
+            }
+            None => (),
+        }
+    }
+
+    return (all_webs, graph);
+}
+
+// returns a tuple: a list of the phi webs, and the interference graph, where webs are labelled by their indices in the list.
+fn interference_graph(
+    m: &mut CfgMethod,
+    all_regs: &Vec<Reg>,
+    arg_reg_lookup: &HashMap<u32, Reg>,
+) -> (Vec<Web>, HashMap<u32, HashSet<u32>>) {
+    // initalize webs with the parameter constraints
+    let (webs, mut graph) = add_parameter_constraints(get_webs(m), all_regs, arg_reg_lookup);
+
+    // find convex closures
     let convex_closures_of_webs = webs
         .iter()
         .map(|web| find_inter_instructions(m, web))
         .collect();
-
-    let mut graph = HashMap::new();
-    for (i, _) in webs.iter().enumerate() {
-        graph.insert(i as u32, HashSet::new());
-    }
 
     // this should leave the dummy webs isolated since they do not interfere with anything
     for (i, ccwi, j, ccwj) in distinct_pairs(&convex_closures_of_webs) {
@@ -400,32 +450,23 @@ fn interference_graph(
         }
     }
 
-    // connect the dummy webs to all webs that contain call instructions, this only works creates interference if the webs internal call instructions not if they are defined or used in call instructions
-    let call_instructions = get_all_call_instr(m);
-    for (i, ccw) in convex_closures_of_webs.iter().enumerate() {
-        let defs_set = webs
-            .get(i)
-            .unwrap()
-            .defs
-            .clone()
-            .into_iter()
-            .collect::<HashSet<_>>();
+    // // connect the dummy webs to all webs that contain call instructions, this only works creates interference if the webs internal call instructions not if they are defined or used in call instructions
+    // let call_instructions = get_all_call_instr(m);
+    // for (i, ccw) in convex_closures_of_webs.iter().enumerate() {
+    //     let defs_set = webs
+    //         .get(i)
+    //         .unwrap()
+    //         .defs
+    //         .clone()
+    //         .into_iter()
+    //         .collect::<HashSet<_>>();
 
-        if !ccw.is_disjoint(&call_instructions) || !defs_set.is_disjoint(&call_instructions) {
-            for j in 0..num_caller_saved_regs {
-                graph.get_mut(&(i as u32)).unwrap().insert(j);
-                graph.get_mut(&j).unwrap().insert(i as u32);
-            }
-        }
-    }
-
-    // make sure all registers interfere with eachother. Make a clique of the dummy registers
-    for i in 0..num_caller_saved_regs {
-        for j in i + 1..num_caller_saved_regs {
-            graph.get_mut(&i).unwrap().insert(j);
-            graph.get_mut(&j).unwrap().insert(i);
-        }
-    }
+    //     if !ccw.is_disjoint(&call_instructions) || !defs_set.is_disjoint(&call_instructions) {
+    //         for j in 0..num_caller_saved_regs {
+    //             graph.get_mut(&(i as u32)).unwrap().insert(j);
+    //             graph.get_mut(&j).unwrap().insert(i as u32);
+    //         }
+    //     }
 
     // print!("interference graph {:?}", graph);
     (webs, graph)
@@ -447,7 +488,6 @@ fn color_not_in_set(num_colors: u32, s: HashSet<u32>) -> u32 {
 fn color(
     mut g: HashMap<u32, HashSet<u32>>,
     num_colors: u32,
-    num_caller_saved_regs: u32,
 ) -> Result<HashMap<u32, u32>, Vec<u32>> {
     let mut color_later = Vec::new();
 
@@ -483,7 +523,7 @@ fn color(
         let mut to_color: HashSet<_> = g.keys().map(|x| *x).collect();
 
         // make sure that we don't try to spill the dummy nodes
-        for i in 0..num_caller_saved_regs {
+        for i in 0..num_colors {
             to_color.remove(&i);
         }
 
@@ -565,22 +605,18 @@ fn max_degree(interfer_graph: HashMap<u32, HashSet<u32>>) -> u32 {
 
 fn reg_alloc(
     m: &mut CfgMethod,
-    num_regs: u32,
-    num_caller_saved_regs: u32,
+    all_regs: &Vec<Reg>,
+    arg_var_to_reg: &HashMap<u32, Reg>,
 ) -> (CfgMethod, HashMap<u32, u32>, Vec<Web>) {
     let mut new_method = m.clone();
     // try to color the graph
     loop {
-        let (webs, interfer_graph) = interference_graph(&mut new_method, num_caller_saved_regs);
+        let (webs, interfer_graph) = interference_graph(&mut new_method, all_regs, arg_var_to_reg);
         // println!("AAAAA interfer_graph: {interfer_graph:?}");
         // println!("AAAAA webs: {webs:?}");
 
         // println!("New Method \n{}", new_method);
-        match color(
-            interfer_graph.clone(),
-            num_regs + num_caller_saved_regs,
-            num_caller_saved_regs,
-        ) {
+        match color(interfer_graph.clone(), all_regs.len() as u32) {
             Ok(web_coloring) => {
                 return (new_method.clone(), web_coloring, webs);
             }
@@ -831,11 +867,22 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, M
     let caller_saved_regs: Vec<Reg> =
         vec![Reg::Rsi, Reg::Rcx, Reg::R11, Reg::Rdi, Reg::R8, Reg::R10];
 
-    let (spilled_method, web_to_regnum, webs) = reg_alloc(
-        &mut m,
-        callee_saved_regs.len() as u32,
-        caller_saved_regs.len() as u32,
-    );
+    let all_regs = vec![
+        Reg::Rbx,
+        Reg::R12,
+        Reg::R13,
+        Reg::R14,
+        Reg::R15,
+        Reg::Rsi,
+        Reg::Rcx,
+        Reg::R11,
+        Reg::Rdi,
+        Reg::R8,
+        Reg::R10,
+    ];
+
+    let arg_var_to_reg = HashMap::new(); //TODO need to implement
+    let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, &all_regs, &arg_var_to_reg);
     println!("webs: {webs:?}");
 
     // define the caller saved registers in relation to their color
@@ -853,6 +900,8 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, M
     // println!("after renaming: {x}");
     x
 }
+
+// should this take a
 
 // maps register number to a register
 fn reg_num_to_register(
