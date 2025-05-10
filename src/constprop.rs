@@ -167,7 +167,7 @@ fn prop_const(
         _ => i, // covers phi expressions, parallel moves, and constant loads
     };
 
-    simplify(new_instruction)
+    use_identities(simplify(new_instruction))
 }
 
 pub fn constant_propagation(
@@ -306,5 +306,145 @@ fn use_identities(i: Instruction<SSAVarLabel>) -> Instruction<SSAVarLabel> {
      *
      *
      */
+
+    match i.clone() {
+        Instruction::ThreeOp {
+            source1,
+            source2,
+            dest,
+            op,
+        } => match op {
+            Bop::AddBop(aop) => match aop {
+                AddOp::Add => {
+                    // x + 0 = x
+                    if source2 == ImmVar::Imm(0) {
+                        return Instruction::MoveOp {
+                            source: source1,
+                            dest: dest,
+                        };
+                    }
+                    // 0 + x = x
+                    if source1 == ImmVar::Imm(0) {
+                        return Instruction::MoveOp {
+                            source: source2,
+                            dest: dest,
+                        };
+                    }
+                }
+                AddOp::Sub => {
+                    if source1 == source2 {
+                        return Instruction::Constant {
+                            dest: dest,
+                            constant: 0,
+                        };
+                    }
+                }
+            },
+            Bop::MulBop(mop) => match mop {
+                MulOp::Mul => {
+                    // x * 0 = 0
+                    // 0 * x = 0
+                    // x * 1 = x
+                    if source2 == ImmVar::Imm(1) {
+                        return Instruction::MoveOp {
+                            source: source1,
+                            dest: dest,
+                        };
+                    }
+
+                    // 1 * x = x
+                    if source1 == ImmVar::Imm(1) {
+                        return Instruction::MoveOp {
+                            source: source2,
+                            dest: dest,
+                        };
+                    }
+
+                    // x * 0 = 0
+                    // 0 * x = 0
+                    if source2 == ImmVar::Imm(0) || source1 == ImmVar::Imm(0) {
+                        return Instruction::Constant {
+                            constant: 0,
+                            dest: dest,
+                        };
+                    }
+                }
+                MulOp::Div => {
+                    // x / 1 = x
+                    // 0 / x = 0
+
+                    if source2 == ImmVar::Imm(1) {
+                        return Instruction::MoveOp {
+                            source: source1,
+                            dest: dest,
+                        };
+                    }
+                    if source1 == ImmVar::Imm(0) {
+                        return Instruction::Constant {
+                            dest: dest,
+                            constant: 0,
+                        };
+                    }
+                }
+                MulOp::Mod => {
+                    // x % 1 = 0
+                    // x % x = 0
+
+                    if source2 == ImmVar::Imm(1) {
+                        return Instruction::Constant {
+                            dest: dest,
+                            constant: 0,
+                        };
+                    }
+
+                    if source1 == source2 {
+                        return Instruction::Constant {
+                            dest: dest,
+                            constant: 0,
+                        };
+                    }
+                }
+            },
+            Bop::RelBop(rop) => match rop {
+                RelOp::Lt | RelOp::Gt => {
+                    if source1 == source2 {
+                        return Instruction::Constant {
+                            dest: dest,
+                            constant: 0,
+                        };
+                    }
+                }
+                RelOp::Le | RelOp::Ge => {
+                    if source1 == source2 {
+                        return Instruction::Constant {
+                            dest: dest,
+                            constant: 1,
+                        };
+                    }
+                }
+            },
+            Bop::EqBop(eop) => match eop {
+                EqOp::Eq => {
+                    if source1 == source2 {
+                        return Instruction::Constant {
+                            dest: dest,
+                            constant: 1,
+                        };
+                    }
+                }
+                EqOp::Neq => {
+                    if source1 == source2 {
+                        return Instruction::Constant {
+                            dest: dest,
+                            constant: 0,
+                        };
+                    }
+                }
+            },
+            _ => (),
+        },
+        _ => (),
+    }
+
     i
 }

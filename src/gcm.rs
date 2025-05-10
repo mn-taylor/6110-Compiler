@@ -221,9 +221,9 @@ fn schedule_nicely(
     };
     let best = latest;
     while latest != earliest {
-        if loop_nest(latest) < loop_nest(best) {
-            best = latest;
-        }
+        // if loop_nest(latest) < loop_nest(best) {
+        //     best = latest;
+        // }
         latest = *idoms.get(&latest).unwrap();
     }
     Some(best)

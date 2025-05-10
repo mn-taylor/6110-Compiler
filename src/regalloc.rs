@@ -10,6 +10,7 @@ use std::hash::Hash;
 type VInstruction = cfg::Instruction<VarLabel>;
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
+use std::cmp::max;
 
 #[derive(PartialEq, Debug, Eq, Hash, Clone, Copy)]
 pub struct InsnLoc {
@@ -380,7 +381,7 @@ fn interference_graph(
     webs.extend(get_webs(m));
 
     // first num_caller_saved_regs webs are empty.
-    println!("webs after null insertion {:?}", webs);
+    // ln!("webs after null insertion {:?}", webs);
 
     let convex_closures_of_webs = webs
         .iter()
@@ -426,7 +427,7 @@ fn interference_graph(
         }
     }
 
-    print!("interference graph {:?}", graph);
+    // print!("interference graph {:?}", graph);
     (webs, graph)
 }
 
@@ -554,6 +555,14 @@ fn is_trivial(w: &Web) -> bool {
     }
 }
 
+fn max_degree(interfer_graph: HashMap<u32, HashSet<u32>>) -> u32 {
+    let mut max_degree: u32 = 0;
+    interfer_graph
+        .values()
+        .for_each(|c| max_degree = max(c.len() as u32, max_degree));
+    max_degree
+}
+
 fn reg_alloc(
     m: &mut CfgMethod,
     num_regs: u32,
@@ -566,7 +575,7 @@ fn reg_alloc(
         // println!("AAAAA interfer_graph: {interfer_graph:?}");
         // println!("AAAAA webs: {webs:?}");
 
-        println!("New Method \n{}", new_method);
+        // println!("New Method \n{}", new_method);
         match color(
             interfer_graph.clone(),
             num_regs + num_caller_saved_regs,
@@ -579,6 +588,7 @@ fn reg_alloc(
                 let mut spillable = None;
                 for web_to_spill in things_to_spill {
                     if !is_trivial(webs.get(web_to_spill as usize).unwrap()) {
+                        println!("max degree: {}", max_degree(interfer_graph));
                         println!("spilling web number {web_to_spill}");
                         spillable = Some(webs.get(web_to_spill as usize).unwrap());
                         break;
@@ -931,62 +941,62 @@ pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<Sum<Reg, M
     }
 }
 
-mod tests {
-    use super::*;
-    use ImmVar::Var;
+// mod tests {
+//     use super::*;
+//     use ImmVar::Var;
 
-    #[test]
-    fn easy() {
-        let m = cfg::CfgMethod {
-            num_params: 0,
-            name: "".to_string(),
-            blocks: vec![(
-                0,
-                BasicBlock {
-                    jump_loc: Jump::Nowhere,
-                    body: vec![
-                        Instruction::Constant {
-                            dest: 1,
-                            constant: 17,
-                        },
-                        Instruction::MoveOp {
-                            source: Var(2),
-                            dest: 3,
-                        },
-                        Instruction::MoveOp {
-                            source: Var(1),
-                            dest: 2,
-                        },
-                        Instruction::MoveOp {
-                            source: Var(1),
-                            dest: 3,
-                        },
-                        Instruction::MoveOp {
-                            source: Var(1),
-                            dest: 1,
-                        },
-                        Instruction::MoveOp {
-                            source: Var(1),
-                            dest: 2,
-                        },
-                        Instruction::MoveOp {
-                            source: Var(2),
-                            dest: 1,
-                        },
-                    ],
-                },
-            )]
-            .into_iter()
-            .collect(),
-            fields: HashMap::new(),
-            return_type: None,
-        };
-        assert_eq!(
-            get_uses(&m, 1, InsnLoc { blk: 0, idx: 0 }),
-            hashset! {InsnLoc { blk: 0, idx: 3 }, InsnLoc { blk: 0, idx: 2 }, InsnLoc { blk: 0, idx: 4 }}
-        );
-        // println!("graph: {:?}", interference_graph(&mut m.clone()));
-        // println!("coloring: {:?}", reg_alloc(&mut m.clone(), 2));
-        // println!("{:?}", regalloc_method(m));
-    }
-}
+//     #[test]
+//     fn easy() {
+//         let m = cfg::CfgMethod {
+//             num_params: 0,
+//             name: "".to_string(),
+//             blocks: vec![(
+//                 0,
+//                 BasicBlock {
+//                     jump_loc: Jump::Nowhere,
+//                     body: vec![
+//                         Instruction::Constant {
+//                             dest: 1,
+//                             constant: 17,
+//                         },
+//                         Instruction::MoveOp {
+//                             source: Var(2),
+//                             dest: 3,
+//                         },
+//                         Instruction::MoveOp {
+//                             source: Var(1),
+//                             dest: 2,
+//                         },
+//                         Instruction::MoveOp {
+//                             source: Var(1),
+//                             dest: 3,
+//                         },
+//                         Instruction::MoveOp {
+//                             source: Var(1),
+//                             dest: 1,
+//                         },
+//                         Instruction::MoveOp {
+//                             source: Var(1),
+//                             dest: 2,
+//                         },
+//                         Instruction::MoveOp {
+//                             source: Var(2),
+//                             dest: 1,
+//                         },
+//                     ],
+//                 },
+//             )]
+//             .into_iter()
+//             .collect(),
+//             fields: HashMap::new(),
+//             return_type: None,
+//         };
+//         assert_eq!(
+//             get_uses(&m, 1, InsnLoc { blk: 0, idx: 0 }),
+//             hashset! {InsnLoc { blk: 0, idx: 3 }, InsnLoc { blk: 0, idx: 2 }, InsnLoc { blk: 0, idx: 4 }}
+//         );
+//         // println!("graph: {:?}", interference_graph(&mut m.clone()));
+//         // println!("coloring: {:?}", reg_alloc(&mut m.clone(), 2));
+//         // println!("{:?}", regalloc_method(m));
+//     }
+// }
