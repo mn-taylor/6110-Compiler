@@ -206,7 +206,7 @@ fn main() {
                             ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
                         }
                         if args.debug && args.get_opts().contains(&Optimization::Dce) {
-                            // println!("method after dead code elimination: \n{}", ssa_method);
+                            println!("method after dead code elimination: \n{}", ssa_method);
                             metrics_string.push(format!(
                                 "after dead code elimination | num_instructions: {}",
                                 num_intstructions(&ssa_method)
@@ -218,7 +218,7 @@ fn main() {
                             ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
                         }
                         if args.debug && args.get_opts().contains(&Optimization::Cp) {
-                            // println!("method after copy propagation: \n{}", ssa_method);
+                            println!("method after copy propagation: \n{}", ssa_method);
                             metrics_string.push(format!(
                                 "after copy propagation | num_instructions: {}",
                                 num_intstructions(&ssa_method)
@@ -230,7 +230,7 @@ fn main() {
                             ssa_method = deadcode::dead_code_elimination(&mut ssa_method);
                         }
                         if args.debug && args.get_opts().contains(&Optimization::Cop) {
-                            // println!("method after constant propagation: \n{}", ssa_method);
+                            println!("method after constant propagation: \n{}", ssa_method);
                             metrics_string.push(format!(
                                 "after constant propagation | num_instructions: {}",
                                 num_intstructions(&ssa_method)

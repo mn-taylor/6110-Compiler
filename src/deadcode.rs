@@ -161,6 +161,7 @@ pub fn dead_code_elimination(m: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
             .cloned()
             .collect()
     }
+    println!("All used vars: {:?}", all_used_vars);
 
     let mut removed_var = false;
     // remove definitions of non global variables that are never sources

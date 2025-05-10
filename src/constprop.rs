@@ -167,7 +167,8 @@ fn prop_const(
         _ => i, // covers phi expressions, parallel moves, and constant loads
     };
 
-    use_identities(simplify(new_instruction))
+    // use_identities(simplify(new_instruction))
+    simplify(new_instruction)
 }
 
 pub fn constant_propagation(

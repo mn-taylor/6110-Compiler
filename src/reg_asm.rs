@@ -197,8 +197,8 @@ fn convert_multipication_var_var(
     let operand = match operand {
         Sum::Inl(reg) => reg,
         Sum::Inr(_) => {
-            instructions.push(load_into_reg_var(Rdx, operand, stack_lookup));
-            Rdx
+            instructions.push(load_into_reg_var(R9, operand, stack_lookup));
+            R9
         }
     };
 
@@ -293,7 +293,7 @@ fn convert_multipication_var_imm(
     match mop {
         MulOp::Mul => {
             instructions.push(insn(("movq", optarget, Rax)));
-            instructions.push(insn(("imulq", optarget, Rax)));
+            instructions.push(insn(("imulq", operand, Rax)));
             instructions.push(store_from_reg_var(Rax, dest, stack_lookup));
         }
         MulOp::Mod => {
