@@ -1,4 +1,3 @@
-use crate::regalloc::get_insn;
 // following https://courses.cs.washington.edu/courses/cse501/06wi/reading/click-pldi95.pdf
 use crate::{cfg, regalloc, scan, ssa_construct};
 use cfg::{BlockLabel, CfgMethod, Instruction};
@@ -83,7 +82,7 @@ pub fn schedule_all<T: Copy + Hash + Eq>(
     for i in all_locs.iter() {
         if pinned(*i, m) {
             done.insert(*i);
-            for x in regalloc::get_sources(&get_insn(m, *i)) {
+            for x in regalloc::get_sources(&regalloc::get_insn(m, *i)) {
                 let x = *loc_of_lbl.get(&x).unwrap();
                 schedule_one(x, m, &mut done, &mut schedule, &loc_of_lbl, &depths);
             }
@@ -107,7 +106,7 @@ fn schedule_early<T: Hash + Copy + Eq>(
     done.insert(i);
     // 0 is the root
     schedule.insert(i, 0);
-    for x in regalloc::get_sources(&get_insn(m, i)) {
+    for x in regalloc::get_sources(&regalloc::get_insn(m, i)) {
         let x = *loc_of_lbl.get(&x).unwrap();
         schedule_early(x, m, done, schedule, loc_of_lbl, depths);
         if depths.get(schedule.get(&i).unwrap()).unwrap()
@@ -118,21 +117,51 @@ fn schedule_early<T: Hash + Copy + Eq>(
     }
 }
 
-// TODO fn build_uses
+fn build_uses<T: Copy + Eq + Hash>(
+    m: &CfgMethod<T>,
+    loc_of_lbl: &HashMap<T, InsnLoc>,
+) -> HashMap<InsnLoc, Vec<InsnLoc>> {
+    let mut uses: HashMap<_, _> = regalloc::all_insn_locs(m)
+        .into_iter()
+        .map(|i| (i, vec![]))
+        .collect();
+    for i in regalloc::all_insn_locs(m) {
+        for j in regalloc::get_sources(&regalloc::get_insn(m, i)) {
+            uses.get_mut(&loc_of_lbl.get(&j).unwrap()).unwrap().push(i);
+        }
+    }
+    uses
+}
 
 // top of pg 251
-pub fn schedule_late<T: Copy + Hash + Eq>(
+pub fn schedule_late<T: Copy + Hash + PartialEq + Eq>(
     i: InsnLoc,
     m: &CfgMethod<T>,
     done: &mut HashSet<InsnLoc>,
     schedule: &mut HashMap<InsnLoc, BlockLabel>,
     loc_of_lbl: &HashMap<T, InsnLoc>,
     depths: &HashMap<BlockLabel, u32>,
+    uses: &HashMap<InsnLoc, Vec<InsnLoc>>,
 ) {
     if pinned(i, m) || done.contains(&i) {
         return;
     }
     done.insert(i);
     let lca: Option<BlockLabel> = None;
-    // TODO not done yet
+    for y in uses.get(&i).unwrap() {
+        schedule_late(*y, m, done, schedule, loc_of_lbl, depths, uses);
+        let use_of_y =
+            if let Sum::Inl(Instruction::PhiExpr { sources, .. }) = regalloc::get_insn(m, *y) {
+                let (block_with_i, _) = sources
+                    .into_iter()
+                    .find(|(_, ii)| loc_of_lbl.get(ii).unwrap() == &i)
+                    .unwrap();
+                block_with_i
+            } else {
+                schedule.get(&y).unwrap()
+            };
+        lca = find_lca(lca, use_of_y);
+    }
 }
+
+fn find_lca(a: Option<BlockLabel>, b: BlockLabel) {}
