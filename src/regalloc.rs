@@ -979,8 +979,7 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
 
     // define the caller saved registers in relation to their color
 
-    let color_to_register =
-        reg_num_to_register(web_to_regnum.clone(), callee_saved_regs, caller_saved_regs);
+    let color_to_register = reg_num_to_register(web_to_regnum.clone(), &all_regs);
 
     let web_to_reg = web_to_regnum
         .into_iter()
@@ -996,38 +995,15 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
 // should this take a
 
 // maps register number to a register
-fn reg_num_to_register(
-    web_to_regnum: HashMap<u32, u32>,
-    callee_saved_regs: Vec<Reg>,
-    caller_saved_regs: Vec<Reg>,
-) -> HashMap<u32, Reg> {
+fn reg_num_to_register(web_to_regnum: HashMap<u32, u32>, all_regs: &Vec<Reg>) -> HashMap<u32, Reg> {
     let mut reg_num_to_reg: HashMap<u32, Reg> = hashmap! {};
 
-    // make sure to map the dummy webs to the caller saved registers and the rest can be mapped to the rest
-    for (i, reg) in caller_saved_regs.iter().enumerate() {
+    // map dummy webs to registers
+    for (i, reg) in all_regs.iter().enumerate() {
         // find what reg_num colors this dummy variable
         let reg_num = web_to_regnum.get(&(i as u32)).unwrap();
         println!("matching Color {reg_num} to {reg}");
         reg_num_to_reg.insert(*reg_num, *reg);
-    }
-
-    // map remaining colors to caller saved registers
-    let mut callee_regs = callee_saved_regs.clone();
-    for reg_num in web_to_regnum.clone().into_values() {
-        if !reg_num_to_reg.contains_key(&reg_num) {
-            match callee_regs.pop() {
-                Some(reg) => {
-                    println!("matching Color {reg_num} to {reg}");
-                    reg_num_to_reg.insert(reg_num, reg)
-                }
-                None => {
-                    println!("Web to regnum: {:?}", web_to_regnum.clone());
-                    println!("Caller Saved Registers {:?}", caller_saved_regs);
-                    println!("Callee Saved Registers {:?}", callee_saved_regs);
-                    panic!("invalid coloring")
-                }
-            };
-        }
     }
 
     reg_num_to_reg
