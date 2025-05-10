@@ -28,7 +28,7 @@ fn dominator_tree<T>(m: &CfgMethod<T>) -> HashMap<BlockLabel, HashSet<BlockLabel
     ssa_construct::dominator_tree(m, &dom_sets)
 }
 
-fn idoms<T>(m: &CfgMethod<T>) -> HashMap<BlockLabel, BlockLabel> {
+fn build_idoms<T>(m: &CfgMethod<T>) -> HashMap<BlockLabel, BlockLabel> {
     dominator_tree(m)
         .into_iter()
         .flat_map(|(u, vs)| vs.into_iter().map(|v| (v, u)).collect::<Vec<_>>())
@@ -72,26 +72,34 @@ fn build_loc_of_lbl<T: Copy + Hash + Eq>(
 
 pub fn schedule_all<T: Copy + Hash + Eq>(
     m: &CfgMethod<T>,
-    schedule_one: impl Fn(
-        InsnLoc,
-        &CfgMethod<T>,
-        &mut HashSet<InsnLoc>,
-        &mut HashMap<InsnLoc, BlockLabel>,
-        &HashMap<T, InsnLoc>,
-        &HashMap<BlockLabel, u32>,
-    ) -> (),
+    should_schedule_early: bool,
 ) -> HashMap<InsnLoc, BlockLabel> {
     let mut schedule: HashMap<InsnLoc, BlockLabel> = HashMap::new();
     let mut done: HashSet<InsnLoc> = HashSet::new();
     let all_locs = regalloc::all_insn_locs(m);
     let loc_of_lbl: HashMap<T, InsnLoc> = build_loc_of_lbl(m, &all_locs);
     let depths = dom_depths(m);
+    let uses = build_uses(m, &loc_of_lbl);
+    let idoms = build_idoms(m);
     for i in all_locs.iter() {
         if pinned(*i, m) {
             done.insert(*i);
             for x in regalloc::get_sources(&regalloc::get_insn(m, *i)) {
                 let x = *loc_of_lbl.get(&x).unwrap();
-                schedule_one(x, m, &mut done, &mut schedule, &loc_of_lbl, &depths);
+                if should_schedule_early {
+                    schedule_early(x, m, &mut done, &mut schedule, &loc_of_lbl, &depths);
+                } else {
+                    schedule_late(
+                        x,
+                        m,
+                        &mut done,
+                        &mut schedule,
+                        &loc_of_lbl,
+                        &depths,
+                        &uses,
+                        &idoms,
+                    );
+                }
             }
         }
     }
