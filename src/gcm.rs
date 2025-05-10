@@ -28,6 +28,13 @@ fn dominator_tree<T>(m: &CfgMethod<T>) -> HashMap<BlockLabel, HashSet<BlockLabel
     ssa_construct::dominator_tree(m, &dom_sets)
 }
 
+fn idoms<T>(m: &CfgMethod<T>) -> HashMap<BlockLabel, BlockLabel> {
+    dominator_tree(m)
+        .into_iter()
+        .flat_map(|(u, vs)| vs.into_iter().map(|v| (v, u)).collect::<Vec<_>>())
+        .collect()
+}
+
 fn dom_depths<T>(m: &CfgMethod<T>) -> HashMap<BlockLabel, u32> {
     let dom_tree = dominator_tree(m);
     let mut agenda = vec![0];
@@ -134,6 +141,8 @@ fn build_uses<T: Copy + Eq + Hash>(
 }
 
 // top of pg 251
+// unlike schedule_early, schedule_late might make schedule a partial map.
+// if schedule.get(&x) = None, then x is never used and thus does not need to be scheduled at all.
 pub fn schedule_late<T: Copy + Hash + PartialEq + Eq>(
     i: InsnLoc,
     m: &CfgMethod<T>,
@@ -142,14 +151,14 @@ pub fn schedule_late<T: Copy + Hash + PartialEq + Eq>(
     loc_of_lbl: &HashMap<T, InsnLoc>,
     depths: &HashMap<BlockLabel, u32>,
     uses: &HashMap<InsnLoc, Vec<InsnLoc>>,
+    idoms: &HashMap<BlockLabel, BlockLabel>,
 ) {
     if pinned(i, m) || done.contains(&i) {
         return;
     }
     done.insert(i);
-    let lca: Option<BlockLabel> = None;
     for y in uses.get(&i).unwrap() {
-        schedule_late(*y, m, done, schedule, loc_of_lbl, depths, uses);
+        schedule_late(*y, m, done, schedule, loc_of_lbl, depths, uses, idoms);
         let use_of_y =
             if let Sum::Inl(Instruction::PhiExpr { sources, .. }) = regalloc::get_insn(m, *y) {
                 let (block_with_i, _) = sources
@@ -160,8 +169,32 @@ pub fn schedule_late<T: Copy + Hash + PartialEq + Eq>(
             } else {
                 schedule.get(&y).unwrap()
             };
-        lca = find_lca(lca, use_of_y);
+        schedule.insert(
+            i,
+            find_lca(schedule.get(y).map(|x| *x), *use_of_y, depths, idoms),
+        );
     }
 }
 
-fn find_lca(a: Option<BlockLabel>, b: BlockLabel) {}
+fn find_lca(
+    a: Option<BlockLabel>,
+    mut b: BlockLabel,
+    depths: &HashMap<BlockLabel, u32>,
+    idoms: &HashMap<BlockLabel, BlockLabel>,
+) -> BlockLabel {
+    let mut a = match a {
+        None => return b,
+        Some(a) => a,
+    };
+    while depths.get(&a).unwrap() < depths.get(&b).unwrap() {
+        a = *idoms.get(&a).unwrap();
+    }
+    while depths.get(&b).unwrap() < depths.get(&a).unwrap() {
+        b = *idoms.get(&b).unwrap();
+    }
+    while a != b {
+        a = *idoms.get(&a).unwrap();
+        b = *idoms.get(&b).unwrap();
+    }
+    a
+}
