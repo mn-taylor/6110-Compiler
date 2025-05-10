@@ -9,7 +9,13 @@ use std::hash::Hash;
 use Instruction::*;
 fn insn_pinned<T>(insn: &Instruction<T>) -> bool {
     match insn {
-        Spill { .. } | Reload { .. } | ParMov(_) | StoreParam(_, _) | NoArgsCall(_, _) => panic!(),
+        Spill { .. }
+        | Reload { .. }
+        | ParMov(_)
+        | StoreParam(_, _)
+        | NoArgsCall(_, _)
+        | Push(_)
+        | Pop(_) => panic!(),
         PhiExpr { .. }
         | ArrayAccess { .. }
         | ArrayStore { .. }

@@ -153,6 +153,8 @@ pub enum Instruction<VarLabel> {
     Call(String, Vec<Arg<VarLabel>>, Option<VarLabel>),
     NoArgsCall(String, Option<VarLabel>),
     StoreParam(u16, Arg<VarLabel>),
+    Push(VarLabel),
+    Pop(VarLabel),
 }
 
 impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel> {
@@ -227,6 +229,8 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
             Instruction::StoreParam(param_num, arg) => {
                 write!(f, "ARG_{param_num} <- {}", arg)
             }
+            Instruction::Push(var) => write!(f, "push {var}"),
+            Instruction::Pop(var) => write!(f, "pop {var}"),
         }
     }
 }

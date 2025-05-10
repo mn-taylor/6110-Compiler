@@ -93,8 +93,10 @@ fn prop_copies(
             dest,
             op: op.clone(),
         },
-        Instruction::Spill { .. } => panic!(),
-        Instruction::Reload { .. } => panic!(),
+        Instruction::Spill { .. }
+        | Instruction::Reload { .. }
+        | Instruction::Push(_)
+        | Instruction::Pop(_) => panic!(),
     }
 }
 

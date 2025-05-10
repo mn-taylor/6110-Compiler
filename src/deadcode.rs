@@ -9,8 +9,10 @@ pub fn get_sources<VarLabel: Eq + Hash + Copy>(
     instruction: &Instruction<VarLabel>,
 ) -> HashSet<VarLabel> {
     match instruction {
-        Instruction::NoArgsCall(_, _) => panic!(),
-        Instruction::StoreParam(_, _) => panic!(),
+        Instruction::NoArgsCall(_, _)
+        | Instruction::StoreParam(_, _)
+        | Instruction::Pop(_)
+        | Instruction::Push(_) => panic!(),
         Instruction::PhiExpr { sources, .. } => sources.iter().map(|(_, var)| *var).collect(),
         Instruction::ArrayAccess { idx, .. } => {
             let mut set = hashset! {};
@@ -129,7 +131,9 @@ pub fn get_dest<T: Copy>(instruction: &Instruction<T>) -> Option<T> {
         | Instruction::Reload { .. }
         | Instruction::ParMov { .. }
         | Instruction::NoArgsCall(_, _)
-        | Instruction::StoreParam(_, _) => panic!(),
+        | Instruction::StoreParam(_, _)
+        | Instruction::Push(_)
+        | Instruction::Pop(_) => panic!(),
     }
 }
 

@@ -102,6 +102,8 @@ fn get_arg_sources<T: Copy>(arg: &Arg<T>) -> Vec<T> {
 
 fn get_insn_sources<T: Hash + Eq + Copy>(insn: &Instruction<T>) -> HashSet<T> {
     match insn {
+        Instruction::Push(x) => hashset! {*x},
+        Instruction::Pop(_) => hashset! {},
         Instruction::StoreParam(_, a) => get_arg_sources(a).into_iter().collect(),
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
@@ -150,6 +152,8 @@ pub fn get_dest<T: Copy>(insn: &Sum<&cfg::Instruction<T>, &cfg::Jump<T>>) -> Opt
 
 fn get_insn_dest<T: Copy>(insn: &Instruction<T>) -> Option<T> {
     match *insn {
+        Instruction::Push(_) => None,
+        Instruction::Pop(x) => Some(x),
         Instruction::StoreParam(_, _) => None,
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
@@ -762,6 +766,8 @@ fn insn_map<T, U>(
     dst_fun: impl Fn(T) -> U,
 ) -> cfg::Instruction<U> {
     match instr {
+        Instruction::Pop(x) => Instruction::Pop(dst_fun(x)),
+        Instruction::Push(x) => Instruction::Push(src_fun(x)),
         cfg::Instruction::StoreParam(param, a) => {
             Instruction::StoreParam(param, arg_map(a, src_fun))
         }
@@ -963,7 +969,7 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let callee_saved_regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
     let caller_saved_regs: Vec<Reg> =
-        vec![Reg::Rsi, Reg::Rcx, Reg::R11, Reg::Rdi, Reg::R8, Reg::R10];
+        vec![/*Reg::Rsi, Reg::Rcx, Reg::R11, Reg::Rdi, Reg::R8, Reg::R10*/];
 
     let mut all_regs = callee_saved_regs.clone();
     all_regs.append(&mut caller_saved_regs.clone());
