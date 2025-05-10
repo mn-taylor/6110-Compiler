@@ -1,7 +1,6 @@
 use crate::cfg_build::VarLabel;
 use crate::{cfg, deadcode, reg_asm, scan};
 use cfg::{Arg, BlockLabel, CfgType, ImmVar, MemVarLabel};
-use core::num;
 use maplit::{hashmap, hashset};
 use reg_asm::Reg;
 use scan::Sum;
@@ -507,10 +506,10 @@ fn add_parameter_constraints(
     }
 
     // find webs defined over argument variables, and make sure they go into their correct argument
-    for (i, Web { var, defs, uses }) in all_webs.iter().enumerate() {
+    for (i, Web { var, .. }) in all_webs.iter().enumerate() {
         match arg_to_idx.get(&var) {
             Some(idx) => {
-                for j in (0..all_regs.len()) {
+                for j in 0..all_regs.len() {
                     if i == *idx {
                         continue;
                     }
@@ -1054,16 +1053,18 @@ fn lower_calls_insn(i: VInstruction) -> Vec<VInstruction> {
 
 fn method_map(
     mut m: cfg::CfgMethod<VarLabel>,
-    f: impl FnMut(VInstruction) -> Vec<VInstruction>,
+    mut f: impl FnMut(VInstruction) -> Vec<VInstruction>,
 ) -> cfg::CfgMethod<VarLabel> {
-    m.blocks = m
-        .blocks
-        .into_iter()
-        .map(move |(lbl, mut blk)| {
-            blk.body = blk.body.into_iter().flat_map(f).collect();
-            (lbl, blk)
-        })
-        .collect();
+    let mut blocks = Vec::new();
+    for (lbl, mut blk) in m.blocks.into_iter() {
+        let mut body = Vec::new();
+        for insn in blk.body.into_iter() {
+            body.append(&mut f(insn));
+        }
+        blk.body = body;
+        blocks.push((lbl, blk));
+    }
+    m.blocks = blocks.into_iter().collect();
     m
 }
 
