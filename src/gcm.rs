@@ -206,3 +206,24 @@ fn find_lca(
     }
     a
 }
+
+// alg at end of section 2 (pg 251).
+// returning None means it doesn't need to be scheduled at all (dead code)
+fn schedule_nicely(
+    earliest: BlockLabel,
+    latest: Option<BlockLabel>,
+    idoms: HashMap<BlockLabel, BlockLabel>,
+) -> Option<BlockLabel> {
+    let mut latest = match latest {
+        Some(latest) => latest,
+        None => return None,
+    };
+    let best = latest;
+    while latest != earliest {
+        if loop_nest(latest) < loop_nest(best) {
+            best = latest;
+        }
+        latest = *idoms.get(&latest).unwrap();
+    }
+    Some(best)
+}
