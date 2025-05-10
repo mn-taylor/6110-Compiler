@@ -209,6 +209,7 @@ fn find_lca(
 
 // alg at end of section 2 (pg 251).
 // returning None means it doesn't need to be scheduled at all (dead code)
+// Oops this is wrong... need to select final positions _while finding latest positions_
 fn schedule_nicely(
     earliest: BlockLabel,
     latest: Option<BlockLabel>,
