@@ -1,0 +1,15 @@
+import printf;
+
+void main ( ) {
+  int a, b, c, d;
+  int f;
+
+  a = 2;
+  b = 3;
+  c = 4;
+  d = 5;
+
+  f = a + b + c;
+  printf ( "%d\n", f );
+  printf ( "%d\n", d );
+}
