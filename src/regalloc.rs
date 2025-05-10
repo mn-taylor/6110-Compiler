@@ -891,7 +891,7 @@ fn dst_reg(
 
 fn to_regs(
     m: cfg::CfgMethod<VarLabel>,
-    web_to_reg: HashMap<u32, Reg>,
+    web_to_reg: &HashMap<u32, Reg>,
     webs: &Vec<Web>,
 ) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
     let new_fields = all_mem_vars(&m);
@@ -969,16 +969,16 @@ fn build_need_to_save(
     webs: &Vec<Web>,
     ccws: &Vec<HashSet<InsnLoc>>,
     m: &cfg::CfgMethod<Sum<Reg, MemVarLabel>>,
-    reg_of_varname: &HashMap<VarLabel, Reg>,
+    web_to_reg: &HashMap<u32, Reg>,
 ) -> HashMap<InsnLoc, HashSet<Reg>> {
     all_insn_locs(m)
         .into_iter()
         .filter_map(|i| {
             if let Sum::Inl(Instruction::NoArgsCall(_, _)) = get_insn(m, i) {
                 let mut regs = HashSet::new();
-                for (web, ccw) in webs.iter().zip(ccws) {
+                for ((webnum, _), ccw) in webs.iter().enumerate().zip(ccws) {
                     if ccw.contains(&i) {
-                        regs.insert(*reg_of_varname.get(&web.var).unwrap());
+                        regs.insert(*web_to_reg.get(&(webnum as u32)).unwrap());
                     }
                 }
                 Some((i, regs))
@@ -995,9 +995,9 @@ fn push_and_pop(
     caller_saved_regs: &Vec<Reg>,
     webs: &Vec<Web>,
     ccws: &Vec<HashSet<InsnLoc>>,
-    reg_of_varname: &HashMap<VarLabel, Reg>,
+    web_to_reg: &HashMap<u32, Reg>,
 ) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
-    let need_to_save = build_need_to_save(webs, ccws, &m, reg_of_varname);
+    let need_to_save = build_need_to_save(webs, ccws, &m, web_to_reg);
     method_map(m, |i, loc| match need_to_save.get(&loc) {
         None => vec![i],
         Some(used) => {
@@ -1050,8 +1050,8 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
         .collect();
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
-    let m = to_regs(spilled_method, web_to_reg, &webs);
-    let m = push_and_pop(m, &caller_saved_regs, &webs, &ccws, &reg_of_varname);
+    let m = to_regs(spilled_method, &web_to_reg, &webs);
+    let m = push_and_pop(m, &caller_saved_regs, &webs, &ccws, &web_to_reg);
     // println!("after renaming: {x}");
     m
 }
