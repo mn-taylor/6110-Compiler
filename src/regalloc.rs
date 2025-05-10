@@ -380,6 +380,7 @@ fn interference_graph(
     webs.extend(get_webs(m));
 
     // first num_caller_saved_regs webs are empty.
+    println!("webs after null insertion {:?}", webs);
 
     let convex_closures_of_webs = webs
         .iter()
@@ -398,10 +399,18 @@ fn interference_graph(
         }
     }
 
-    // connect the dummy webs to all webs that contain call instructions
+    // connect the dummy webs to all webs that contain call instructions, this only works creates interference if the webs internal call instructions not if they are defined or used in call instructions
     let call_instructions = get_all_call_instr(m);
     for (i, ccw) in convex_closures_of_webs.iter().enumerate() {
-        if !ccw.is_disjoint(&call_instructions) {
+        let defs_set = webs
+            .get(i)
+            .unwrap()
+            .defs
+            .clone()
+            .into_iter()
+            .collect::<HashSet<_>>();
+
+        if !ccw.is_disjoint(&call_instructions) || !defs_set.is_disjoint(&call_instructions) {
             for j in 0..num_caller_saved_regs {
                 graph.get_mut(&(i as u32)).unwrap().insert(j);
                 graph.get_mut(&j).unwrap().insert(i as u32);
@@ -417,6 +426,7 @@ fn interference_graph(
         }
     }
 
+    print!("interference graph {:?}", graph);
     (webs, graph)
 }
 
