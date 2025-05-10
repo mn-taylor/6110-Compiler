@@ -365,6 +365,105 @@ fn get_all_call_instr(m: &mut CfgMethod) -> HashSet<InsnLoc> {
     call_instrs
 }
 
+fn reg_of_argnum(n: u32) -> Option<Reg> {
+    match n {
+        0 => Some(Reg::Rdi),
+        1 => Some(Reg::Rsi),
+        2 => Some(Reg::Rdx),
+        3 => Some(Reg::Rcx),
+        4 => Some(Reg::R8),
+        5 => Some(Reg::R9),
+        _ => None,
+    }
+}
+
+fn is_colored_param(p: u32, regs_colored: Vec<Reg>) -> bool {
+    match reg_of_argnum(p) {
+        None => false,
+        Some(r) => regs_colored.contains(&r),
+    }
+}
+
+fn dummy_with_same_type(
+    fields: &mut HashMap<VarLabel, (CfgType, String)>,
+    v: VarLabel,
+) -> VarLabel {
+    let dummy = (*fields.keys().max().unwrap() as usize + 1) as u32;
+    fields.insert(dummy, (*fields.get(&v).unwrap()).clone());
+    dummy
+}
+
+/*
+Change
+
+LoadParam(x, 0)
+
+into
+
+LoadParam(dummy_var, 0)
+Mov(dummy_var, x).
+
+Similarly for StoreParam.  We do this because coloring will have the constraint that
+LoadParam(v, 0) means that v has to be assigned the register rdi, etc.
+
+However, we leave LoadParam(x, 5) and LoadParam(x, 2) alone, because the 5th arg reg is r9, and the 2nd arg reg is rdx, and we do not use either of these for coloring.
+
+We also leave alone LoadParam(x, n) for n >= 6, since these guys go on the stack.
+
+Also, if we see StoreParam("some_string", n), we leave that alone.
+
+
+Also: for each dummy variable, add to reg_of_varlabel that dummy maps to the reg it should be given
+ */
+fn make_args_easy_to_color(
+    i: Instruction<VarLabel>,
+    regs_colored: &Vec<Reg>,
+    fields: &mut HashMap<u32, (CfgType, String)>,
+    reg_of_varlabel: &mut HashMap<VarLabel, Reg>,
+) -> Vec<Instruction<VarLabel>> {
+    match i {
+        Instruction::LoadParam { param, dest } => {
+            if let Some(reg) = reg_of_argnum(param) {
+                if regs_colored.contains(&reg) {
+                    let dummy = dummy_with_same_type(fields, dest);
+                    reg_of_varlabel.insert(dummy, reg);
+                    vec![
+                        Instruction::LoadParam { param, dest },
+                        Instruction::MoveOp {
+                            source: ImmVar::Var(dummy),
+                            dest,
+                        },
+                    ]
+                } else {
+                    vec![i]
+                }
+            } else {
+                vec![i]
+            }
+        }
+        Instruction::StoreParam(param, Arg::VarArg(ImmVar::Var(src))) => {
+            if let Some(reg) = reg_of_argnum(param as u32) {
+                if regs_colored.contains(&reg) {
+                    let dummy = dummy_with_same_type(fields, src);
+                    reg_of_varlabel.insert(dummy, reg);
+                    vec![
+                        Instruction::MoveOp {
+                            source: ImmVar::Var(src),
+                            dest: dummy,
+                        },
+                        Instruction::StoreParam(param, Arg::VarArg(ImmVar::Var(dummy))),
+                    ]
+                } else {
+                    vec![i]
+                }
+            } else {
+                vec![i]
+            }
+        }
+        _ => vec![i],
+    }
+}
+
 fn add_parameter_constraints(
     webs: Vec<Web>,
     all_regs: &Vec<Reg>,
@@ -861,28 +960,22 @@ fn all_mem_vars(m: &cfg::CfgMethod<VarLabel>) -> HashMap<u32, (CfgType, String)>
     ret
 }
 
-fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
+fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let callee_saved_regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
     let caller_saved_regs: Vec<Reg> =
         vec![Reg::Rsi, Reg::Rcx, Reg::R11, Reg::Rdi, Reg::R8, Reg::R10];
 
-    let all_regs = vec![
-        Reg::Rbx,
-        Reg::R12,
-        Reg::R13,
-        Reg::R14,
-        Reg::R15,
-        Reg::Rsi,
-        Reg::Rcx,
-        Reg::R11,
-        Reg::Rdi,
-        Reg::R8,
-        Reg::R10,
-    ];
+    let mut all_regs = callee_saved_regs.clone();
+    all_regs.append(&mut caller_saved_regs.clone());
 
-    let arg_var_to_reg = HashMap::new(); //TODO need to implement
-    let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, &all_regs, &arg_var_to_reg);
+    let mut reg_of_varname = HashMap::new();
+    let mut fields = m.fields.clone();
+    let mut m = method_map(m, |i| {
+        make_args_easy_to_color(i, &all_regs, &mut fields, &mut reg_of_varname)
+    });
+
+    let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, &all_regs, &reg_of_varname);
     println!("webs: {webs:?}");
 
     // define the caller saved registers in relation to their color
@@ -961,13 +1054,13 @@ fn lower_calls_insn(i: VInstruction) -> Vec<VInstruction> {
 
 fn method_map(
     mut m: cfg::CfgMethod<VarLabel>,
-    f: impl Fn(VInstruction) -> Vec<VInstruction>,
+    f: impl FnMut(VInstruction) -> Vec<VInstruction>,
 ) -> cfg::CfgMethod<VarLabel> {
     m.blocks = m
         .blocks
         .into_iter()
-        .map(|(lbl, mut blk)| {
-            blk.body = blk.body.into_iter().flat_map(&f).collect();
+        .map(move |(lbl, mut blk)| {
+            blk.body = blk.body.into_iter().flat_map(f).collect();
             (lbl, blk)
         })
         .collect();
