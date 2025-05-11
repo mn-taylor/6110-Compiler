@@ -103,6 +103,10 @@ pub struct OneMove<VarLabel> {
 
 #[derive(Clone, Debug)]
 pub enum Instruction<VarLabel> {
+    LoadString {
+        dest: VarLabel,
+        string: String,
+    },
     Spill {
         ord_var: VarLabel,
         mem_var: MemVarLabel,
@@ -169,6 +173,8 @@ pub enum Instruction<VarLabel> {
 impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Instruction::LoadString { dest, string } => write!(f, "{dest} <- {string}"),
+
             Instruction::PhiExpr { dest, sources } => {
                 let sources_str = sources
                     .iter()
