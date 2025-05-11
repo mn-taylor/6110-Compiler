@@ -1022,7 +1022,7 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let callee_saved_regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
     let caller_saved_regs: Vec<Reg> =
-        vec![/*Reg::Rsi, Reg::Rcx, Reg::R11, Reg::Rdi, Reg::R8, Reg::R10*/];
+        vec![Reg::Rsi, Reg::Rcx, Reg::R11, Reg::Rdi, Reg::R8, Reg::R10];
 
     let mut all_regs = callee_saved_regs.clone();
     all_regs.append(&mut caller_saved_regs.clone());
@@ -1033,10 +1033,10 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
         make_args_easy_to_color(i, &all_regs, &mut fields, &mut reg_of_varname)
     });
 
-    let (mut spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, &all_regs, &reg_of_varname);
+    let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, &all_regs, &reg_of_varname);
     let ccws = webs
         .iter()
-        .map(|web| find_inter_instructions(&mut spilled_method, web))
+        .map(|web| find_inter_instructions(&spilled_method, web))
         .collect();
     println!("webs: {webs:?}");
 

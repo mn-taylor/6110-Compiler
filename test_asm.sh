@@ -24,9 +24,9 @@ for file in "$INPUT_DIR"/*.dcf; do
 
         # assemble
         if [[ $MAC -eq 1 ]]; then
-            ./run.sh -t assembly -m "$file" -o "$ASM_FILE" -O all > "$OUTPUT_FILE" 2>>"$OUTPUT_FILE" 
+            ./run.sh -t assembly --debug -m "$file" -o "$ASM_FILE" -O all > "$OUTPUT_FILE" 2>>"$OUTPUT_FILE" 
         else
-            ./run.sh -t assembly "$file" -o "$ASM_FILE" -O all > "$OUTPUT_FILE" 2>>"$OUTPUT_FILE" 
+            ./run.sh -t assembly --debug "$file" -o "$ASM_FILE" -O all > "$OUTPUT_FILE" 2>>"$OUTPUT_FILE" 
         fi            
 
         if [ $? -eq 0 ]; then
