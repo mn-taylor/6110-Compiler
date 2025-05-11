@@ -1,7 +1,8 @@
 use crate::cfg_build::VarLabel;
-use crate::{cfg, deadcode, reg_asm, scan};
+use crate::{cfg, deadcode, parse, reg_asm, scan};
 use cfg::{Arg, BlockLabel, CfgType, ImmVar, MemVarLabel};
 use maplit::{hashmap, hashset};
+use parse::Primitive;
 use reg_asm::Reg;
 use scan::Sum;
 use std::collections::HashMap;
@@ -396,6 +397,12 @@ fn dummy_with_same_type(
     dummy
 }
 
+fn corresponding_memvar(fields: &mut HashMap<VarLabel, (CfgType, String)>, r: Reg) -> VarLabel {
+    let ret = (*fields.keys().max().unwrap_or(&0) as usize + 1) as u32;
+    fields.insert(ret, (CfgType::Scalar(Primitive::LongType), format!("{r}")));
+    ret
+}
+
 /*
 Change
 
@@ -629,7 +636,7 @@ fn color(
     } else {
         // return the nodes that could not be colored, sorted in order of how nice it'd be to color them
         println!("could not color this many nodes: {}", g.len());
-        let mut to_color: HashSet<_> = g.keys().map(|x| *x).collect();
+        let to_color: HashSet<_> = g.keys().map(|x| *x).collect();
 
         // // make sure that we don't try to spill the dummy nodes
         // for i in 0..num_colors {
@@ -1000,6 +1007,7 @@ fn build_need_to_save(
 fn push_and_pop(
     m: cfg::CfgMethod<Sum<Reg, MemVarLabel>>,
     caller_saved_regs: &Vec<Reg>,
+    caller_saved_memvars: &HashMap<Reg, MemVarLabel>,
     webs: &Vec<Web>,
     ccws: &Vec<HashSet<InsnLoc>>,
     web_to_reg: &HashMap<u32, Reg>,
@@ -1011,13 +1019,19 @@ fn push_and_pop(
             let regs = caller_saved_regs.into_iter().filter(|r| used.contains(r));
             let mut ret: Vec<_> = regs
                 .clone()
-                .map(|reg| Instruction::Push(Sum::Inl(*reg)))
+                .map(|reg| Instruction::Spill {
+                    ord_var: Sum::Inl(*reg),
+                    mem_var: *caller_saved_memvars.get(reg).unwrap(),
+                })
                 .collect();
             ret.push(i);
             ret.append(
                 &mut regs
                     .rev()
-                    .map(|reg| Instruction::Pop(Sum::Inl(*reg)))
+                    .map(|reg| Instruction::Reload {
+                        ord_var: Sum::Inl(*reg),
+                        mem_var: *caller_saved_memvars.get(reg).unwrap(),
+                    })
                     .collect(),
             );
             ret
@@ -1028,8 +1042,9 @@ fn push_and_pop(
 fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let callee_saved_regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
-    let caller_saved_regs: Vec<Reg> =
-        vec![Reg::Rsi, Reg::Rcx, Reg::R11, Reg::Rdi, Reg::R8, Reg::R10];
+    let caller_saved_regs: Vec<Reg> = vec![
+        /*Reg::Rsi, Reg::Rcx, */ Reg::R11, /*, Reg::Rdi, Reg::R8, Reg::R10*/
+    ];
 
     let mut all_regs = callee_saved_regs.clone();
     all_regs.append(&mut caller_saved_regs.clone());
@@ -1061,8 +1076,19 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
         .collect();
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
-    let m = to_regs(spilled_method, &web_to_reg, &webs);
-    let m = push_and_pop(m, &caller_saved_regs, &webs, &ccws, &web_to_reg);
+    let mut m = to_regs(spilled_method, &web_to_reg, &webs);
+    let caller_saved_memvars = caller_saved_regs
+        .iter()
+        .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
+        .collect();
+    let m = push_and_pop(
+        m,
+        &caller_saved_regs,
+        &caller_saved_memvars,
+        &webs,
+        &ccws,
+        &web_to_reg,
+    );
     // println!("after renaming: {x}");
     m
 }
