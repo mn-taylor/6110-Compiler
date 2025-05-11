@@ -343,8 +343,6 @@ fn use_identities(i: Instruction<SSAVarLabel>) -> Instruction<SSAVarLabel> {
             },
             Bop::MulBop(mop) => match mop {
                 MulOp::Mul => {
-                    // x * 0 = 0
-                    // 0 * x = 0
                     // x * 1 = x
                     if source2 == ImmVar::Imm(1) {
                         return Instruction::MoveOp {
@@ -369,6 +367,8 @@ fn use_identities(i: Instruction<SSAVarLabel>) -> Instruction<SSAVarLabel> {
                             dest: dest,
                         };
                     }
+
+                    // convert to left and right shifts
                 }
                 MulOp::Div => {
                     // x / 1 = x

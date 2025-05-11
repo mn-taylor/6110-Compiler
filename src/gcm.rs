@@ -17,7 +17,7 @@ fn insn_pinned<T>(insn: &Instruction<T>) -> bool {
         | Call(_, _, _)
         | Ret(_) => true,
         // maybe want to leave divisions alone
-        ThreeOp { .. } => false,
+        ThreeOp { .. } | LeftShift { .. } | RightShift { .. } => false,
         MoveOp { .. } | TwoOp { .. } | Constant { .. } => false,
     }
 }
