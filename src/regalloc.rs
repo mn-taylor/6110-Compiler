@@ -707,6 +707,31 @@ fn spill_web(m: &mut cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLa
     return new_method;
 }
 
+fn make_argument_variables(m: &mut CfgMethod) -> HashMap<u32, u32> {
+    let mut start = match m.fields.keys().max() {
+        Some(max_key) => {
+            if *max_key > 1000 {
+                max_key + 1
+            } else {
+                1000
+            }
+        }
+        None => 1000,
+    };
+
+    let mut arg_variables: HashMap<u32, u32> = hashmap! {};
+    for i in (0..6) {
+        m.fields.insert(
+            start + i,
+            ((CfgType::Scalar(Primitive::LongType), format!("ARG{i}"))),
+        );
+
+        arg_variables.insert(i, start + i);
+    }
+
+    arg_variables
+}
+
 fn is_trivial(w: &Web) -> bool {
     if w.uses.len() == 1 && w.defs.len() == 1 {
         let the_use = w.uses.clone().pop().unwrap();
