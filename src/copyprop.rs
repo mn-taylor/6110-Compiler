@@ -26,7 +26,6 @@ fn prop_copies(
     copy_lookup: &HashMap<SSAVarLabel, SSAVarLabel>,
 ) -> Instruction<SSAVarLabel> {
     match instr {
-        Instruction::NoArgsCall(_, _) => instr,
         Instruction::StoreParam(dest, arg) => Instruction::StoreParam(
             dest,
             match arg {

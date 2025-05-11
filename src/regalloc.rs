@@ -8,7 +8,6 @@ use scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::hash::Hash;
-type VInstruction = cfg::Instruction<VarLabel>;
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
 use std::cmp::max;
@@ -110,8 +109,7 @@ fn get_insn_sources<T: Hash + Eq + Copy>(insn: &Instruction<T>) -> HashSet<T> {
         Instruction::ParMov(_) => panic!(),
         Instruction::LoadParam { .. } => hashset! {},
         Instruction::ArrayAccess { idx, .. } => imm_var_sources(idx).into_iter().collect(),
-        Instruction::Call(_, _, _) => panic!(),
-        Instruction::NoArgsCall(_, _) => hashset! {},
+        Instruction::Call(_, args, _) => args.into_iter().flat_map(get_arg_sources).collect(),
         Instruction::Constant { .. } => hashset! {},
         Instruction::MoveOp { source, .. } => imm_var_sources(source).into_iter().collect(),
         Instruction::ThreeOp {
@@ -158,10 +156,9 @@ fn get_insn_dest<T: Copy>(insn: &Instruction<T>) -> Option<T> {
         Instruction::StoreParam(_, _) => None,
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
-        Instruction::NoArgsCall(_, dest) => dest,
         Instruction::LoadParam { dest, .. } => Some(dest),
         Instruction::ArrayAccess { dest, .. } => Some(dest),
-        Instruction::Call(_, _, _) => panic!(),
+        Instruction::Call(_, _, dest) => dest,
         Instruction::Constant { dest, .. } => Some(dest),
         Instruction::MoveOp { dest, .. } => Some(dest),
         Instruction::ThreeOp { dest, .. } => Some(dest),
@@ -360,7 +357,6 @@ fn get_all_call_instr(m: &mut CfgMethod) -> HashSet<InsnLoc> {
         for (iid, instruction) in block.body.iter().enumerate() {
             match instruction {
                 Instruction::Call(..)
-                | Instruction::NoArgsCall(..)
                 | Instruction::LoadParam { .. }
                 | Instruction::StoreParam(..) => {
                     call_instrs.insert(InsnLoc {
@@ -811,7 +807,6 @@ fn insn_map<T, U>(
                 .collect::<Vec<_>>(),
             opt_ret_val.map(&dst_fun),
         ),
-        Instruction::NoArgsCall(name, dest) => Instruction::NoArgsCall(name, dest.map(dst_fun)),
         Instruction::Constant { dest, constant } => Instruction::Constant {
             dest: dst_fun(dest),
             constant,
@@ -996,7 +991,7 @@ fn build_need_to_save(
     all_insn_locs(m)
         .into_iter()
         .filter_map(|i| {
-            if let Sum::Inl(Instruction::NoArgsCall(_, _)) = get_insn(m, i) {
+            if let Sum::Inl(Instruction::Call(_, _, _)) = get_insn(m, i) {
                 let mut regs = HashSet::new();
                 for ((webnum, web), ccw) in webs.iter().enumerate().zip(ccws) {
                     if ccw.contains(&i) {
@@ -1126,24 +1121,6 @@ fn reg_num_to_register(web_to_regnum: HashMap<u32, u32>, all_regs: &Vec<Reg>) ->
     reg_num_to_reg
 }
 
-fn lower_calls_insn<T>(i: VInstruction, _: T) -> Vec<VInstruction> {
-    if let Instruction::Call(name, args, dest) = i {
-        let mut insns: Vec<_> = vec![];
-        if args.len() % 2 == 1 && args.len() >= 6 {
-            insns.push(Instruction::StoreParam(7, Arg::VarArg(ImmVar::Imm(0))))
-        }
-        insns.extend(
-            args.into_iter()
-                .enumerate()
-                .map(|(n, arg)| Instruction::StoreParam(n as u16, arg)),
-        );
-        insns.push(Instruction::NoArgsCall(name, dest));
-        insns
-    } else {
-        vec![i]
-    }
-}
-
 fn method_map<T>(
     mut m: cfg::CfgMethod<T>,
     mut f: impl FnMut(Instruction<T>, InsnLoc) -> Vec<Instruction<T>>,
@@ -1161,16 +1138,7 @@ fn method_map<T>(
     m
 }
 
-fn prog_map(
-    mut p: cfg::CfgProgram<VarLabel>,
-    f: impl Fn(cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<VarLabel>,
-) -> cfg::CfgProgram<VarLabel> {
-    p.methods = p.methods.into_iter().map(f).collect();
-    p
-}
-
 pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<Sum<Reg, MemVarLabel>> {
-    let p = prog_map(p, |m| method_map(m, lower_calls_insn));
     cfg::CfgProgram {
         externals: p.externals,
         global_fields: p.global_fields,

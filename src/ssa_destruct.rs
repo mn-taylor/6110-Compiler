@@ -111,10 +111,7 @@ fn destruct_instruction(
     all_fields: &mut HashMap<u32, (CfgType, String)>,
 ) -> Vec<Instruction<VarLabel>> {
     match instr {
-        Instruction::NoArgsCall(_, _)
-        | Instruction::StoreParam(_, _)
-        | Instruction::Pop(_)
-        | Instruction::Push(_) => panic!(),
+        Instruction::StoreParam(_, _) | Instruction::Pop(_) | Instruction::Push(_) => panic!(),
         Instruction::ParMov(copies) => vec![Instruction::ParMov(
             copies
                 .into_iter()

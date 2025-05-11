@@ -1065,8 +1065,23 @@ fn asm_instruction(
             Sum::Inl(reg) => vec![insn(("pushq", reg))],
             Sum::Inr(_) => vec![],
         },
-        Instruction::NoArgsCall(func_name, ret_dest) => {
-            let mut instructions = vec![];
+        Instruction::Call(func_name, args, ret_dest) => {
+            let mut instructions: Vec<_> = args
+                .iter()
+                .enumerate()
+                .flat_map(|(i, arg)| {
+                    asm_instruction(
+                        stack_lookup,
+                        Instruction::StoreParam(i as u16, arg.clone()),
+                        root,
+                        num_params,
+                        external_funcs,
+                        mac,
+                        global_strings,
+                    )
+                })
+                .collect();
+
             // call the function
             if func_name == "printf".to_string() {
                 instructions.push(insn(("xorq", Rax, Rax)));
@@ -1286,96 +1301,6 @@ fn asm_instruction(
                 None => {}
             }
             instructions.push(Special(format!("\tjmp {}end", root)));
-            instructions
-        }
-        Instruction::Call(func_name, args, ret_dest) => {
-            let mut instructions = vec![];
-            let mut argument_registers = vec![R9, R8, Rcx, Rdx, Rsi, Rdi];
-
-            if args.len() % 2 == 1 && args.len() >= 6 {
-                instructions.push(insn(("subq", 8, Rsp)));
-            }
-
-            // push arguments into registers and onto stack if needed
-            for arg in args.iter() {
-                match arg {
-                    Arg::VarArg(label) => {
-                        let arg_reg = argument_registers.pop();
-                        match arg_reg {
-                            Some(reg) => match label {
-                                ImmVar::Var(v) => {
-                                    instructions.push(load_into_reg_var(
-                                        reg,
-                                        v.clone(),
-                                        stack_lookup,
-                                    ));
-                                    // instructions.push(format!("\tmovq {}, {}", v, reg));
-                                    // instructions.push(load_into_reg(reg, *v, stack_lookup))
-                                }
-                                ImmVar::Imm(i) => instructions.push(insn(("movq", *i, reg))),
-                            },
-                            None => {
-                                match label {
-                                    ImmVar::Var(v) => {
-                                        instructions.push(load_into_reg_var(
-                                            Rax,
-                                            v.clone(),
-                                            stack_lookup,
-                                        ));
-                                        // instructions.push(format!("\tmovq {}, {}", v, Rax));
-                                        //instructions.push(load_into_reg(Rax, *v, stack_lookup))
-                                    }
-                                    ImmVar::Imm(i) => instructions.push(insn(("movq", *i, Rax))),
-                                }
-                                instructions.push(insn(("pushq", Rax)));
-                            }
-                        }
-                    }
-                    Arg::StrArg(string) => {
-                        let arg_reg = argument_registers.pop();
-
-                        match arg_reg {
-                            Some(reg) => {
-                                instructions.push(Special(format!(
-                                    "\tleaq global_str{}(%rip), {}",
-                                    global_strings.get(&string.to_string()).unwrap(),
-                                    reg
-                                )));
-                            }
-                            None => {
-                                instructions.push(Special(format!(
-                                    "\tmovq global_str{}, {}",
-                                    global_strings.get(&string.to_string()).unwrap(),
-                                    Rax,
-                                )));
-                                instructions.push(insn(("pushq", Rax)));
-                            }
-                        }
-                    }
-                }
-            }
-
-            // call the function
-            if func_name == "printf".to_string() {
-                instructions.push(insn(("xorq", Rax, Rax)));
-            }
-
-            if external_funcs.contains(&func_name) && mac {
-                instructions.push(Special(format!("\tcall _{}", func_name)));
-            } else {
-                if func_name == "main".to_string() && mac {
-                    instructions.push(Special(format!("\tcall _{}", func_name)));
-                } else {
-                    instructions.push(Special(format!("\tcall {}", func_name)));
-                }
-            }
-
-            // store return value into temp
-            match ret_dest {
-                Some(dest) => instructions.push(store_from_reg_var(Rax, dest, stack_lookup)),
-                None => {}
-            }
-
             instructions
         }
         Instruction::Spill { ord_var, mem_var } => {

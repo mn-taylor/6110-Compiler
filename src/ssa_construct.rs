@@ -577,10 +577,9 @@ fn rewrite_instr(
                 sources: new_sources,
             }
         }
-        Instruction::Spill { .. }
-        | Instruction::Reload { .. }
-        | Instruction::NoArgsCall(_, _)
-        | Instruction::StoreParam(_, _) => panic!(),
+        Instruction::Spill { .. } | Instruction::Reload { .. } | Instruction::StoreParam(_, _) => {
+            panic!()
+        }
     }
 }
 
@@ -699,7 +698,6 @@ fn get_insn_dest<T>(insn: Instruction<T>) -> Option<T> {
         Instruction::StoreParam(_, _) => None,
         Instruction::PhiExpr { dest, .. } => Some(dest),
         Instruction::ParMov(_) => panic!(),
-        Instruction::NoArgsCall(_, dest) => dest,
         Instruction::LoadParam { dest, .. } => Some(dest),
         Instruction::ArrayAccess { dest, .. } => Some(dest),
         Instruction::Call(_, _, ret_val) => ret_val,
