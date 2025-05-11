@@ -1069,6 +1069,14 @@ fn asm_instruction(
             let mut instructions = vec![];
             assert!(args.len() <= 6);
 
+            let argument_registers = vec![Rdi, Rsi, Rdx, Rcx, R8, R9];
+            assert!(
+                args == argument_registers[0..args.len()]
+                    .into_iter()
+                    .map(|reg| Arg::VarArg(ImmVar::Var(Sum::Inl(*reg))))
+                    .collect::<Vec<_>>()
+            );
+
             // call the function
             if func_name == "printf".to_string() {
                 instructions.push(insn(("xorq", Rax, Rax)));

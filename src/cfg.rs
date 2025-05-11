@@ -231,7 +231,7 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Arg<VarLabel> {
     VarArg(ImmVar<VarLabel>),
     StrArg(String),
