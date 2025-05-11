@@ -436,14 +436,13 @@ fn make_args_easy_to_color(
     i: Instruction<VarLabel>,
     regs_colored: &Vec<Reg>,
     fields: &mut HashMap<u32, (CfgType, String)>,
-    reg_of_varlabel: &mut HashMap<VarLabel, Reg>,
+    args_to_dummy_vars: &HashMap<u32, u32>,
 ) -> Vec<Instruction<VarLabel>> {
     match i {
         Instruction::LoadParam { param, dest } => {
             if let Some(reg) = reg_of_argnum(param) {
                 if regs_colored.contains(&reg) {
-                    let dummy = dummy_with_same_type(fields, dest);
-                    reg_of_varlabel.insert(dummy, reg);
+                    let dummy = *args_to_dummy_vars.get(&param).unwrap();
                     vec![
                         Instruction::LoadParam { param, dest: dummy },
                         Instruction::MoveOp {
@@ -458,17 +457,49 @@ fn make_args_easy_to_color(
                 vec![i]
             }
         }
+        Instruction::Call(func_name, params, ret_val) => {
+            let mut instructions = vec![];
+            let mut new_arguments = vec![];
+
+            for (i, param) in params.iter().enumerate() {
+                match param {
+                    Arg::VarArg(v) => {
+                        if i < 6 {
+                            let dummy = args_to_dummy_vars.get(&(i as u32)).unwrap();
+
+                            instructions.push(Instruction::MoveOp {
+                                source: v.clone(),
+                                dest: *dummy,
+                            });
+
+                            new_arguments.push(Arg::VarArg(ImmVar::Var(*dummy)));
+                        } else {
+                            instructions.push(Instruction::StoreParam(i as u16, param.clone()))
+                        }
+                    }
+                    Arg::StrArg(s) => {
+                        if i < 6 {
+                            new_arguments.push(Arg::StrArg(s.to_string()))
+                        }
+
+                        instructions.push(Instruction::StoreParam(i as u16, param.clone()))
+                    }
+                }
+            }
+            instructions.push(Instruction::Call(func_name, new_arguments, ret_val));
+            instructions
+        }
+
         Instruction::StoreParam(param, Arg::VarArg(ImmVar::Var(src))) => {
             if let Some(reg) = reg_of_argnum(param as u32) {
                 if regs_colored.contains(&reg) && fields.contains_key(&src) {
-                    let dummy = dummy_with_same_type(fields, src);
-                    reg_of_varlabel.insert(dummy, reg);
+                    let dummy = args_to_dummy_vars.get(&(param as u32)).unwrap();
                     vec![
                         Instruction::MoveOp {
                             source: ImmVar::Var(src),
-                            dest: dummy,
+                            dest: *dummy,
                         },
-                        Instruction::StoreParam(param, Arg::VarArg(ImmVar::Var(dummy))),
+                        // Instruction::StoreParam(param, Arg::VarArg(ImmVar::Var(*dummy))),
                     ]
                 } else {
                     vec![i]
@@ -1102,14 +1133,27 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
         Reg::Rsi,
         /*Reg::Rcx, */ Reg::R11, /*, Reg::Rdi, Reg::R8, Reg::R10*/
     ];
+    let mut m = m.clone();
 
     let mut all_regs = callee_saved_regs.clone();
     all_regs.append(&mut caller_saved_regs.clone());
 
-    let mut reg_of_varname = HashMap::new();
+    let args_to_dummy_vars = make_argument_variables(&mut m);
+    let reg_of_varname = vec![
+        (0, Reg::Rdi),
+        (1, Reg::Rsi),
+        (2, Reg::Rdx),
+        (3, Reg::Rcx),
+        (4, Reg::R8),
+        (5, Reg::R9),
+    ]
+    .into_iter()
+    .map(|(arg_num, reg)| (*args_to_dummy_vars.get(&arg_num).unwrap(), reg))
+    .collect::<HashMap<_, _>>();
+
     let mut fields = m.fields.clone();
-    let mut m = method_map(m, |i, _| {
-        make_args_easy_to_color(i, &all_regs, &mut fields, &mut reg_of_varname)
+    let mut m = method_map(m.clone(), |i, _| {
+        make_args_easy_to_color(i, &all_regs, &mut fields, &args_to_dummy_vars)
     });
     m.fields = fields;
 
