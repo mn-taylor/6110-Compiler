@@ -72,7 +72,7 @@ fn build_loc_of_lbl<T: Copy + Hash + Eq>(
 
 pub fn schedule_all<T: Copy + Hash + Eq>(
     m: &CfgMethod<T>,
-    should_schedule_early: bool,
+    early: Option<&HashMap<InsnLoc, BlockLabel>>,
 ) -> HashMap<InsnLoc, BlockLabel> {
     let mut schedule: HashMap<InsnLoc, BlockLabel> = HashMap::new();
     let mut done: HashSet<InsnLoc> = HashSet::new();
@@ -86,19 +86,19 @@ pub fn schedule_all<T: Copy + Hash + Eq>(
             done.insert(*i);
             for x in regalloc::get_sources(&regalloc::get_insn(m, *i)) {
                 let x = *loc_of_lbl.get(&x).unwrap();
-                if should_schedule_early {
-                    schedule_early(x, m, &mut done, &mut schedule, &loc_of_lbl, &depths);
-                } else {
-                    schedule_late(
+                match early {
+                    None => schedule_early(x, m, &mut done, &mut schedule, &loc_of_lbl, &depths),
+                    Some(early) => schedule_best(
                         x,
                         m,
                         &mut done,
+                        early,
                         &mut schedule,
                         &loc_of_lbl,
                         &depths,
                         &uses,
                         &idoms,
-                    );
+                    ),
                 }
             }
         }
@@ -149,13 +149,14 @@ fn build_uses<T: Copy + Eq + Hash>(
 }
 
 // top of pg 251
-// unlike schedule_early, schedule_late might make schedule a partial map.
+// unlike schedule_early, schedule_best might make schedule a partial map.
 // if schedule.get(&x) = None, then x is never used and thus does not need to be scheduled at all.
-pub fn schedule_late<T: Copy + Hash + PartialEq + Eq>(
+fn schedule_best<T: Copy + Hash + PartialEq + Eq>(
     i: InsnLoc,
     m: &CfgMethod<T>,
     done: &mut HashSet<InsnLoc>,
-    schedule: &mut HashMap<InsnLoc, BlockLabel>,
+    early: &HashMap<InsnLoc, BlockLabel>,
+    sched: &mut HashMap<InsnLoc, BlockLabel>,
     loc_of_lbl: &HashMap<T, InsnLoc>,
     depths: &HashMap<BlockLabel, u32>,
     uses: &HashMap<InsnLoc, Vec<InsnLoc>>,
@@ -165,8 +166,9 @@ pub fn schedule_late<T: Copy + Hash + PartialEq + Eq>(
         return;
     }
     done.insert(i);
+    let mut lca = None;
     for y in uses.get(&i).unwrap() {
-        schedule_late(*y, m, done, schedule, loc_of_lbl, depths, uses, idoms);
+        schedule_best(*y, m, done, early, sched, loc_of_lbl, depths, uses, idoms);
         let use_of_y =
             if let Sum::Inl(Instruction::PhiExpr { sources, .. }) = regalloc::get_insn(m, *y) {
                 let (block_with_i, _) = sources
@@ -175,13 +177,13 @@ pub fn schedule_late<T: Copy + Hash + PartialEq + Eq>(
                     .unwrap();
                 block_with_i
             } else {
-                schedule.get(&y).unwrap()
+                sched.get(&y).unwrap()
             };
-        schedule.insert(
-            i,
-            find_lca(schedule.get(y).map(|x| *x), *use_of_y, depths, idoms),
-        );
+        lca = Some(find_lca(sched.get(y).map(|x| *x), *use_of_y, depths, idoms));
     }
+    if let Some(lca) = lca {
+        sched.insert(i, best_block(*early.get(&i).unwrap(), lca, idoms));
+    } // else don't need to shcedule at all, is dead code
 }
 
 fn find_lca(
@@ -208,23 +210,18 @@ fn find_lca(
 }
 
 // alg at end of section 2 (pg 251).
-// returning None means it doesn't need to be scheduled at all (dead code)
-// Oops this is wrong... need to select final positions _while finding latest positions_
-fn schedule_nicely(
+fn best_block(
     earliest: BlockLabel,
-    latest: Option<BlockLabel>,
-    idoms: HashMap<BlockLabel, BlockLabel>,
-) -> Option<BlockLabel> {
-    let mut latest = match latest {
-        Some(latest) => latest,
-        None => return None,
-    };
+    mut latest: BlockLabel,
+    idoms: &HashMap<BlockLabel, BlockLabel>,
+) -> BlockLabel {
     let best = latest;
     while latest != earliest {
         // if loop_nest(latest) < loop_nest(best) {
         //     best = latest;
         // }
         latest = *idoms.get(&latest).unwrap();
+        todo!();
     }
-    Some(best)
+    best
 }
