@@ -435,7 +435,6 @@ Also: for each dummy variable, add to reg_of_varlabel that dummy maps to the reg
 fn make_args_easy_to_color(
     i: Instruction<VarLabel>,
     regs_colored: &Vec<Reg>,
-    fields: &mut HashMap<u32, (CfgType, String)>,
     args_to_dummy_vars: &HashMap<u32, u32>,
 ) -> Vec<Instruction<VarLabel>> {
     match i {
@@ -469,7 +468,7 @@ fn make_args_easy_to_color(
                             if let Some(reg) = reg_of_argnum(i as u32) {
                                 if regs_colored.contains(&reg) {
                                     match v {
-                                        ImmVar::Var(w) => {
+                                        ImmVar::Var(_) => {
                                             instructions.push(Instruction::MoveOp {
                                                 source: v.clone(),
                                                 dest: *dummy,
@@ -506,8 +505,8 @@ fn make_args_easy_to_color(
             instructions
         }
 
-        Instruction::StoreParam(param, Arg::VarArg(ImmVar::Var(src))) => {
-            if let Some(reg) = reg_of_argnum(param as u32) {
+        Instruction::StoreParam(param, Arg::VarArg(ImmVar::Var(_))) => {
+            if param < 6 {
                 panic!("bad");
             } else {
                 vec![i]
@@ -517,84 +516,30 @@ fn make_args_easy_to_color(
     }
 }
 
-fn add_parameter_constraints(
-    webs: Vec<Web>,
-    all_regs: &Vec<Reg>,
+// returns a tuple: a list of the phi webs, and the interference graph, where webs are labelled by their indices in the list.
+fn interference_graph(
+    m: &mut CfgMethod,
     arg_reg_lookup: &HashMap<u32, Reg>,
-) -> (Vec<Web>, HashMap<u32, HashSet<u32>>) {
-    // map argument variables to indices of all regs
-    let mut arg_to_idx = HashMap::new();
-    for (var, arg_reg) in arg_reg_lookup {
-        for (i, reg) in all_regs.iter().enumerate() {
-            if reg == arg_reg {
-                arg_to_idx.insert(var, i);
-                break;
-            }
-        }
-    }
+) -> (Vec<Web>, HashMap<u32, HashSet<u32>>, HashMap<u32, Reg>) {
+    let webs = get_webs(m);
 
-    println!("webs: {webs:?}");
-
-    // add dummy vertices for each register
-    let mut all_webs: Vec<Web> = (0..all_regs.len())
-        .collect::<Vec<_>>()
-        .iter()
-        .map(|_| Web {
-            var: u32::MAX,
-            defs: vec![],
-            uses: vec![],
-        })
-        .collect::<Vec<_>>();
-    all_webs.extend(webs);
-
-    println!("web length: {}", all_webs.len());
-
-    // initialize graph
+    // Initialize graph
     let mut graph: HashMap<u32, HashSet<u32>> = HashMap::new();
-    for (i, _) in all_webs.iter().enumerate() {
+    for (i, _) in webs.iter().enumerate() {
         graph.insert(i as u32, HashSet::new());
     }
 
-    // make sure all registers interfere with eachother. Make a clique of the dummy registers
-    for i in 0..all_regs.len() {
-        for j in i + 1..all_regs.len() {
-            graph.get_mut(&(i as u32)).unwrap().insert(j as u32);
-            graph.get_mut(&(j as u32)).unwrap().insert(i as u32);
-        }
-    }
-
     // find webs defined over argument variables, and make sure they go into their correct argument
-    for (i, Web { var, .. }) in all_webs.iter().enumerate() {
-        match arg_to_idx.get(&var) {
-            Some(idx) => {
-                for j in 0..all_regs.len() {
-                    if j == *idx {
-                        continue;
-                    }
 
-                    // all other registers should interfere
-                    graph.get_mut(&(i as u32)).unwrap().insert(j as u32);
-                    graph.get_mut(&(j as u32)).unwrap().insert(i as u32);
-                }
+    let mut precoloring: HashMap<u32, Reg> = hashmap! {};
+    for (i, Web { var, .. }) in webs.iter().enumerate() {
+        match arg_reg_lookup.get(&var) {
+            Some(reg) => {
+                precoloring.insert(i as u32, *reg);
             }
             None => (),
         }
     }
-
-    println!("all_webs: {all_webs:?}");
-    println!("graph: {graph:?}");
-
-    return (all_webs, graph);
-}
-
-// returns a tuple: a list of the phi webs, and the interference graph, where webs are labelled by their indices in the list.
-fn interference_graph(
-    m: &mut CfgMethod,
-    all_regs: &Vec<Reg>,
-    arg_reg_lookup: &HashMap<u32, Reg>,
-) -> (Vec<Web>, HashMap<u32, HashSet<u32>>) {
-    // initalize webs with the parameter constraints
-    let (webs, mut graph) = add_parameter_constraints(get_webs(m), all_regs, arg_reg_lookup);
 
     // find convex closures
     let convex_closures_of_webs = webs
@@ -628,7 +573,7 @@ fn interference_graph(
     //     }
 
     // print!("interference graph {:?}", graph);
-    (webs, graph)
+    (webs, graph, precoloring)
 }
 
 fn remove_node(g: &mut HashMap<u32, HashSet<u32>>, v: u32) -> HashSet<u32> {
@@ -639,21 +584,28 @@ fn remove_node(g: &mut HashMap<u32, HashSet<u32>>, v: u32) -> HashSet<u32> {
     result
 }
 
-fn color_not_in_set(num_colors: u32, s: HashSet<u32>) -> u32 {
-    let all_colors: HashSet<u32> = (0..num_colors).into_iter().collect();
+fn color_not_in_set(regs_can_use: &Vec<Reg>, s: HashSet<Reg>) -> Reg {
+    let all_colors: HashSet<Reg> = regs_can_use.into_iter().map(|x| *x).collect();
     *all_colors.difference(&s).collect::<Vec<_>>().pop().unwrap()
 }
 
 fn color(
     mut g: HashMap<u32, HashSet<u32>>,
-    num_colors: u32,
-) -> Result<HashMap<u32, u32>, Vec<u32>> {
+    precoloring: HashMap<u32, Reg>,
+    regs_can_use: &Vec<Reg>,
+) -> Result<HashMap<u32, Reg>, Vec<u32>> {
     let mut color_later = Vec::new();
 
     loop {
         let mut to_remove = None;
         for (v, es) in g.iter() {
-            if (es.len() as u32) < num_colors {
+            let uncolored = es
+                .iter()
+                .filter(|e| precoloring.get(e) == None)
+                .collect::<Vec<_>>()
+                .len();
+            let colors: HashSet<_> = es.iter().filter_map(|e| precoloring.get(e)).collect();
+            if (uncolored + colors.len() < regs_can_use.len()) && precoloring.get(v) == None {
                 to_remove = Some(*v);
                 break;
             };
@@ -663,13 +615,13 @@ fn color(
             None => break,
         }
     }
-    if g.is_empty() {
-        let mut colors = HashMap::new();
+    if g.iter().all(|(v, _)| precoloring.contains_key(v)) {
+        let mut colors = precoloring.clone();
         while let Some((v, es)) = color_later.pop() {
             colors.insert(
                 v,
                 color_not_in_set(
-                    num_colors,
+                    regs_can_use,
                     es.into_iter().map(|u| *colors.get(&u).unwrap()).collect(),
                 ),
             );
@@ -744,7 +696,7 @@ fn spill_web(m: &mut cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLa
 }
 
 fn make_argument_variables(m: &mut CfgMethod) -> HashMap<u32, u32> {
-    let mut start = match m.fields.keys().max() {
+    let start = match m.fields.keys().max() {
         Some(max_key) => {
             if *max_key > 1000 {
                 max_key + 1
@@ -756,10 +708,10 @@ fn make_argument_variables(m: &mut CfgMethod) -> HashMap<u32, u32> {
     };
 
     let mut arg_variables: HashMap<u32, u32> = hashmap! {};
-    for i in (0..6) {
+    for i in 0..6 {
         m.fields.insert(
             start + i,
-            ((CfgType::Scalar(Primitive::LongType), format!("ARG{i}"))),
+            (CfgType::Scalar(Primitive::LongType), format!("ARG{i}")),
         );
 
         arg_variables.insert(i, start + i);
@@ -791,16 +743,17 @@ fn reg_alloc(
     m: &mut CfgMethod,
     all_regs: &Vec<Reg>,
     arg_var_to_reg: &HashMap<u32, Reg>,
-) -> (CfgMethod, HashMap<u32, u32>, Vec<Web>) {
+) -> (CfgMethod, HashMap<u32, Reg>, Vec<Web>) {
     let mut new_method = m.clone();
     // try to color the graph
     loop {
-        let (webs, interfer_graph) = interference_graph(&mut new_method, all_regs, arg_var_to_reg);
+        let (webs, interfer_graph, precoloring) =
+            interference_graph(&mut new_method, arg_var_to_reg);
         // println!("AAAAA interfer_graph: {interfer_graph:?}");
         // println!("AAAAA webs: {webs:?}");
 
         // println!("New Method \n{}", new_method);
-        match color(interfer_graph.clone(), all_regs.len() as u32) {
+        match color(interfer_graph.clone(), precoloring, all_regs) {
             Ok(web_coloring) => {
                 return (new_method.clone(), web_coloring, webs);
             }
@@ -1160,30 +1113,20 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
     .map(|(arg_num, reg)| (*args_to_dummy_vars.get(&arg_num).unwrap(), reg))
     .collect::<HashMap<_, _>>();
 
-    let mut fields = m.fields.clone();
     let mut m = method_map(m.clone(), |i, _| {
-        make_args_easy_to_color(i, &all_regs, &mut fields, &args_to_dummy_vars)
+        make_args_easy_to_color(i, &all_regs, &args_to_dummy_vars)
     });
-    m.fields = fields;
 
     println!("method after thing: {m}");
     println!("reg_of_varname: {reg_of_varname:?}");
 
-    let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, &all_regs, &reg_of_varname);
+    let (spilled_method, web_to_reg, webs) = reg_alloc(&mut m, &all_regs, &reg_of_varname);
     let ccws = webs
         .iter()
         .map(|web| find_inter_instructions(&spilled_method, web))
         .collect();
     println!("webs: {webs:?}");
 
-    // define the caller saved registers in relation to their color
-
-    let color_to_register = reg_num_to_register(web_to_regnum.clone(), &all_regs);
-
-    let web_to_reg = web_to_regnum
-        .into_iter()
-        .map(|(k, n)| (k, *color_to_register.get(&n).unwrap()))
-        .collect();
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
     let mut m = to_regs(spilled_method, &web_to_reg, &webs);
@@ -1201,23 +1144,6 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
     );
     // println!("after renaming: {x}");
     m
-}
-
-// should this take a
-
-// maps register number to a register
-fn reg_num_to_register(web_to_regnum: HashMap<u32, u32>, all_regs: &Vec<Reg>) -> HashMap<u32, Reg> {
-    let mut reg_num_to_reg: HashMap<u32, Reg> = hashmap! {};
-
-    // map dummy webs to registers
-    for (i, reg) in all_regs.iter().enumerate() {
-        // find what reg_num colors this dummy variable
-        let reg_num = web_to_regnum.get(&(i as u32)).unwrap();
-        println!("matching Color {reg_num} to {reg}");
-        reg_num_to_reg.insert(*reg_num, *reg);
-    }
-
-    reg_num_to_reg
 }
 
 fn method_map<T>(
