@@ -110,23 +110,47 @@ pub fn schedule<T: Copy + Hash + Eq>(m: &CfgMethod<T>) -> HashMap<InsnLoc, Block
     schedule_all(m, Some(&schedule_all(m, None)))
 }
 
-fn insert_insn() {}
+fn insert_insn(
+    i: InsnLoc,
+    dep_graph: &mut HashMap<InsnLoc, Vec<InsnLoc>>,
+    new_body: &mut Vec<InsnLoc>,
+) {
+    let deps = match dep_graph.remove(&i) {
+        Some(deps) => deps,
+        None => return, // don't need to insert it
+    };
+    for dep in deps {
+        insert_insn(dep, dep_graph, new_body);
+    }
+    let deps: HashSet<_> = deps.collect();
+    // insert into new_body as early as possible, i.e. right after latest required defn
+    let latest_required_defn = new_body.iter().filter(|j| deps.contains(j)).last();
+    new_body.insert_after
+}
 
-// just insert in a way that respects dependencies
+// just insert into new_body in a way that respects dependencies
 fn insert_insns<T: Copy + Hash + Eq>(
     m: &CfgMethod<T>,
     mut insns: Vec<InsnLoc>,
     new_body: &mut Vec<InsnLoc>,
     loc_of_lbl: &HashMap<T, InsnLoc>,
 ) {
-    if let Some(i) = insns.pop() {
-        let srcs: HashSet<_> = regalloc::get_sources(&regalloc::get_insn(m, i))
-            .into_iter()
-            .map(|lbl| loc_of_lbl.get(&lbl).unwrap())
-            .collect();
-        for src_insn in insns.iter().filter(|i| srcs.contains(i)) {
-            insert_insn()
-        }
+    // maps insn i to list of deps
+    let mut dep_graph: HashMap<_, _> = insns
+        .iter()
+        .map(|i| {
+            (
+                *i,
+                regalloc::get_sources(&regalloc::get_insn(m, *i))
+                    .into_iter()
+                    .map(|lbl| *loc_of_lbl.get(&lbl).unwrap())
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+    // DFS, visit children before parent
+    while let Some((i, _)) = dep_graph.iter().next() {
+        insert_insn(*i, &mut dep_graph, new_body);
     }
 }
 
