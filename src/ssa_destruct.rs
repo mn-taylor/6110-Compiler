@@ -191,6 +191,24 @@ fn destruct_instruction(
             )))],
             None => vec![Instruction::Ret(None)],
         },
+        Instruction::LeftShift {
+            dest,
+            source,
+            shift,
+        } => vec![Instruction::LeftShift {
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
+            source: convert_name(&source, coallesced_name, lookup, all_fields),
+            shift: shift,
+        }],
+        Instruction::RightShift {
+            dest,
+            source,
+            shift,
+        } => vec![Instruction::RightShift {
+            dest: convert_name(&dest, coallesced_name, lookup, all_fields),
+            source: convert_name(&source, coallesced_name, lookup, all_fields),
+            shift: shift,
+        }],
         Instruction::Spill { .. } => panic!(),
         Instruction::Reload { .. } => panic!(),
     }

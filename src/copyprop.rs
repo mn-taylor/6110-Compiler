@@ -92,6 +92,24 @@ fn prop_copies(
             dest,
             op: op.clone(),
         },
+        Instruction::LeftShift {
+            dest,
+            source,
+            shift,
+        } => Instruction::LeftShift {
+            dest: dest,
+            source: check_copy(source, copy_lookup),
+            shift: shift,
+        },
+        Instruction::RightShift {
+            dest,
+            source,
+            shift,
+        } => Instruction::RightShift {
+            dest: dest,
+            source: check_copy(source, copy_lookup),
+            shift: shift,
+        },
         Instruction::Spill { .. }
         | Instruction::Reload { .. }
         | Instruction::Push(_)

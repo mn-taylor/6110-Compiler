@@ -154,6 +154,16 @@ pub enum Instruction<VarLabel> {
     StoreParam(u16, Arg<VarLabel>),
     Push(VarLabel),
     Pop(VarLabel),
+    RightShift {
+        dest: VarLabel,
+        source: VarLabel,
+        shift: u32,
+    },
+    LeftShift {
+        dest: VarLabel,
+        source: VarLabel,
+        shift: u32,
+    },
 }
 
 impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel> {
@@ -227,6 +237,16 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
             }
             Instruction::Push(var) => write!(f, "push {var}"),
             Instruction::Pop(var) => write!(f, "pop {var}"),
+            Instruction::LeftShift {
+                dest,
+                source,
+                shift,
+            } => write!(f, "{dest} <- {source} << {shift}"),
+            Instruction::RightShift {
+                dest,
+                source,
+                shift,
+            } => write!(f, "{dest} <- {source} >> {shift}"),
         }
     }
 }

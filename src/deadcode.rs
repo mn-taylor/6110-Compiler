@@ -10,6 +10,9 @@ pub fn get_sources<VarLabel: Eq + Hash + Copy>(
 ) -> HashSet<VarLabel> {
     match instruction {
         Instruction::StoreParam(_, _) | Instruction::Pop(_) | Instruction::Push(_) => panic!(),
+        Instruction::LeftShift { source, .. } | Instruction::RightShift { source, .. } => {
+            hashset! {*source}
+        }
         Instruction::PhiExpr { sources, .. } => sources.iter().map(|(_, var)| *var).collect(),
         Instruction::ArrayAccess { idx, .. } => {
             let mut set = hashset! {};
@@ -120,7 +123,9 @@ pub fn get_dest<T: Copy>(instruction: &Instruction<T>) -> Option<T> {
         | Instruction::LoadParam { dest, .. }
         | Instruction::MoveOp { dest, .. }
         | Instruction::ThreeOp { dest, .. }
-        | Instruction::TwoOp { dest, .. } => Some(dest),
+        | Instruction::TwoOp { dest, .. }
+        | Instruction::LeftShift { dest, .. }
+        | Instruction::RightShift { dest, .. } => Some(dest),
         Instruction::Call(_, _, ret_val) => ret_val, // We always want to call functions whether or not their return values are used, because they may modify global variables, but we should remove the return value from the call instruction when it is not used.
         Instruction::ArrayStore { .. } => None,
         Instruction::Ret(_) => None,

@@ -577,9 +577,11 @@ fn rewrite_instr(
                 sources: new_sources,
             }
         }
-        Instruction::Spill { .. } | Instruction::Reload { .. } | Instruction::StoreParam(_, _) => {
-            panic!()
-        }
+        Instruction::Spill { .. }
+        | Instruction::Reload { .. }
+        | Instruction::StoreParam(_, _)
+        | Instruction::LeftShift { .. }
+        | Instruction::RightShift { .. } => panic!(),
     }
 }
 
@@ -693,6 +695,16 @@ pub fn rename_variables(
 
 fn get_insn_dest<T>(insn: Instruction<T>) -> Option<T> {
     match insn {
+        Instruction::LeftShift {
+            dest,
+            source,
+            shift,
+        } => Some(dest),
+        Instruction::RightShift {
+            dest,
+            source,
+            shift,
+        } => Some(dest),
         Instruction::Pop(dest) => Some(dest),
         Instruction::Push(_) => None,
         Instruction::StoreParam(_, _) => None,

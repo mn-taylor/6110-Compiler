@@ -1330,5 +1330,27 @@ fn asm_instruction(
                 ]
             }
         }
+        Instruction::LeftShift {
+            dest,
+            source,
+            shift,
+        } => {
+            let mut instructions = vec![];
+            instructions.push(load_into_reg_var(Reg::Rax, source, stack_lookup));
+            instructions.push(insn(("salq", shift as i64, Rax)));
+            instructions.push(store_from_reg_var(Rax, dest, stack_lookup));
+            instructions
+        }
+        Instruction::RightShift {
+            dest,
+            source,
+            shift,
+        } => {
+            let mut instructions = vec![];
+            instructions.push(load_into_reg_var(Reg::Rax, source, stack_lookup));
+            instructions.push(insn(("sarq", shift as i64, Rax)));
+            instructions.push(store_from_reg_var(Rax, dest, stack_lookup));
+            instructions
+        }
     }
 }
