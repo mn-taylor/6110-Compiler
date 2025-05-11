@@ -392,13 +392,15 @@ fn dummy_with_same_type(
     fields: &mut HashMap<VarLabel, (CfgType, String)>,
     v: VarLabel,
 ) -> VarLabel {
-    let dummy = (*fields.keys().max().unwrap() as usize + 1) as u32;
+    // 1000 avoids collision with global vars
+    let dummy = (*fields.keys().max().unwrap() as usize + 1000) as u32;
     fields.insert(dummy, (*fields.get(&v).unwrap()).clone());
     dummy
 }
 
 fn corresponding_memvar(fields: &mut HashMap<VarLabel, (CfgType, String)>, r: Reg) -> VarLabel {
-    let ret = (*fields.keys().max().unwrap_or(&0) as usize + 1) as u32;
+    // 1000 avoids collision with global vars
+    let ret = (*fields.keys().max().unwrap_or(&0) as usize + 1000) as u32;
     fields.insert(ret, (CfgType::Scalar(Primitive::LongType), format!("{r}")));
     ret
 }
