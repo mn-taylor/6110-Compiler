@@ -9,7 +9,10 @@ pub fn get_sources<VarLabel: Eq + Hash + Copy>(
     instruction: &Instruction<VarLabel>,
 ) -> HashSet<VarLabel> {
     match instruction {
-        Instruction::StoreParam(_, _) | Instruction::Pop(_) | Instruction::Push(_) => panic!(),
+        Instruction::LoadString { .. }
+        | Instruction::StoreParam(_, _)
+        | Instruction::Pop(_)
+        | Instruction::Push(_) => panic!(),
         Instruction::LeftShift { source, .. } | Instruction::RightShift { source, .. } => {
             hashset! {*source}
         }
@@ -134,6 +137,7 @@ pub fn get_dest<T: Copy>(instruction: &Instruction<T>) -> Option<T> {
         | Instruction::ParMov { .. }
         | Instruction::StoreParam(_, _)
         | Instruction::Push(_)
+        | Instruction::LoadString { .. }
         | Instruction::Pop(_) => panic!(),
     }
 }

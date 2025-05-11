@@ -377,16 +377,9 @@ fn get_global_strings(p: &CfgProgram<Sum<Reg, MemVarLabel>>) -> HashMap<String, 
                         }
                         _ => (),
                     },
-                    Instruction::Call(_, args, _) => {
-                        for arg in args {
-                            match arg {
-                                Arg::StrArg(s) => {
-                                    if let None = all_strings.get(s) {
-                                        all_strings.insert(s.clone(), all_strings.len());
-                                    }
-                                }
-                                _ => (),
-                            }
+                    Instruction::LoadString { string, .. } => {
+                        if let None = all_strings.get(string) {
+                            all_strings.insert(string.clone(), all_strings.len());
                         }
                     }
                     _ => (),
@@ -1044,7 +1037,11 @@ fn asm_instruction(
     global_strings: &HashMap<String, usize>,
 ) -> Vec<Insn> {
     match instr {
-        Instruction::PhiExpr { .. } | Instruction::ParMov(_) => panic!(),
+        Instruction::LoadString {
+            dest: Sum::Inr(_), ..
+        }
+        | Instruction::PhiExpr { .. }
+        | Instruction::ParMov(_) => panic!(),
         Instruction::Pop(var) => match var {
             Sum::Inl(reg) => vec![insn(("popq", reg))],
             Sum::Inr(_) => vec![],
@@ -1093,6 +1090,14 @@ fn asm_instruction(
             }
             instructions
         }
+        Instruction::LoadString {
+            dest: Sum::Inl(dest_reg),
+            string,
+        } => vec![Special(format!(
+            "\tleaq global_str{}(%rip), {}",
+            global_strings.get(&string.to_string()).unwrap(),
+            dest_reg
+        ))],
         Instruction::StoreParam(param_num, arg) => {
             let mut instructions = vec![];
             let argument_registers = vec![Rdi, Rsi, Rdx, Rcx, R8, R9];

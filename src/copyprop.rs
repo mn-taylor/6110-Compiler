@@ -113,6 +113,7 @@ fn prop_copies(
         Instruction::Spill { .. }
         | Instruction::Reload { .. }
         | Instruction::Push(_)
+        | Instruction::LoadString { .. }
         | Instruction::Pop(_) => panic!(),
     }
 }
