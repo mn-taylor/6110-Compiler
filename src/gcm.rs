@@ -70,7 +70,7 @@ fn build_loc_of_lbl<T: Copy + Hash + Eq>(
         .collect()
 }
 
-pub fn schedule_all<T: Copy + Hash + Eq>(
+fn schedule_all<T: Copy + Hash + Eq>(
     m: &CfgMethod<T>,
     early: Option<&HashMap<InsnLoc, BlockLabel>>,
 ) -> HashMap<InsnLoc, BlockLabel> {
@@ -104,6 +104,30 @@ pub fn schedule_all<T: Copy + Hash + Eq>(
         }
     }
     schedule
+}
+
+pub fn schedule<T: Copy + Hash + Eq>(m: &CfgMethod<T>) -> HashMap<InsnLoc, BlockLabel> {
+    schedule_all(m, Some(&schedule_all(m, None)))
+}
+
+fn insert_insn() {}
+
+// just insert in a way that respects dependencies
+fn insert_insns<T: Copy + Hash + Eq>(
+    m: &CfgMethod<T>,
+    mut insns: Vec<InsnLoc>,
+    new_body: &mut Vec<InsnLoc>,
+    loc_of_lbl: &HashMap<T, InsnLoc>,
+) {
+    if let Some(i) = insns.pop() {
+        let srcs: HashSet<_> = regalloc::get_sources(&regalloc::get_insn(m, i))
+            .into_iter()
+            .map(|lbl| loc_of_lbl.get(&lbl).unwrap())
+            .collect();
+        for src_insn in insns.iter().filter(|i| srcs.contains(i)) {
+            insert_insn()
+        }
+    }
 }
 
 // bottom of pg 249
