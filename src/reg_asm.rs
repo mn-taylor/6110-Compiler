@@ -1054,21 +1054,22 @@ fn asm_instruction(
             Sum::Inr(_) => vec![],
         },
         Instruction::Call(func_name, args, ret_dest) => {
-            let mut instructions = vec![];
             assert!(args.len() <= 6);
-
-            let argument_registers = vec![Rdi, Rsi, Rdx, Rcx, R8, R9];
-            for (i, arg) in args.iter().enumerate() {
-                match arg {
-                    Arg::VarArg(ImmVar::Var(Sum::Inl(reg))) => {
-                        let arg_reg = argument_registers.get(i).unwrap();
-                        if reg != arg_reg {
-                            instructions.push(insn(("movq", *reg, *arg_reg)));
-                        }
-                    }
-                    _ => (),
-                }
-            }
+            let mut instructions: Vec<_> = args
+                .into_iter()
+                .enumerate()
+                .flat_map(|(i, arg)| {
+                    asm_instruction(
+                        stack_lookup,
+                        Instruction::StoreParam(i as u16, arg),
+                        root,
+                        num_params,
+                        external_funcs,
+                        mac,
+                        global_strings,
+                    )
+                })
+                .collect();
 
             // call the function
             if func_name == "printf".to_string() {
@@ -1102,7 +1103,13 @@ fn asm_instruction(
                     match arg_reg {
                         Some(reg) => match label {
                             ImmVar::Var(v) => {
-                                instructions.push(load_into_reg_var(reg, v.clone(), stack_lookup));
+                                if v != Sum::Inl(reg) {
+                                    instructions.push(load_into_reg_var(
+                                        reg,
+                                        v.clone(),
+                                        stack_lookup,
+                                    ));
+                                }
                                 // instructions.push(format!("\tmovq {}, {}", v, reg));
                                 // instructions.push(load_into_reg(reg, *v, stack_lookup))
                             }
@@ -1309,8 +1316,12 @@ fn asm_instruction(
             // read parameters from registers and/or stack
             let argument_registers = vec![Rdi, Rsi, Rdx, Rcx, R8, R9];
             if param < 6 {
-                let reg: Reg = *argument_registers.get(param as usize).unwrap();
-                vec![store_from_reg_var(reg, dest, &stack_lookup)]
+                if dest != Sum::Inl(*argument_registers.get(param as usize).unwrap()) {
+                    let reg: Reg = *argument_registers.get(param as usize).unwrap();
+                    vec![store_from_reg_var(reg, dest, &stack_lookup)]
+                } else {
+                    vec![]
+                }
             } else {
                 // read parameters off of the stack
                 vec![

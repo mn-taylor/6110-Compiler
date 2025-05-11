@@ -364,8 +364,8 @@ fn lower_calls_insn<T: Clone, U>(i: Instruction<T>, _: U) -> Vec<Instruction<T>>
 
         insns.extend(
             args.iter()
-                .skip(6)
                 .enumerate()
+                .skip(6)
                 .map(|(n, arg)| Instruction::StoreParam(n as u16, arg.clone())),
         );
 
@@ -489,15 +489,17 @@ fn make_args_easy_to_color(
                                 new_arguments.push(param.clone());
                             }
                         } else {
-                            instructions.push(Instruction::StoreParam(i as u16, param.clone()))
+                            panic!();
+                            //instructions.push(Instruction::StoreParam(i as u16, param.clone()))
                         }
                     }
                     Arg::StrArg(s) => {
                         if i < 6 {
-                            new_arguments.push(Arg::StrArg(s.to_string()))
+                            let dummy = args_to_dummy_vars.get(&(i as u32)).unwrap();
+                            todo!(); // add to instrucitons and new_arguments
+                        } else {
+                            panic!();
                         }
-
-                        instructions.push(Instruction::StoreParam(i as u16, param.clone()))
                     }
                 }
             }
@@ -506,6 +508,7 @@ fn make_args_easy_to_color(
         }
 
         Instruction::StoreParam(param, Arg::VarArg(ImmVar::Var(_))) => {
+            println!("ctrlf: {i}");
             if param < 6 {
                 panic!("bad");
             } else {
@@ -1029,7 +1032,11 @@ fn build_need_to_save(
             if let Sum::Inl(Instruction::Call(_, _, _)) = get_insn(m, i) {
                 let mut regs = HashSet::new();
                 for ((webnum, web), ccw) in webs.iter().enumerate().zip(ccws) {
-                    if ccw.contains(&i) {
+                    let child = InsnLoc {
+                        blk: i.blk,
+                        idx: i.idx + 1,
+                    };
+                    if ccw.contains(&i) && ccw.contains(&child) {
                         println!("webnum: {webnum}\n, web: {web:?}\n, loc: {i:?}");
                         println!(
                             "instruction: {}, reg: {}",
@@ -1108,6 +1115,7 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
     .map(|(arg_num, reg)| (*args_to_dummy_vars.get(&arg_num).unwrap(), reg))
     .collect::<HashMap<_, _>>();
 
+    println!("here m is {m}");
     let mut m = method_map(m.clone(), |i, _| {
         make_args_easy_to_color(i, &all_regs, &args_to_dummy_vars)
     });
