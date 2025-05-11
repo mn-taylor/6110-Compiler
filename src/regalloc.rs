@@ -354,6 +354,33 @@ fn distinct_pairs<'a, T>(l: &'a Vec<T>) -> Vec<(u32, &'a T, u32, &'a T)> {
     ret
 }
 
+fn lower_calls_insn<T: Clone, U>(i: Instruction<T>, _: U) -> Vec<Instruction<T>> {
+    if let Instruction::Call(name, args, dest) = i {
+        let mut insns: Vec<_> = vec![];
+
+        if args.len() % 2 == 1 && args.len() >= 6 {
+            insns.push(Instruction::StoreParam(7, Arg::VarArg(ImmVar::Imm(0))))
+        }
+
+        insns.extend(
+            args[6..]
+                .into_iter()
+                .enumerate()
+                .map(|(n, arg)| Instruction::StoreParam(n as u16, arg.clone())),
+        );
+
+        insns.push(Instruction::Call(
+            name,
+            args[..6].into_iter().map(|x| x.clone()).collect(),
+            dest,
+        ));
+
+        insns
+    } else {
+        vec![i]
+    }
+}
+
 fn reg_of_argnum(n: u32) -> Option<Reg> {
     match n {
         0 => Some(Reg::Rdi),
@@ -1132,7 +1159,17 @@ fn method_map<T>(
     m
 }
 
+fn prog_map(
+    mut p: cfg::CfgProgram<VarLabel>,
+    f: impl Fn(cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<VarLabel>,
+) -> cfg::CfgProgram<VarLabel> {
+    p.methods = p.methods.into_iter().map(f).collect();
+
+    p
+}
+
 pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<Sum<Reg, MemVarLabel>> {
+    let p = prog_map(p, |m| method_map(m, lower_calls_insn));
     cfg::CfgProgram {
         externals: p.externals,
         global_fields: p.global_fields,
