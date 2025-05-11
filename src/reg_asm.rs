@@ -173,18 +173,6 @@ fn convert_aop_to_asm(aop: AddOp) -> &'static str {
     }
 }
 
-fn convert_bop_to_asm(bop: Bop) -> String {
-    match bop {
-        Bop::MulBop(MulOp::Div) => "idivq",
-        Bop::MulBop(MulOp::Mul) => "imulq",
-        Bop::MulBop(MulOp::Mod) => "modq",
-        Bop::AddBop(AddOp::Add) => "addq",
-        Bop::AddBop(AddOp::Sub) => "subq",
-        _ => panic!("Only operations allowed in cfg are multiplicative and additive"),
-    }
-    .to_string()
-}
-
 fn convert_multipication_var_var(
     mop: MulOp,
     operand: Sum<Reg, MemVarLabel>,

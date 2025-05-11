@@ -695,16 +695,8 @@ pub fn rename_variables(
 
 fn get_insn_dest<T>(insn: Instruction<T>) -> Option<T> {
     match insn {
-        Instruction::LeftShift {
-            dest,
-            source,
-            shift,
-        } => Some(dest),
-        Instruction::RightShift {
-            dest,
-            source,
-            shift,
-        } => Some(dest),
+        Instruction::LeftShift { dest, .. } => Some(dest),
+        Instruction::RightShift { dest, .. } => Some(dest),
         Instruction::Pop(dest) => Some(dest),
         Instruction::Push(_) => None,
         Instruction::StoreParam(_, _) => None,

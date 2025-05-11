@@ -106,8 +106,47 @@ fn schedule_all<T: Copy + Hash + Eq>(
     schedule
 }
 
-pub fn schedule<T: Copy + Hash + Eq>(m: &CfgMethod<T>) -> HashMap<InsnLoc, BlockLabel> {
+fn schedule_blks<T: Copy + Hash + Eq>(m: &CfgMethod<T>) -> HashMap<InsnLoc, BlockLabel> {
     schedule_all(m, Some(&schedule_all(m, None)))
+}
+
+pub fn gcm<T: Copy + Hash + Eq>(m: CfgMethod<T>) -> CfgMethod<T> {
+    let blk_asgnmts = schedule_blks(&m);
+    let all_locs = regalloc::all_insn_locs(&m);
+    let loc_of_lbl: HashMap<T, InsnLoc> = build_loc_of_lbl(&m, &all_locs);
+    let mut blk_to_insns: HashMap<_, HashSet<InsnLoc>> = blk_asgnmts
+        .iter()
+        .map(|(_, blk)| (*blk, HashSet::new()))
+        .collect();
+    for (i, blk) in blk_asgnmts {
+        blk_to_insns.get_mut(&blk).unwrap().insert(i);
+    }
+    let new_blks = m.blocks.iter().map(|(lbl, blk)| {
+        let body_locs = (0..blk.body.len()).map(|idx| InsnLoc { blk: *lbl, idx });
+        let mut new_body = body_locs.clone().filter(|i| pinned(*i, &m)).collect();
+        let not_pinned = body_locs.filter(|i| !pinned(*i, &m)).collect();
+        insert_insns(&m, not_pinned, &mut new_body, &loc_of_lbl);
+        (
+            *lbl,
+            cfg::BasicBlock {
+                body: new_body
+                    .into_iter()
+                    .filter_map(|i| match regalloc::get_insn(&m, i) {
+                        Sum::Inl(insn) => Some(insn.clone()),
+                        Sum::Inr(_) => None,
+                    })
+                    .collect(),
+                jump_loc: blk.jump_loc.clone(),
+            },
+        )
+    });
+    CfgMethod {
+        blocks: new_blks.collect(),
+        name: m.name,
+        fields: m.fields,
+        num_params: m.num_params,
+        return_type: m.return_type,
+    }
 }
 
 fn insert_insn(
