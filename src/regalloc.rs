@@ -350,27 +350,6 @@ fn distinct_pairs<'a, T>(l: &'a Vec<T>) -> Vec<(u32, &'a T, u32, &'a T)> {
     ret
 }
 
-fn get_all_call_instr(m: &mut CfgMethod) -> HashSet<InsnLoc> {
-    let mut call_instrs: HashSet<InsnLoc> = hashset! {};
-
-    for (bid, block) in m.blocks.iter() {
-        for (iid, instruction) in block.body.iter().enumerate() {
-            match instruction {
-                Instruction::Call(..)
-                | Instruction::LoadParam { .. }
-                | Instruction::StoreParam(..) => {
-                    call_instrs.insert(InsnLoc {
-                        blk: bid.clone(),
-                        idx: iid.clone(),
-                    });
-                }
-                _ => (),
-            }
-        }
-    }
-    call_instrs
-}
-
 fn reg_of_argnum(n: u32) -> Option<Reg> {
     match n {
         0 => Some(Reg::Rdi),
@@ -380,13 +359,6 @@ fn reg_of_argnum(n: u32) -> Option<Reg> {
         4 => Some(Reg::R8),
         5 => Some(Reg::R9),
         _ => None,
-    }
-}
-
-fn is_colored_param(p: u32, regs_colored: Vec<Reg>) -> bool {
-    match reg_of_argnum(p) {
-        None => false,
-        Some(r) => regs_colored.contains(&r),
     }
 }
 
