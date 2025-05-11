@@ -633,11 +633,6 @@ fn color(
         println!("could not color this many nodes: {}", g.len());
         let to_color: HashSet<_> = g.keys().map(|x| *x).collect();
 
-        // // make sure that we don't try to spill the dummy nodes
-        // for i in 0..num_colors {
-        //     to_color.remove(&i);
-        // }
-
         let mut vec_to_color = to_color.into_iter().collect::<Vec<_>>();
         vec_to_color.sort_by_key(|x| g.get(x).unwrap().len() as u32);
         Err(vec_to_color)
