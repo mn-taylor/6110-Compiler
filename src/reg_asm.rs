@@ -1066,21 +1066,8 @@ fn asm_instruction(
             Sum::Inr(_) => vec![],
         },
         Instruction::Call(func_name, args, ret_dest) => {
-            let mut instructions: Vec<_> = args
-                .iter()
-                .enumerate()
-                .flat_map(|(i, arg)| {
-                    asm_instruction(
-                        stack_lookup,
-                        Instruction::StoreParam(i as u16, arg.clone()),
-                        root,
-                        num_params,
-                        external_funcs,
-                        mac,
-                        global_strings,
-                    )
-                })
-                .collect();
+            let mut instructions = vec![];
+            assert!(args.len() <= 6);
 
             // call the function
             if func_name == "printf".to_string() {
