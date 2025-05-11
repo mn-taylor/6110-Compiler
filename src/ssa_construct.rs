@@ -412,7 +412,10 @@ fn rewrite_instr(
     block_id: BlockLabel,
 ) -> Instruction<SSAVarLabel> {
     match instr {
-        Instruction::ParMov(_) | Instruction::Pop(_) | Instruction::Push(_) => panic!(),
+        Instruction::ParMov(_)
+        | Instruction::Pop(_)
+        | Instruction::Push(_)
+        | Instruction::LoadString { .. } => panic!(),
         Instruction::MoveOp { source, dest } => {
             // replace source by its reaching_def
             let new_source = match source {
@@ -695,6 +698,7 @@ pub fn rename_variables(
 
 fn get_insn_dest<T>(insn: Instruction<T>) -> Option<T> {
     match insn {
+        Instruction::LoadString { dest, string } => Some(dest),
         Instruction::LeftShift { dest, .. } => Some(dest),
         Instruction::RightShift { dest, .. } => Some(dest),
         Instruction::Pop(dest) => Some(dest),

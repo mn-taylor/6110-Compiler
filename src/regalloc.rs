@@ -105,6 +105,7 @@ fn get_insn_sources<T: Hash + Eq + Copy>(insn: &Instruction<T>) -> HashSet<T> {
         Instruction::LeftShift { source, .. } | Instruction::RightShift { source, .. } => {
             hashset! {*source}
         }
+        Instruction::LoadString { dest, string } => hashset! {},
         Instruction::Push(x) => hashset! {*x},
         Instruction::Pop(_) => hashset! {},
         Instruction::StoreParam(_, a) => get_arg_sources(a).into_iter().collect(),
@@ -154,7 +155,9 @@ pub fn get_dest<T: Copy>(insn: &Sum<&cfg::Instruction<T>, &cfg::Jump<T>>) -> Opt
 
 fn get_insn_dest<T: Copy>(insn: &Instruction<T>) -> Option<T> {
     match *insn {
-        Instruction::LeftShift { dest, .. } | Instruction::RightShift { dest, .. } => Some(dest),
+        Instruction::LeftShift { dest, .. }
+        | Instruction::RightShift { dest, .. }
+        | Instruction::LoadString { dest, .. } => Some(dest),
         Instruction::Push(_) => None,
         Instruction::Pop(x) => Some(x),
         Instruction::StoreParam(_, _) => None,
@@ -804,6 +807,10 @@ fn insn_map<T, U>(
     dst_fun: impl Fn(T) -> U,
 ) -> cfg::Instruction<U> {
     match instr {
+        Instruction::LoadString { dest, string } => Instruction::LoadString {
+            dest: dst_fun(dest),
+            string: string,
+        },
         Instruction::LeftShift {
             dest,
             source,
