@@ -1061,7 +1061,10 @@ fn asm_instruction(
             for (i, arg) in args.iter().enumerate() {
                 match arg {
                     Arg::VarArg(ImmVar::Var(Sum::Inl(reg))) => {
-                        assert_eq!(argument_registers.get(i).unwrap(), reg)
+                        let arg_reg = argument_registers.get(i).unwrap();
+                        if reg != arg_reg {
+                            instructions.push(insn(("movq", *reg, *arg_reg)));
+                        }
                     }
                     _ => (),
                 }

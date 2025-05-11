@@ -466,21 +466,29 @@ fn make_args_easy_to_color(
                     Arg::VarArg(v) => {
                         if i < 6 {
                             let dummy = args_to_dummy_vars.get(&(i as u32)).unwrap();
-
-                            match v {
-                                ImmVar::Var(w) => {
-                                    instructions.push(Instruction::MoveOp {
-                                        source: v.clone(),
-                                        dest: *dummy,
-                                    });
+                            if let Some(reg) = reg_of_argnum(i as u32) {
+                                if regs_colored.contains(&reg) {
+                                    match v {
+                                        ImmVar::Var(w) => {
+                                            instructions.push(Instruction::MoveOp {
+                                                source: v.clone(),
+                                                dest: *dummy,
+                                            });
+                                        }
+                                        ImmVar::Imm(i) => {
+                                            instructions.push(Instruction::Constant {
+                                                dest: *dummy,
+                                                constant: *i,
+                                            })
+                                        }
+                                    }
+                                    new_arguments.push(Arg::VarArg(ImmVar::Var(*dummy)));
+                                } else {
+                                    new_arguments.push(param.clone());
                                 }
-                                ImmVar::Imm(i) => instructions.push(Instruction::Constant {
-                                    dest: *dummy,
-                                    constant: *i,
-                                }),
+                            } else {
+                                new_arguments.push(param.clone());
                             }
-
-                            new_arguments.push(Arg::VarArg(ImmVar::Var(*dummy)));
                         } else {
                             instructions.push(Instruction::StoreParam(i as u16, param.clone()))
                         }
@@ -500,18 +508,7 @@ fn make_args_easy_to_color(
 
         Instruction::StoreParam(param, Arg::VarArg(ImmVar::Var(src))) => {
             if let Some(reg) = reg_of_argnum(param as u32) {
-                if regs_colored.contains(&reg) && fields.contains_key(&src) {
-                    let dummy = args_to_dummy_vars.get(&(param as u32)).unwrap();
-                    vec![
-                        Instruction::MoveOp {
-                            source: ImmVar::Var(src),
-                            dest: *dummy,
-                        },
-                        // Instruction::StoreParam(param, Arg::VarArg(ImmVar::Var(*dummy))),
-                    ]
-                } else {
-                    vec![i]
-                }
+                panic!("bad");
             } else {
                 vec![i]
             }
@@ -810,10 +807,15 @@ fn reg_alloc(
             Err(things_to_spill) => {
                 let mut spillable = None;
                 for web_to_spill in things_to_spill.into_iter().rev() {
-                    if !is_trivial(webs.get(web_to_spill as usize).unwrap()) {
+                    let web = webs.get(web_to_spill as usize).unwrap();
+                    if !is_trivial(web)
+                        && !arg_var_to_reg.contains_key(&web.var)
+                        && web.var != u32::MAX
+                    {
+                        println!("arg_var_to_reg: {arg_var_to_reg:?}");
                         println!("max degree: {}", max_degree(interfer_graph));
-                        println!("spilling web number {web_to_spill}");
-                        spillable = Some(webs.get(web_to_spill as usize).unwrap());
+                        println!("spilling web number {web_to_spill}, which is {web:?}");
+                        spillable = Some(web);
                         break;
                     }
                 }
@@ -1137,10 +1139,8 @@ fn push_and_pop(
 fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let callee_saved_regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
-    let caller_saved_regs: Vec<Reg> = vec![
-        Reg::Rsi,
-        /*Reg::Rcx, */ Reg::R11, /*, Reg::Rdi, Reg::R8, Reg::R10*/
-    ];
+    let caller_saved_regs: Vec<Reg> =
+        vec![Reg::Rsi, Reg::Rcx, Reg::R11, Reg::Rdi, Reg::R8, Reg::R10];
     let mut m = m.clone();
 
     let mut all_regs = callee_saved_regs.clone();
@@ -1156,6 +1156,7 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
         (5, Reg::R9),
     ]
     .into_iter()
+    .filter(|(_, r)| caller_saved_regs.contains(&r))
     .map(|(arg_num, reg)| (*args_to_dummy_vars.get(&arg_num).unwrap(), reg))
     .collect::<HashMap<_, _>>();
 
