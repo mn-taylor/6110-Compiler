@@ -301,6 +301,12 @@ fn reachable_from_defs(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
             );
         }
     }
+    if let Some(def0) = web.defs.get(0) {
+        if reachable.contains(def0) {
+            reachable.remove(def0);
+            println!("how");
+        }
+    }
     reachable
 }
 
@@ -992,8 +998,15 @@ fn build_need_to_save(
         .filter_map(|i| {
             if let Sum::Inl(Instruction::NoArgsCall(_, _)) = get_insn(m, i) {
                 let mut regs = HashSet::new();
-                for ((webnum, _), ccw) in webs.iter().enumerate().zip(ccws) {
+                for ((webnum, web), ccw) in webs.iter().enumerate().zip(ccws) {
                     if ccw.contains(&i) {
+                        println!("webnum: {webnum}\n, web: {web:?}\n, loc: {i:?}");
+                        println!(
+                            "instruction: {}, reg: {}",
+                            get_insn(m, i),
+                            *web_to_reg.get(&(webnum as u32)).unwrap()
+                        );
+                        println!("ccw: {ccw:?}");
                         regs.insert(*web_to_reg.get(&(webnum as u32)).unwrap());
                     }
                 }
@@ -1045,7 +1058,8 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let callee_saved_regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
     let caller_saved_regs: Vec<Reg> = vec![
-        /*Reg::Rsi, Reg::Rcx, */ Reg::R11, /*, Reg::Rdi, Reg::R8, Reg::R10*/
+        Reg::Rsi,
+        /*Reg::Rcx, */ Reg::R11, /*, Reg::Rdi, Reg::R8, Reg::R10*/
     ];
 
     let mut all_regs = callee_saved_regs.clone();
