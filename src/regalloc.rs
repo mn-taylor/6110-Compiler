@@ -431,7 +431,7 @@ fn make_args_easy_to_color(
                     let dummy = dummy_with_same_type(fields, dest);
                     reg_of_varlabel.insert(dummy, reg);
                     vec![
-                        Instruction::LoadParam { param, dest },
+                        Instruction::LoadParam { param, dest: dummy },
                         Instruction::MoveOp {
                             source: ImmVar::Var(dummy),
                             dest,
@@ -446,7 +446,7 @@ fn make_args_easy_to_color(
         }
         Instruction::StoreParam(param, Arg::VarArg(ImmVar::Var(src))) => {
             if let Some(reg) = reg_of_argnum(param as u32) {
-                if regs_colored.contains(&reg) {
+                if regs_colored.contains(&reg) && fields.contains_key(&src) {
                     let dummy = dummy_with_same_type(fields, src);
                     reg_of_varlabel.insert(dummy, reg);
                     vec![
@@ -483,6 +483,8 @@ fn add_parameter_constraints(
         }
     }
 
+    println!("webs: {webs:?}");
+
     // add dummy vertices for each register
     let mut all_webs: Vec<Web> = (0..all_regs.len())
         .collect::<Vec<_>>()
@@ -494,6 +496,8 @@ fn add_parameter_constraints(
         })
         .collect::<Vec<_>>();
     all_webs.extend(webs);
+
+    println!("web length: {}", all_webs.len());
 
     // initialize graph
     let mut graph: HashMap<u32, HashSet<u32>> = HashMap::new();
@@ -514,7 +518,7 @@ fn add_parameter_constraints(
         match arg_to_idx.get(&var) {
             Some(idx) => {
                 for j in 0..all_regs.len() {
-                    if i == *idx {
+                    if j == *idx {
                         continue;
                     }
 
@@ -526,6 +530,9 @@ fn add_parameter_constraints(
             None => (),
         }
     }
+
+    println!("all_webs: {all_webs:?}");
+    println!("graph: {graph:?}");
 
     return (all_webs, graph);
 }
@@ -624,10 +631,10 @@ fn color(
         println!("could not color this many nodes: {}", g.len());
         let mut to_color: HashSet<_> = g.keys().map(|x| *x).collect();
 
-        // make sure that we don't try to spill the dummy nodes
-        for i in 0..num_colors {
-            to_color.remove(&i);
-        }
+        // // make sure that we don't try to spill the dummy nodes
+        // for i in 0..num_colors {
+        //     to_color.remove(&i);
+        // }
 
         let mut vec_to_color = to_color.into_iter().collect::<Vec<_>>();
         vec_to_color.sort_by_key(|x| g.get(x).unwrap().len() as u32);
@@ -1032,6 +1039,10 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
     let mut m = method_map(m, |i, _| {
         make_args_easy_to_color(i, &all_regs, &mut fields, &mut reg_of_varname)
     });
+    m.fields = fields;
+
+    println!("method after thing: {m}");
+    println!("reg_of_varname: {reg_of_varname:?}");
 
     let (spilled_method, web_to_regnum, webs) = reg_alloc(&mut m, &all_regs, &reg_of_varname);
     let ccws = webs
