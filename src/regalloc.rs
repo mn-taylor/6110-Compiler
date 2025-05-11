@@ -363,15 +363,15 @@ fn lower_calls_insn<T: Clone, U>(i: Instruction<T>, _: U) -> Vec<Instruction<T>>
         }
 
         insns.extend(
-            args[6..]
-                .into_iter()
+            args.iter()
+                .skip(6)
                 .enumerate()
                 .map(|(n, arg)| Instruction::StoreParam(n as u16, arg.clone())),
         );
 
         insns.push(Instruction::Call(
             name,
-            args[..6].into_iter().map(|x| x.clone()).collect(),
+            args.into_iter().take(6).map(|x| x.clone()).collect(),
             dest,
         ));
 
