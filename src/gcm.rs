@@ -119,19 +119,24 @@ fn insert_insn(
         Some(deps) => deps,
         None => return, // don't need to insert it
     };
-    for dep in deps {
-        insert_insn(dep, dep_graph, new_body);
+    for dep in deps.iter() {
+        insert_insn(*dep, dep_graph, new_body);
     }
-    let deps: HashSet<_> = deps.collect();
+    let deps: HashSet<_> = deps.into_iter().collect();
     // insert into new_body as early as possible, i.e. right after latest required defn
     let latest_required_defn = new_body.iter().filter(|j| deps.contains(j)).last();
-    new_body.insert_after
+    match latest_required_defn {
+        None => new_body.insert(0, i),
+        Some(last_dep) => {
+            new_body.insert(new_body.iter().position(|dep| dep == last_dep).unwrap(), i)
+        }
+    }
 }
 
 // just insert into new_body in a way that respects dependencies
 fn insert_insns<T: Copy + Hash + Eq>(
     m: &CfgMethod<T>,
-    mut insns: Vec<InsnLoc>,
+    insns: Vec<InsnLoc>,
     new_body: &mut Vec<InsnLoc>,
     loc_of_lbl: &HashMap<T, InsnLoc>,
 ) {
