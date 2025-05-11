@@ -467,10 +467,18 @@ fn make_args_easy_to_color(
                         if i < 6 {
                             let dummy = args_to_dummy_vars.get(&(i as u32)).unwrap();
 
-                            instructions.push(Instruction::MoveOp {
-                                source: v.clone(),
-                                dest: *dummy,
-                            });
+                            match v {
+                                ImmVar::Var(w) => {
+                                    instructions.push(Instruction::MoveOp {
+                                        source: v.clone(),
+                                        dest: *dummy,
+                                    });
+                                }
+                                ImmVar::Imm(i) => instructions.push(Instruction::Constant {
+                                    dest: *dummy,
+                                    constant: *i,
+                                }),
+                            }
 
                             new_arguments.push(Arg::VarArg(ImmVar::Var(*dummy)));
                         } else {
