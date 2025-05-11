@@ -499,7 +499,11 @@ fn make_args_easy_to_color(
                     Arg::StrArg(s) => {
                         if i < 6 {
                             let dummy = args_to_dummy_vars.get(&(i as u32)).unwrap();
-                            todo!(); // add to instrucitons and new_arguments
+                            instructions.push(Instruction::LoadString {
+                                dest: *dummy,
+                                string: s.clone(),
+                            });
+                            new_arguments.push(Arg::VarArg(ImmVar::Var(*dummy)));
                         } else {
                             panic!();
                         }
