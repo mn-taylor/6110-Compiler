@@ -209,8 +209,17 @@ pub fn dead_code_elimination(m: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
                     removed_var = true;
                 }
             } else {
-                // TODO eliminate dead params here
-                new_instructions.push(instruction.clone());
+                if let Instruction::LoadParams { param } = instruction {
+                    let mut new_params = vec![];
+                    for (i, v) in param {
+                        if !m.fields.contains_key(&v.name) || all_used_vars.contains(&v) {
+                            new_params.push((*i, v.clone()));
+                        } else {
+                            removed_var = true;
+                        }
+                    }
+                    new_instructions.push(Instruction::LoadParams { param: new_params });
+                }
             }
         }
         new_block.body = new_instructions;
