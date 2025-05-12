@@ -1,6 +1,7 @@
 use crate::cfg;
 use crate::cfg::{Arg, BasicBlock, BlockLabel, ImmVar, Instruction, Jump};
 use crate::cfg_build::{get_parents, CfgMethod, VarLabel};
+use crate::regalloc;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
@@ -740,11 +741,8 @@ pub fn prune_phis(m: &mut cfg::CfgMethod<SSAVarLabel>) {
     let mut defns: HashSet<SSAVarLabel> = HashSet::new();
     for (_, block) in m.blocks.iter() {
         for instr in block.body.iter() {
-            match get_insn_dest(instr.clone()) {
-                Some(dest) => {
-                    defns.insert(dest);
-                }
-                _ => (),
+            for dest in regalloc::get_insn_dest(instr) {
+                defns.insert(dest);
             }
         }
     }

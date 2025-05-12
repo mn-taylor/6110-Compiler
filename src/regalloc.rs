@@ -156,7 +156,7 @@ pub fn get_dest<T: Copy + Eq + Hash>(
     }
 }
 
-fn get_insn_dest<T: Copy + Eq + Hash>(insn: &Instruction<T>) -> HashSet<T> {
+pub fn get_insn_dest<T: Copy + Eq + Hash>(insn: &Instruction<T>) -> HashSet<T> {
     match insn {
         Instruction::LeftShift { dest, .. }
         | Instruction::RightShift { dest, .. }

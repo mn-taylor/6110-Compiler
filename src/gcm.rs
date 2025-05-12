@@ -71,10 +71,11 @@ fn build_loc_of_lbl<T: Copy + Hash + Eq>(
     m: &CfgMethod<T>,
     all_locs: &HashSet<InsnLoc>,
 ) -> HashMap<T, InsnLoc> {
-    all_locs
-        .iter()
-        .filter_map(|iloc| regalloc::get_dest(&regalloc::get_insn(m, *iloc)).map(|v| (v, *iloc)))
-        .collect()
+    panic!()
+    // all_locs
+    //     .iter()
+    //     .filter_map(|iloc| regalloc::get_dest(&regalloc::get_insn(m, *iloc)).map(|v| (v, *iloc)))
+    //     .collect()
 }
 
 fn schedule_all<T: Copy + Hash + Eq>(
