@@ -911,7 +911,7 @@ fn reg_alloc(
                         println!("max degree: {}", max_degree(&interfer_graph));
                         println!("spilling web {web:?}");
                         spillable.push(web);
-                        if spillable.len() > 2 {
+                        if spillable.len() > 0 {
                             break;
                         }
                     }
