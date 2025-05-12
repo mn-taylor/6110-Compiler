@@ -836,6 +836,27 @@ fn max_degree(interfer_graph: &HashMap<u32, HashSet<u32>>) -> u32 {
     max_degree
 }
 
+fn distance_to_use(m: &CfgMethod, i: InsnLoc, w: &Web) -> u32 {
+    // BFS to next use
+    let mut done = hashset! {};
+    let mut next = hashset! {i};
+    let uses: HashSet<_> = w.uses.clone().into_iter().collect();
+    let mut dist = 0;
+    while next.len() > 0 {
+        if next.intersection(&uses).collect::<Vec<_>>().len() > 0 {
+            return dist;
+        }
+        done = done.union(&next).map(|x| *x).collect();
+        next = next
+            .into_iter()
+            .flat_map(|p| get_children(m, p))
+            .filter(|i| !done.contains(i))
+            .collect();
+        dist += 1;
+    }
+    panic!();
+}
+
 fn reg_alloc(
     m: &CfgMethod,
     all_regs: &Vec<Reg>,
@@ -867,13 +888,14 @@ fn reg_alloc(
                         })
                         .map(|((i, web), _)| (i as u32, web))
                         .collect();
-                    let get_key = |web_num: &(u32, &Web)| {
-                        let web = webs.get(web_num.0 as usize).unwrap();
-                        convex_closures_of_webs
-                            .get(web_num.0 as usize)
-                            .unwrap()
-                            .len() as f64
-                            / (web.uses.len() + web.defs.len()) as f64
+                    let get_key = |(_, w): &(u32, &Web)| {
+                        distance_to_use(&new_method, i, w)
+                        // let web = webs.get(web_num.0 as usize).unwrap();
+                        // convex_closures_of_webs
+                        //     .get(web_num.0 as usize)
+                        //     .unwrap()
+                        //     .len() as f64
+                        //     / (web.uses.len() + web.defs.len()) as f64
                     };
                     bad_webs.sort_by(|a, b| get_key(a).partial_cmp(&get_key(b)).unwrap());
                     // let webs_to_remove: Vec<u32> = rank_webs(bad_webs, &interfer_graph)
