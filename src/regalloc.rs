@@ -10,6 +10,7 @@ use std::collections::HashSet;
 use std::hash::Hash;
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
+use crate::spilling_heuristics::rank_webs;
 use std::cmp::max;
 
 #[derive(PartialEq, Debug, Eq, Hash, Clone, Copy)]
@@ -345,7 +346,7 @@ fn reaches_a_use(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
     reaches_a_use
 }
 
-fn find_inter_instructions(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
+pub fn find_inter_instructions(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
     reaches_a_use(m, web)
         .intersection(&reachable_from_defs(m, web))
         .map(|i| *i)
@@ -798,11 +799,12 @@ fn reg_alloc(
                     if !is_trivial(web) && !arg_var_to_reg.contains_key(&web.var) {
                         println!("arg_var_to_reg: {arg_var_to_reg:?}");
                         println!("max degree: {}", max_degree(interfer_graph));
-                        println!("spilling web number {web_to_spill}, which is {web:?}");
+                        println!(/*"spilling web number {web_to_spill}, */ " which is {web:?}");
                         spillable = Some(web);
                         break;
                     }
                 }
+
                 match spillable {
                     Some(spillable) => {
                         // println!("spilling {spillable:?}");

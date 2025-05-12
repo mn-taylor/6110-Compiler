@@ -10,8 +10,27 @@ use std::collections::HashSet;
 use std::hash::Hash;
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
+use crate::regalloc::{find_inter_instructions, Web};
 use std::cmp::max;
 
-fn rank_webs(webs: Vec<Web>, m: CfgMethod) -> Vec<Web> {
-    panic!()
+pub fn rank_webs(webs: Vec<Web>, interference_graph: &HashMap<u32, HashSet<u32>>) -> Vec<Web> {
+    let mut webs_and_ratios = webs
+        .iter()
+        .enumerate()
+        .map(|(i, web)| {
+            (
+                i,
+                interference_graph.get(&(i as u32)).unwrap().len() / web.uses.len(),
+                web,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    // rank by convex closures
+    webs_and_ratios.sort_by(|a, b| (a.1).cmp(&b.1));
+    // webs_and_ratios.reverse();
+
+    let sorted_webs = webs_and_ratios.iter().map(|c| c.2.clone()).collect();
+
+    sorted_webs
 }
