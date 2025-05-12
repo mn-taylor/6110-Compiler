@@ -336,8 +336,8 @@ fn reachable_from_defs(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
     if let Some(def0) = web.defs.get(0) {
         if reachable.contains(def0) {
             reachable.remove(def0);
-            println!("def0: {def0:?}");
-            println!("how");
+            // println!("def0: {def0:?}");
+            // println!("how");
         }
     }
     reachable
@@ -566,7 +566,6 @@ fn make_args_easy_to_color(
         }
 
         Instruction::StoreParam(param, Arg::VarArg(ImmVar::Var(_))) => {
-            println!("ctrlf: {i}");
             if param < 6 {
                 panic!("bad");
             } else {
@@ -861,7 +860,6 @@ fn src_reg(
     webs: &Vec<Web>,
     web_to_reg: &HashMap<u32, Reg>,
 ) -> RegGlobMemVar {
-    // println!("v, i, webs: {v:?}, {i:?}, {webs:?}");
     match get_src_web(v, i, webs) {
         Some(j) => match web_to_reg.get(&j) {
             Some(r) => RegVar(*r),
@@ -877,8 +875,6 @@ fn dst_reg(
     webs: &Vec<Web>,
     web_to_reg: &HashMap<u32, Reg>,
 ) -> RegGlobMemVar {
-    // println!("v, i, webs: {v:?}, {i:?}, {webs:?}");
-    // println!("get_dst_web(v, i, webs): {:?}", get_dst_web(v, i, webs));
     match get_dst_web(v, i, webs) {
         Some(j) => match web_to_reg.get(&j) {
             Some(r) => RegVar(*r),
@@ -958,8 +954,6 @@ fn all_mem_vars(m: &cfg::CfgMethod<VarLabel>) -> HashMap<u32, (CfgType, String)>
                         ret.insert(*mem_var, stuff.clone());
                     }
                     None => {
-                        println!("the variable {ord_var} cant be found");
-                        println!("{}", m);
                         panic!();
                     }
                 },
@@ -1063,7 +1057,7 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar>
     .map(|(arg_num, reg)| (*args_to_dummy_vars.get(&arg_num).unwrap(), reg))
     .collect::<HashMap<_, _>>();
 
-    println!("here m is {m}");
+    // println!("here m is {m}");
     let m = method_map(m.clone(), |i, _| {
         make_args_easy_to_color(i, &all_regs, &args_to_dummy_vars)
     });
@@ -1074,12 +1068,12 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar>
         .map(|web| find_inter_instructions(&m, web))
         .collect();
 
-    println!("method after thing: {m}");
-    println!("reg_of_varname: {reg_of_varname:?}");
+    // println!("method after thing: {m}");
+    // println!("reg_of_varname: {reg_of_varname:?}");
 
     let web_to_reg = reg_alloc(&webs, &ccws, &all_regs, &reg_of_varname);
 
-    println!("webs: {webs:?}");
+    // println!("webs: {webs:?}");
 
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
@@ -1134,63 +1128,3 @@ pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<RegGlobMem
         methods: p.methods.into_iter().map(regalloc_method).collect(),
     }
 }
-
-// mod tests {
-//     use super::*;
-//     use ImmVar::Var;
-
-//     #[test]
-//     fn easy() {
-//         let m = cfg::CfgMethod {
-//             num_params: 0,
-//             name: "".to_string(),
-//             blocks: vec![(
-//                 0,
-//                 BasicBlock {
-//                     jump_loc: Jump::Nowhere,
-//                     body: vec![
-//                         Instruction::Constant {
-//                             dest: 1,
-//                             constant: 17,
-//                         },
-//                         Instruction::MoveOp {
-//                             source: Var(2),
-//                             dest: 3,
-//                         },
-//                         Instruction::MoveOp {
-//                             source: Var(1),
-//                             dest: 2,
-//                         },
-//                         Instruction::MoveOp {
-//                             source: Var(1),
-//                             dest: 3,
-//                         },
-//                         Instruction::MoveOp {
-//                             source: Var(1),
-//                             dest: 1,
-//                         },
-//                         Instruction::MoveOp {
-//                             source: Var(1),
-//                             dest: 2,
-//                         },
-//                         Instruction::MoveOp {
-//                             source: Var(2),
-//                             dest: 1,
-//                         },
-//                     ],
-//                 },
-//             )]
-//             .into_iter()
-//             .collect(),
-//             fields: HashMap::new(),
-//             return_type: None,
-//         };
-//         assert_eq!(
-//             get_uses(&m, 1, InsnLoc { blk: 0, idx: 0 }),
-//             hashset! {InsnLoc { blk: 0, idx: 3 }, InsnLoc { blk: 0, idx: 2 }, InsnLoc { blk: 0, idx: 4 }}
-//         );
-//         // println!("graph: {:?}", interference_graph(&mut m.clone()));
-//         // println!("coloring: {:?}", reg_alloc(&mut m.clone(), 2));
-//         // println!("{:?}", regalloc_method(m));
-//     }
-// }
