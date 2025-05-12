@@ -667,6 +667,80 @@ fn color(
     }
 }
 
+fn spill_webs(m: cfg::CfgMethod<VarLabel>, webs: Vec<Web>) -> cfg::CfgMethod<VarLabel> {
+    let mut new_method = m.clone();
+    let mut def_lookup: HashMap<InsnLoc, Vec<VarLabel>> = hashmap! {}; // LoadParams means that multiple webs can share the same instruction location
+    let mut use_lookup: HashMap<InsnLoc, VarLabel> = hashmap! {};
+
+    for Web { var, defs, uses } in webs {
+        for def in defs {
+            if !def_lookup.contains_key(&def) {
+                def_lookup.insert(def, vec![]);
+            }
+            def_lookup.get_mut(&def).unwrap().push(var);
+        }
+        for var_use in uses {
+            use_lookup.insert(var_use, var);
+        }
+    }
+
+    for (bid, block) in m.blocks.iter() {
+        let mut new_instructions = vec![];
+        let mut new_block = block.clone();
+        for (iid, instruction) in block.body.iter().enumerate() {
+            let instr_loc = InsnLoc {
+                blk: *bid,
+                idx: iid,
+            };
+
+            match use_lookup.get(&instr_loc) {
+                Some(var) => {
+                    new_instructions.push(Instruction::Reload {
+                        ord_var: *var,
+                        mem_var: *var,
+                    });
+                }
+                None => (),
+            };
+
+            new_instructions.push(instruction.clone());
+
+            match def_lookup.get(&instr_loc) {
+                Some(vars) => {
+                    vars.iter().for_each(|var| {
+                        new_instructions.push(Instruction::Spill {
+                            ord_var: *var,
+                            mem_var: *var,
+                        });
+                    });
+                }
+                None => (),
+            };
+
+            if iid == block.body.len() - 1 {
+                let potential_jump_insn_loc = InsnLoc {
+                    blk: *bid,
+                    idx: iid + 1,
+                };
+
+                match use_lookup.get(&potential_jump_insn_loc) {
+                    Some(var) => {
+                        new_instructions.push(Instruction::Reload {
+                            ord_var: *var,
+                            mem_var: *var,
+                        });
+                    }
+                    None => (),
+                }
+            }
+        }
+        new_block.body = new_instructions;
+        new_method.blocks.insert(*bid, new_block);
+    }
+
+    return new_method;
+}
+
 fn spill_web(m: cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLabel> {
     let mut new_method = m.clone();
     let Web { var, defs, uses } = web;
@@ -832,15 +906,12 @@ fn reg_alloc(
                 let mut spillable = vec![];
                 for web_to_spill in things_to_spill.into_iter() {
                     let web = webs.get(web_to_spill as usize).unwrap();
-                    if !is_trivial(&web)
-                        && !arg_var_to_reg.contains_key(&web.var)
-                        && web.var != u32::MAX
-                    {
+                    if !is_trivial(&web) && !arg_var_to_reg.contains_key(&web.var) {
                         println!("arg_var_to_reg: {arg_var_to_reg:?}");
                         println!("max degree: {}", max_degree(&interfer_graph));
-                        println!(/*"spilling web number {web_to_spill}, */ " which is {web:?}");
+                        println!("spilling web {web:?}");
                         spillable.push(web);
-                        if spillable.len() > 1 {
+                        if spillable.len() > 0 {
                             break;
                         }
                     }
@@ -850,9 +921,7 @@ fn reg_alloc(
                     panic!("nothing to spill");
                 }
 
-                for web in spillable {
-                    new_method = spill_web(new_method, web.clone());
-                }
+                new_method = spill_webs(new_method, webs);
 
                 // Some(spillable) => {
                 //     // println!("spilling {spillable:?}");
