@@ -374,18 +374,6 @@ pub fn find_inter_instructions(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
         .collect()
 }
 
-fn distinct_pairs<'a, T>(l: &'a Vec<T>) -> Vec<(u32, &'a T, u32, &'a T)> {
-    let mut ret = Vec::new();
-    for i in 0..l.len() {
-        for j in 0..l.len() {
-            if i != j {
-                ret.push((i as u32, l.get(i).unwrap(), j as u32, l.get(j).unwrap()));
-            }
-        }
-    }
-    ret
-}
-
 fn lower_calls_insn<T: Clone, U>(i: Instruction<T>, _: U) -> Vec<Instruction<T>> {
     if let Instruction::Call(name, args, dest) = i {
         let mut insns: Vec<_> = vec![];
@@ -589,16 +577,16 @@ fn interference_graph(
             None => (),
         }
     }
-    for (num, i) in ccws.iter().enumerate() {
-        for l in i {
-            for j in num + 1..ccws.len() {
-                if ccws.get(j).unwrap().contains(l) {
-                    graph.get_mut(&(num as u32)).unwrap().insert(j as u32);
-                    graph.get_mut(&(j as u32)).unwrap().insert(num as u32);
-                }
-            }
-        }
-    }
+    // for (num, i) in ccws.iter().enumerate() {
+    //     for l in i {
+    //         for j in num + 1..ccws.len() {
+    //             if ccws.get(j).unwrap().contains(l) {
+    //                 graph.get_mut(&(num as u32)).unwrap().insert(j as u32);
+    //                 graph.get_mut(&(j as u32)).unwrap().insert(num as u32);
+    //             }
+    //         }
+    //     }
+    // }
 
     (graph, precoloring)
 }
@@ -1027,12 +1015,10 @@ fn push_and_pop(
     })
 }
 
-fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar> {
+fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let callee_saved_regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
     let caller_saved_regs = vec![Reg::Rsi, Reg::Rcx, Reg::R11, Reg::Rdi, Reg::R8, Reg::R10];
-    let mut m = m.clone();
-
     let mut all_regs = callee_saved_regs.clone();
     all_regs.append(&mut caller_saved_regs.clone());
 
