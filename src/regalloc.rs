@@ -754,7 +754,7 @@ fn is_trivial(w: &Web) -> bool {
     }
 }
 
-fn max_degree(interfer_graph: HashMap<u32, HashSet<u32>>) -> u32 {
+fn max_degree(interfer_graph: &HashMap<u32, HashSet<u32>>) -> u32 {
     let mut max_degree: u32 = 0;
     interfer_graph
         .values()
@@ -829,7 +829,7 @@ fn reg_alloc(
                     &interfer_graph,
                 );
 
-                let mut spillable = None;
+                let mut spillable = vec![];
                 for web_to_spill in things_to_spill.into_iter() {
                     let web = webs.get(web_to_spill as usize).unwrap();
                     if !is_trivial(&web)
@@ -837,21 +837,29 @@ fn reg_alloc(
                         && web.var != u32::MAX
                     {
                         println!("arg_var_to_reg: {arg_var_to_reg:?}");
-                        println!("max degree: {}", max_degree(interfer_graph));
+                        println!("max degree: {}", max_degree(&interfer_graph));
                         println!(/*"spilling web number {web_to_spill}, */ " which is {web:?}");
-                        spillable = Some(web);
-                        break;
+                        spillable.push(web);
+                        if spillable.len() > 1 {
+                            break;
+                        }
                     }
                 }
 
-                match spillable {
-                    Some(spillable) => {
-                        // println!("spilling {spillable:?}");
-                        // println!("method is {new_method}");
-                        new_method = spill_web(new_method, spillable.clone());
-                    }
-                    None => panic!("nothing to spill"),
+                if spillable.len() == 0 {
+                    panic!("nothing to spill");
                 }
+
+                for web in spillable {
+                    new_method = spill_web(new_method, web.clone());
+                }
+
+                // Some(spillable) => {
+                //     // println!("spilling {spillable:?}");
+                //     // println!("method is {new_method}");
+                //     New_method = spill_web(new_method, spillable.clone());
+                // }
+                // None => panic!("nothing to spill"),
             }
         }
     }
