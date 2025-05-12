@@ -1148,7 +1148,7 @@ fn push_and_pop(
 
 fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
-    let callee_saved_regs = vec![/*Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15*/];
+    let callee_saved_regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
     let caller_saved_regs: Vec<Reg> =
         vec![Reg::Rsi, Reg::Rcx, Reg::R11, Reg::Rdi, Reg::R8, Reg::R10];
     let mut m = m.clone();
