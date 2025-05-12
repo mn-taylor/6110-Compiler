@@ -15,5 +15,6 @@ pub mod reg_asm;
 pub mod regalloc;
 pub mod scan;
 pub mod semantics;
+pub mod spilling_heuristics;
 pub mod ssa_construct;
 pub mod ssa_destruct;
