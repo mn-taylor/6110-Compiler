@@ -1059,17 +1059,17 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar>
     // println!("method after thing: {m}");
     // println!("reg_of_varname: {reg_of_varname:?}");
 
-    // let web_to_reg = reg_alloc(&webs, &ccws, &all_regs, &reg_of_varname);
+    let web_to_reg = reg_alloc(&webs, &ccws, &all_regs, &reg_of_varname);
 
     // // println!("webs: {webs:?}");
 
     // // println!("web_to_reg: {:?}", web_to_reg);
     // // println!("before renaming: {spilled_method}");
-    // let mut m = to_regs(m, &web_to_reg, &webs);
-    // let caller_saved_memvars = caller_saved_regs
-    //     .iter()
-    //     .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
-    //     .collect();
+    let mut m = to_regs(m, &web_to_reg, &webs);
+    let caller_saved_memvars: HashMap<_, _> = caller_saved_regs
+        .iter()
+        .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
+        .collect();
 
     // let m = push_and_pop(
     //     m,
