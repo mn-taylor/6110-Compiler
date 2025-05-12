@@ -1,11 +1,12 @@
-use crate::cfg::{
-    Arg, BasicBlock, CfgMethod, CfgProgram, CfgType, ImmVar, Instruction, Jump, MemVarLabel,
-};
+use crate::cfg::{Arg, BasicBlock, CfgMethod, CfgProgram, CfgType, ImmVar, Instruction, Jump};
 use crate::cfg_build::VarLabel;
 use crate::ir::{Bop, UnOp};
 use crate::parse::Primitive;
-use crate::scan::{format_str_for_output, AddOp, EqOp, MulOp, RelOp, Sum};
+use crate::regalloc::RegGlobMemVar;
+use crate::scan::{format_str_for_output, AddOp, EqOp, MulOp, RelOp};
 use std::fmt;
+
+use RegGlobMemVar::*;
 
 use std::collections::HashMap;
 
@@ -116,29 +117,31 @@ fn insn<T: ToInsn>(i: T) -> Insn {
 
 fn store_from_reg_var(
     src: Reg,
-    varname: Sum<Reg, MemVarLabel>,
+    varname: RegGlobMemVar,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
 ) -> Insn {
     match varname {
-        Sum::Inl(reg) => insn(("movq", src, reg)),
-        Sum::Inr(variable) => match stack_lookup.get(&variable) {
+        RegVar(reg) => insn(("movq", src, reg)),
+        GlobVar(variable) => match stack_lookup.get(&variable) {
             Some((_, offset)) => insn(("movq", src, (-(*offset as i64), Rbp))),
             None => Special(format!("\tmovq {}, global_var{}(%rip)", src, variable)),
         },
+        MemVar(mem_var) => store_from_reg(src, mem_var, stack_lookup),
     }
 }
 
 fn load_into_reg_var(
     dest: Reg,
-    varname: Sum<Reg, MemVarLabel>,
+    varname: RegGlobMemVar,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
 ) -> Insn {
     match varname {
-        Sum::Inl(reg) => insn(("movq", reg, dest)),
-        Sum::Inr(variable) => match stack_lookup.get(&variable) {
+        RegVar(reg) => insn(("movq", reg, dest)),
+        GlobVar(variable) => match stack_lookup.get(&variable) {
             Some((_, offset)) => insn(("movq", (-(*offset as i64), Rbp), dest)),
             None => Special(format!("\tmovq global_var{}(%rip), {}", variable, dest)),
         },
+        MemVar(mem_var) => load_into_reg(dest, mem_var, stack_lookup),
     }
 }
 
@@ -175,24 +178,24 @@ fn convert_aop_to_asm(aop: AddOp) -> &'static str {
 
 fn convert_multipication_var_var(
     mop: MulOp,
-    operand: Sum<Reg, MemVarLabel>,
-    optarget: Sum<Reg, MemVarLabel>,
-    dest: Sum<Reg, MemVarLabel>,
+    operand: RegGlobMemVar,
+    optarget: RegGlobMemVar,
+    dest: RegGlobMemVar,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
 ) -> Vec<Insn> {
     let mut instructions = vec![];
 
     let operand = match operand {
-        Sum::Inl(reg) => reg,
-        Sum::Inr(_) => {
+        RegVar(reg) => reg,
+        _ => {
             instructions.push(load_into_reg_var(R9, operand, stack_lookup));
             R9
         }
     };
 
     let optarget = match optarget {
-        Sum::Inl(reg) => reg,
-        Sum::Inr(_) => {
+        RegVar(reg) => reg,
+        _ => {
             instructions.push(load_into_reg_var(Rax, optarget, stack_lookup));
             Rax
         }
@@ -223,15 +226,15 @@ fn convert_multipication_var_var(
 fn convert_multipication_imm_var(
     mop: MulOp,
     operand: i64,
-    optarget: Sum<Reg, MemVarLabel>,
-    dest: Sum<Reg, MemVarLabel>,
+    optarget: RegGlobMemVar,
+    dest: RegGlobMemVar,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
 ) -> Vec<Insn> {
     let mut instructions = vec![];
 
     let optarget = match optarget {
-        Sum::Inl(reg) => reg,
-        Sum::Inr(_) => {
+        RegVar(reg) => reg,
+        _ => {
             instructions.push(load_into_reg_var(Rax, optarget, stack_lookup));
             Rax
         }
@@ -263,16 +266,16 @@ fn convert_multipication_imm_var(
 // the operand register is also the destination register
 fn convert_multipication_var_imm(
     mop: MulOp,
-    operand: Sum<Reg, MemVarLabel>,
+    operand: RegGlobMemVar,
     optarget: i64,
-    dest: Sum<Reg, MemVarLabel>,
+    dest: RegGlobMemVar,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
 ) -> Vec<Insn> {
     let mut instructions = vec![];
 
     let operand = match operand {
-        Sum::Inl(reg) => reg,
-        Sum::Inr(_) => {
+        RegVar(reg) => reg,
+        _ => {
             instructions.push(load_into_reg_var(Reg::R9, operand, stack_lookup));
             Reg::R9
         }
@@ -363,7 +366,7 @@ fn build_stack(
     (lookup, round_up(offset, 16)) // keep stack 16 byte aligned
 }
 
-fn get_global_strings(p: &CfgProgram<Sum<Reg, MemVarLabel>>) -> HashMap<String, usize> {
+fn get_global_strings(p: &CfgProgram<RegGlobMemVar>) -> HashMap<String, usize> {
     let mut all_strings = HashMap::new();
     for method in p.methods.iter() {
         for block in method.blocks.values() {
@@ -390,7 +393,7 @@ fn get_global_strings(p: &CfgProgram<Sum<Reg, MemVarLabel>>) -> HashMap<String, 
     all_strings
 }
 
-pub fn asm_program(p: &CfgProgram<Sum<Reg, MemVarLabel>>, mac: bool) -> Vec<Insn> {
+pub fn asm_program(p: &CfgProgram<RegGlobMemVar>, mac: bool) -> Vec<Insn> {
     let mut insns = vec![];
 
     if !mac {
@@ -452,7 +455,7 @@ pub fn asm_program(p: &CfgProgram<Sum<Reg, MemVarLabel>>, mac: bool) -> Vec<Insn
 }
 
 pub fn asm_method(
-    method: &CfgMethod<Sum<Reg, MemVarLabel>>,
+    method: &CfgMethod<RegGlobMemVar>,
     mac: bool,
     external_funcs: &Vec<String>,
     global_strings: &HashMap<String, usize>,
@@ -484,7 +487,7 @@ pub fn asm_method(
     instructions.push(Special(format!("\tjmp {}0", method.name)));
 
     // assemble blocks
-    let mut blocks: Vec<(&usize, &BasicBlock<Sum<Reg, MemVarLabel>>)> =
+    let mut blocks: Vec<(&usize, &BasicBlock<RegGlobMemVar>)> =
         method.blocks.iter().collect::<Vec<_>>();
     blocks.sort_by_key(|(id, _)| *id);
 
@@ -529,7 +532,7 @@ pub fn asm_method(
 }
 
 fn asm_block(
-    b: &BasicBlock<Sum<Reg, MemVarLabel>>,
+    b: &BasicBlock<RegGlobMemVar>,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
     root: &String,
     num_params: u32,
@@ -564,9 +567,10 @@ fn asm_block(
         } => {
             let jump_var: Reg = match source {
                 ImmVar::Var(v)=> {
-                    match v{
-                        Sum::Inl(reg)=> reg.clone(),
-                        Sum::Inr(var) => {
+                    match v {
+                        RegVar(reg)=> *reg,
+			// right?
+			GlobVar(var) | MemVar(var) => {
                             instructions.push(load_into_reg(Reg::Rdx, *var, stack_lookup));
                             Reg::Rdx
                         }
@@ -606,7 +610,7 @@ fn load_into_reg(
 fn load_into_reg_arr(
     dest: Reg,
     varname: VarLabel,
-    index: Sum<Reg, MemVarLabel>,
+    index: RegGlobMemVar,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
 ) -> Vec<Insn> {
     let mut instructions = vec![];
@@ -660,9 +664,9 @@ fn load_into_reg_arr_imm(
 }
 
 fn store_from_reg_arr(
-    src: Sum<Reg, MemVarLabel>,
+    src: RegGlobMemVar,
     arrname: VarLabel,
-    index: Sum<Reg, MemVarLabel>,
+    index: RegGlobMemVar,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
 ) -> Vec<Insn> {
     let mut instructions = vec![];
@@ -682,9 +686,9 @@ fn store_from_reg_arr(
             instructions.push(insn(("movq", Rbp, Rax)));
             instructions.push(insn(("subq", Rdx, Rax)));
             let src = match src {
-                Sum::Inl(reg) => reg,
-                Sum::Inr(v) => {
-                    instructions.push(load_into_reg(Rdx, v, stack_lookup));
+                RegVar(reg) => reg,
+                _ => {
+                    instructions.push(load_into_reg_var(Rdx, src, stack_lookup));
                     Rdx
                 }
             };
@@ -705,9 +709,9 @@ fn store_from_reg_arr(
             )));
             instructions.push(insn(("addq", Rdx, Rax)));
             let src = match src {
-                Sum::Inl(reg) => reg,
-                Sum::Inr(v) => {
-                    instructions.push(load_into_reg(Rdx, v, stack_lookup));
+                RegVar(reg) => reg,
+                _ => {
+                    instructions.push(load_into_reg_var(Rdx, src, stack_lookup));
                     Rdx
                 }
             };
@@ -721,7 +725,7 @@ fn store_from_reg_arr(
 }
 
 fn store_from_reg_arr_var_imm(
-    src: Sum<Reg, MemVarLabel>,
+    src: RegGlobMemVar,
     arrname: VarLabel,
     index: i64,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
@@ -743,9 +747,9 @@ fn store_from_reg_arr_var_imm(
             instructions.push(insn(("movq", Rbp, Rax)));
             instructions.push(insn(("subq", Rdx, Rax)));
             let src = match src {
-                Sum::Inl(reg) => reg,
-                Sum::Inr(v) => {
-                    instructions.push(load_into_reg(Rdx, v, stack_lookup));
+                RegVar(reg) => reg,
+                _ => {
+                    instructions.push(load_into_reg_var(Rdx, src, stack_lookup));
                     Rdx
                 }
             };
@@ -759,9 +763,9 @@ fn store_from_reg_arr_var_imm(
             )));
             instructions.push(insn(("addq", index * 8, Rax)));
             let src = match src {
-                Sum::Inl(reg) => reg,
-                Sum::Inr(v) => {
-                    instructions.push(load_into_reg(Rdx, v, stack_lookup));
+                RegVar(reg) => reg,
+                _ => {
+                    instructions.push(load_into_reg_var(Rdx, src, stack_lookup));
                     Rdx
                 }
             };
@@ -774,7 +778,7 @@ fn store_from_reg_arr_var_imm(
 fn store_from_reg_arr_imm_var(
     imm: i64,
     arrname: VarLabel,
-    index: Sum<Reg, MemVarLabel>,
+    index: RegGlobMemVar,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
 ) -> Vec<Insn> {
     let mut instructions = vec![];
@@ -856,9 +860,9 @@ fn _store_from_reg_imm(
 }
 
 fn asm_add_op(
-    source1: ImmVar<Sum<Reg, MemVarLabel>>,
-    source2: ImmVar<Sum<Reg, MemVarLabel>>,
-    dest: Sum<Reg, MemVarLabel>,
+    source1: ImmVar<RegGlobMemVar>,
+    source2: ImmVar<RegGlobMemVar>,
+    dest: RegGlobMemVar,
     aop: AddOp,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
 ) -> Vec<Insn> {
@@ -913,9 +917,9 @@ fn asm_add_op(
 }
 
 fn asm_mul_op(
-    source1: ImmVar<Sum<Reg, MemVarLabel>>,
-    source2: ImmVar<Sum<Reg, MemVarLabel>>,
-    dest: Sum<Reg, MemVarLabel>,
+    source1: ImmVar<RegGlobMemVar>,
+    source2: ImmVar<RegGlobMemVar>,
+    dest: RegGlobMemVar,
     mop: MulOp,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
 ) -> Vec<Insn> {
@@ -965,9 +969,9 @@ fn asm_mul_op(
 }
 
 fn asm_rel_op(
-    source1: ImmVar<Sum<Reg, MemVarLabel>>,
-    source2: ImmVar<Sum<Reg, MemVarLabel>>,
-    dest: Sum<Reg, MemVarLabel>,
+    source1: ImmVar<RegGlobMemVar>,
+    source2: ImmVar<RegGlobMemVar>,
+    dest: RegGlobMemVar,
     rop: Bop,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
 ) -> Vec<Insn> {
@@ -1029,7 +1033,7 @@ fn asm_rel_op(
 
 fn asm_instruction(
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
-    instr: Instruction<Sum<Reg, MemVarLabel>>,
+    instr: Instruction<RegGlobMemVar>,
     root: &String,
     num_params: u32,
     external_funcs: &Vec<String>,
@@ -1043,7 +1047,7 @@ fn asm_instruction(
             for (param_num, var) in param.into_iter() {
                 let argument_registers = vec![Rdi, Rsi, Rdx, Rcx, R8, R9];
                 if param_num < 6 {
-                    if var != Sum::Inl(*argument_registers.get(param_num as usize).unwrap()) {
+                    if var != RegVar(*argument_registers.get(param_num as usize).unwrap()) {
                         let reg: Reg = *argument_registers.get(param_num as usize).unwrap();
                         instructions.push(store_from_reg_var(reg, var, &stack_lookup))
                     }
@@ -1055,18 +1059,13 @@ fn asm_instruction(
             instructions
         }
         Instruction::LoadString {
-            dest: Sum::Inr(_), ..
+            dest: MemVar(_) | GlobVar(_),
+            ..
         }
         | Instruction::PhiExpr { .. }
+        | Instruction::Pop(_)
+        | Instruction::Push(_)
         | Instruction::ParMov(_) => panic!(),
-        Instruction::Pop(var) => match var {
-            Sum::Inl(reg) => vec![insn(("popq", reg))],
-            Sum::Inr(_) => vec![],
-        },
-        Instruction::Push(var) => match var {
-            Sum::Inl(reg) => vec![insn(("pushq", reg))],
-            Sum::Inr(_) => vec![],
-        },
         Instruction::Call(func_name, args, ret_dest) => {
             assert!(args.len() <= 6);
             let mut instructions: Vec<_> = args
@@ -1108,7 +1107,7 @@ fn asm_instruction(
             instructions
         }
         Instruction::LoadString {
-            dest: Sum::Inl(dest_reg),
+            dest: RegVar(dest_reg),
             string,
         } => vec![Special(format!(
             "\tleaq global_str{}(%rip), {}",
@@ -1125,7 +1124,7 @@ fn asm_instruction(
                     match arg_reg {
                         Some(reg) => match label {
                             ImmVar::Var(v) => {
-                                if v != Sum::Inl(reg) {
+                                if v != RegVar(reg) {
                                     instructions.push(load_into_reg_var(
                                         reg,
                                         v.clone(),
@@ -1249,19 +1248,19 @@ fn asm_instruction(
 
             match idx {
                 ImmVar::Var(v) => match dest {
-                    Sum::Inl(reg) => {
+                    RegVar(reg) => {
                         instructions.extend(load_into_reg_arr(reg, name, v, stack_lookup))
                     }
-                    Sum::Inr(_) => {
+                    _ => {
                         instructions.extend(load_into_reg_arr(Rax, name, v, stack_lookup));
                         instructions.push(store_from_reg_var(Rax, dest, stack_lookup))
                     }
                 },
                 ImmVar::Imm(i) => match dest {
-                    Sum::Inl(reg) => {
+                    RegVar(reg) => {
                         instructions.extend(load_into_reg_arr_imm(reg, name, i, stack_lookup))
                     }
-                    Sum::Inr(_) => {
+                    _ => {
                         instructions.extend(load_into_reg_arr_imm(Rax, name, i, stack_lookup));
                         instructions.push(store_from_reg_var(Rax, dest, stack_lookup))
                     }
@@ -1322,15 +1321,15 @@ fn asm_instruction(
         }
         Instruction::Spill { ord_var, mem_var } => {
             let ord_var = match ord_var {
-                Sum::Inl(ord_var) => ord_var,
-                Sum::Inr(_) => panic!("should be local"),
+                RegVar(ord_var) => ord_var,
+                _ => panic!("should be local"),
             };
             vec![store_from_reg(ord_var, mem_var, stack_lookup)]
         }
         Instruction::Reload { ord_var, mem_var } => {
             let ord_var = match ord_var {
-                Sum::Inl(ord_var) => ord_var,
-                Sum::Inr(_) => panic!("should be local"),
+                RegVar(ord_var) => ord_var,
+                _ => panic!("should be local"),
             };
             vec![load_into_reg(ord_var, mem_var, stack_lookup)]
         }
@@ -1338,7 +1337,7 @@ fn asm_instruction(
             // read parameters from registers and/or stack
             let argument_registers = vec![Rdi, Rsi, Rdx, Rcx, R8, R9];
             if param < 6 {
-                if dest != Sum::Inl(*argument_registers.get(param as usize).unwrap()) {
+                if dest != RegVar(*argument_registers.get(param as usize).unwrap()) {
                     let reg: Reg = *argument_registers.get(param as usize).unwrap();
                     vec![store_from_reg_var(reg, dest, &stack_lookup)]
                 } else {
