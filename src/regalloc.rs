@@ -1051,7 +1051,7 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar>
     });
 
     let webs = get_webs(&m);
-    let ccws = webs
+    let ccws: Vec<HashSet<_>> = webs
         .iter()
         .map(|web| find_inter_instructions(&m, web))
         .collect();
@@ -1059,28 +1059,35 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar>
     // println!("method after thing: {m}");
     // println!("reg_of_varname: {reg_of_varname:?}");
 
-    let web_to_reg = reg_alloc(&webs, &ccws, &all_regs, &reg_of_varname);
+    // let web_to_reg = reg_alloc(&webs, &ccws, &all_regs, &reg_of_varname);
 
-    // println!("webs: {webs:?}");
+    // // println!("webs: {webs:?}");
 
-    // println!("web_to_reg: {:?}", web_to_reg);
-    // println!("before renaming: {spilled_method}");
-    let mut m = to_regs(m, &web_to_reg, &webs);
-    let caller_saved_memvars = caller_saved_regs
-        .iter()
-        .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
-        .collect();
+    // // println!("web_to_reg: {:?}", web_to_reg);
+    // // println!("before renaming: {spilled_method}");
+    // let mut m = to_regs(m, &web_to_reg, &webs);
+    // let caller_saved_memvars = caller_saved_regs
+    //     .iter()
+    //     .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
+    //     .collect();
 
-    let m = push_and_pop(
-        m,
-        &caller_saved_regs,
-        &caller_saved_memvars,
-        &webs,
-        &ccws,
-        &web_to_reg,
-    );
+    // let m = push_and_pop(
+    //     m,
+    //     &caller_saved_regs,
+    //     &caller_saved_memvars,
+    //     &webs,
+    //     &ccws,
+    //     &web_to_reg,
+    // );
     // println!("after renaming: {x}");
-    m
+    // m
+    cfg::CfgMethod {
+        name: "eh".to_string(),
+        num_params: 0,
+        blocks: HashMap::new(),
+        fields: HashMap::new(),
+        return_type: None,
+    }
 }
 
 fn method_map<T>(
