@@ -168,7 +168,7 @@ pub fn get_insn_dest<T: Copy + Eq + Hash>(insn: &Instruction<T>) -> HashSet<T> {
         Instruction::Push(_) => hashset! {},
         Instruction::Pop(x) => hashset! {*x},
         Instruction::StoreParam(_, _) => hashset! {},
-        Instruction::PhiExpr { .. } => panic!(),
+        Instruction::PhiExpr { dest, .. } => hashset! {*dest},
         Instruction::ParMov(_) => panic!(),
         Instruction::LoadParam { dest, .. }
         | Instruction::ArrayAccess { dest, .. }
