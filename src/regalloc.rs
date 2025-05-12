@@ -858,7 +858,7 @@ fn reg_alloc(
                 println!("failed to color");
                 let mut will_spill: HashSet<u32> = HashSet::new();
                 for i in all_insn_locs(&new_method) {
-                    let bad_webs = webs
+                    let mut bad_webs: Vec<_> = webs
                         .iter()
                         .enumerate()
                         .zip(convex_closures_of_webs.iter())
@@ -867,10 +867,18 @@ fn reg_alloc(
                         })
                         .map(|((i, web), _)| (i as u32, web))
                         .collect();
-                    let webs_to_remove: Vec<u32> = rank_webs(bad_webs, &interfer_graph)
-                        .iter()
-                        .map(|x| (*x).clone())
-                        .collect();
+                    bad_webs.sort_by_key(|web_num| {
+                        convex_closures_of_webs
+                            .get(web_num.0 as usize)
+                            .unwrap()
+                            .len()
+                    });
+                    // let webs_to_remove: Vec<u32> = rank_webs(bad_webs, &interfer_graph)
+                    //     .iter()
+                    //     .map(|x| (*x).clone())
+                    //     .collect();
+                    let webs_to_remove: Vec<_> =
+                        bad_webs.into_iter().map(|(web_num, _)| web_num).collect();
                     let n = webs_to_remove.len();
                     for web in webs_to_remove
                         .iter()
@@ -878,17 +886,14 @@ fn reg_alloc(
                             let web = webs.get(**web_num as usize).unwrap();
                             !is_trivial(&web) && !arg_var_to_reg.contains_key(&web.var)
                         })
-                        .take(std::cmp::max(
-                            (n as i32 - all_regs.len() as i32) as usize,
-                            1 as usize,
-                        ))
+                        .take((n as i32 - all_regs.len() as i32) as usize)
                         .collect::<Vec<_>>()
                     {
                         will_spill.insert(*web);
                     }
                 }
 
-                // println!("spilling {web:?}");
+                //println!("spilling {web:?}");
                 //println!("method is {new_method}");
                 new_method = spill_webs(
                     new_method,
