@@ -21,7 +21,8 @@ fn insn_pinned<T>(insn: &Instruction<T>) -> bool {
         | ArrayStore { .. }
         | LoadParam { .. }
         | Call(_, _, _)
-        | Ret(_) => true,
+        | Ret(_)
+        | LoadParams { .. } => true,
         // maybe want to leave divisions alone
         ThreeOp { .. } | LeftShift { .. } | RightShift { .. } => false,
         MoveOp { .. } | TwoOp { .. } | Constant { .. } => false,

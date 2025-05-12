@@ -1037,6 +1037,23 @@ fn asm_instruction(
     global_strings: &HashMap<String, usize>,
 ) -> Vec<Insn> {
     match instr {
+        Instruction::LoadParams { param } => {
+            let mut instructions = vec![];
+
+            for (param_num, var) in param.into_iter() {
+                let argument_registers = vec![Rdi, Rsi, Rdx, Rcx, R8, R9];
+                if param_num < 6 {
+                    if var != Sum::Inl(*argument_registers.get(param_num as usize).unwrap()) {
+                        let reg: Reg = *argument_registers.get(param_num as usize).unwrap();
+                        instructions.push(store_from_reg_var(reg, var, &stack_lookup))
+                    }
+                } else {
+                    panic!("Should not call load params on arguments that are not stored in registers. ")
+                }
+            }
+
+            instructions
+        }
         Instruction::LoadString {
             dest: Sum::Inr(_), ..
         }

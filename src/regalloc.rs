@@ -30,7 +30,7 @@ fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<InsnLoc>> {
 
     for (bid, block) in m.blocks.iter() {
         for (iid, instruction) in block.body.iter().enumerate() {
-            if let Some(dest) = get_insn_dest(&instruction) {
+            for dest in get_insn_dest(&instruction) {
                 if m.fields.keys().any(|x| *x == dest) {
                     defs.entry(dest)
                         .or_insert_with(HashSet::new)
@@ -105,6 +105,7 @@ fn get_insn_sources<T: Hash + Eq + Copy>(insn: &Instruction<T>) -> HashSet<T> {
         Instruction::LeftShift { source, .. } | Instruction::RightShift { source, .. } => {
             hashset! {*source}
         }
+        Instruction::LoadParams { param } => hashset! {},
         Instruction::LoadString { dest, string } => hashset! {},
         Instruction::Push(x) => hashset! {*x},
         Instruction::Pop(_) => hashset! {},
@@ -146,34 +147,46 @@ pub fn get_sources<T: Copy + Hash + Eq>(
     }
 }
 
-pub fn get_dest<T: Copy>(insn: &Sum<&cfg::Instruction<T>, &cfg::Jump<T>>) -> Option<T> {
+pub fn get_dest<T: Copy + Eq + Hash>(
+    insn: &Sum<&cfg::Instruction<T>, &cfg::Jump<T>>,
+) -> HashSet<T> {
     match insn {
         Sum::Inl(i) => get_insn_dest(i),
-        Sum::Inr(_) => None,
+        Sum::Inr(_) => hashset! {},
     }
 }
 
-fn get_insn_dest<T: Copy>(insn: &Instruction<T>) -> Option<T> {
-    match *insn {
+fn get_insn_dest<T: Copy + Eq + Hash>(insn: &Instruction<T>) -> HashSet<T> {
+    match insn {
         Instruction::LeftShift { dest, .. }
         | Instruction::RightShift { dest, .. }
-        | Instruction::LoadString { dest, .. } => Some(dest),
-        Instruction::Push(_) => None,
-        Instruction::Pop(x) => Some(x),
-        Instruction::StoreParam(_, _) => None,
+        | Instruction::LoadString { dest, .. } => hashset! {*dest},
+        Instruction::LoadParams { param } => param
+            .iter()
+            .map(|(param_num, var_name)| *var_name)
+            .collect(),
+        Instruction::Push(_) => hashset! {},
+        Instruction::Pop(x) => hashset! {*x},
+        Instruction::StoreParam(_, _) => hashset! {},
         Instruction::PhiExpr { .. } => panic!(),
         Instruction::ParMov(_) => panic!(),
-        Instruction::LoadParam { dest, .. } => Some(dest),
-        Instruction::ArrayAccess { dest, .. } => Some(dest),
-        Instruction::Call(_, _, dest) => dest,
-        Instruction::Constant { dest, .. } => Some(dest),
-        Instruction::MoveOp { dest, .. } => Some(dest),
-        Instruction::ThreeOp { dest, .. } => Some(dest),
-        Instruction::TwoOp { dest, .. } => Some(dest),
-        Instruction::ArrayStore { .. } => None,
-        Instruction::Spill { .. } => None,
-        Instruction::Reload { ord_var, .. } => Some(ord_var),
-        Instruction::Ret(_) => None,
+        Instruction::LoadParam { dest, .. }
+        | Instruction::ArrayAccess { dest, .. }
+        | Instruction::Constant { dest, .. }
+        | Instruction::MoveOp { dest, .. }
+        | Instruction::ThreeOp { dest, .. }
+        | Instruction::TwoOp { dest, .. } => {
+            hashset! {*dest}
+        }
+        Instruction::Call(_, _, dest) => match dest {
+            Some(var) => hashset! {*var},
+            None => hashset! {},
+        },
+
+        Instruction::ArrayStore { .. } => hashset! {},
+        Instruction::Spill { .. } => hashset! {},
+        Instruction::Reload { ord_var, .. } => hashset! {*ord_var},
+        Instruction::Ret(_) => hashset! {},
     }
 }
 
@@ -187,7 +200,7 @@ fn get_uses(m: &CfgMethod, x: VarLabel, i: InsnLoc) -> HashSet<InsnLoc> {
         if get_sources(&insn).contains(&x) {
             uses.insert(v);
         }
-        if get_dest(&insn) != Some(x) {
+        if get_dest(&insn).contains(&x) {
             next.append(
                 &mut get_children(m, v)
                     .into_iter()
@@ -296,7 +309,7 @@ fn reachable_from_defs(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
         seen.insert(v);
         reachable.insert(v);
         let insn = get_insn(m, v);
-        if get_dest(&insn) != Some(web.var) {
+        if get_dest(&insn).contains(&web.var) {
             next.append(
                 &mut get_children(m, v)
                     .into_iter()
@@ -323,7 +336,7 @@ fn reaches_a_use(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
         seen.insert(v);
         reaches_a_use.insert(v);
         let insn = get_insn(m, v);
-        if get_dest(&insn) != Some(web.var) {
+        if get_dest(&insn).contains(&web.var) {
             next.append(
                 &mut g
                     .get(&v)
@@ -442,9 +455,9 @@ fn make_args_easy_to_color(
 ) -> Vec<Instruction<VarLabel>> {
     match i {
         Instruction::LoadParam { param, dest } => {
-            if let Some(reg) = reg_of_argnum(param) {
+            if let Some(reg) = reg_of_argnum(param as u32) {
                 if regs_colored.contains(&reg) {
-                    let dummy = *args_to_dummy_vars.get(&param).unwrap();
+                    let dummy = *args_to_dummy_vars.get(&(param as u32)).unwrap();
                     vec![
                         Instruction::LoadParam { param, dest: dummy },
                         Instruction::MoveOp {
@@ -458,6 +471,28 @@ fn make_args_easy_to_color(
             } else {
                 vec![i]
             }
+        }
+        Instruction::LoadParams { param } => {
+            let mut instructions = vec![];
+            let new_params = param
+                .iter()
+                .map(|(param_num, var_name)| {
+                    (
+                        *param_num,
+                        *args_to_dummy_vars.get(&(*param_num as u32)).unwrap(),
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            instructions.push(Instruction::LoadParams { param: new_params });
+            param.iter().for_each(|(param_num, var_name)| {
+                let dummy = *args_to_dummy_vars.get(&(*param_num as u32)).unwrap();
+                instructions.push(Instruction::MoveOp {
+                    source: ImmVar::Var(dummy),
+                    dest: *var_name,
+                });
+            });
+            instructions
         }
         Instruction::Call(func_name, params, ret_val) => {
             let mut instructions = vec![];
@@ -805,12 +840,21 @@ fn arg_map<T, U>(a: Arg<T>, f: impl Fn(T) -> U) -> Arg<U> {
 }
 
 use cfg::Instruction;
-fn insn_map<T, U>(
+fn insn_map<T: Clone, U>(
     instr: cfg::Instruction<T>,
     src_fun: impl Fn(T) -> U,
     dst_fun: impl Fn(T) -> U,
 ) -> cfg::Instruction<U> {
     match instr {
+        Instruction::LoadParams { param } => {
+            let new_params = param
+                .iter()
+                .map(|(param_num, var_name)| (*param_num, dst_fun(var_name.clone())))
+                .collect();
+
+            Instruction::LoadParams { param: new_params }
+        }
+
         Instruction::LoadString { dest, string } => Instruction::LoadString {
             dest: dst_fun(dest),
             string: string,

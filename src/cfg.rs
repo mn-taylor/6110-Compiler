@@ -177,7 +177,12 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Instruction::LoadString { dest, string } => write!(f, "{dest} <- {string}"),
-
+            Instruction::LoadParams { param } => {
+                param.iter().for_each(|(param, var)| {
+                    writeln!(f, "{var} <- arg #{param}");
+                });
+                Ok(())
+            }
             Instruction::PhiExpr { dest, sources } => {
                 let sources_str = sources
                     .iter()
