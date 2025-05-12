@@ -1067,6 +1067,7 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar>
         .map(|web| find_inter_instructions(&m, web))
         .collect();
 
+    // NOTE: compiling durp made it to here!
     // panic!("made it past ccws");
 
     // println!("method after thing: {m}");
@@ -1083,6 +1084,8 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar>
         .iter()
         .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
         .collect();
+
+    panic!("made it to push and pop");
     let m = push_and_pop(
         m,
         &caller_saved_regs,
