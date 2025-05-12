@@ -931,6 +931,12 @@ fn to_regs(
             },
         )
     });
+
+    let mem_webs = (0..webs.len()).filter(|i| web_to_reg.get(&(*i as u32)) == None);
+    let mem_vars = mem_webs
+        .map(|web_num| webs.get(web_num).unwrap().var)
+        .collect::<HashSet<_>>();
+
     cfg::CfgMethod::<RegGlobMemVar> {
         name: m.name,
         num_params: m.num_params,
@@ -938,8 +944,8 @@ fn to_regs(
         fields: m
             .fields
             .into_iter()
-            .filter(|(_, (t, _))| match t {
-                CfgType::Scalar(_) => false,
+            .filter(|(name, (t, _))| match t {
+                CfgType::Scalar(_) => mem_vars.contains(name),
                 CfgType::Array(_, _) => true,
             })
             .chain(new_fields.into_iter())
@@ -987,7 +993,12 @@ fn build_need_to_save(
                         idx: i.idx + 1,
                     };
                     if ccw.contains(&i) && ccw.contains(&child) {
-                        regs.insert(*web_to_reg.get(&(webnum as u32)).unwrap());
+                        match web_to_reg.get(&(webnum as u32)) {
+                            Some(reg) => {
+                                regs.insert(*reg);
+                            }
+                            None => (),
+                        }
                     }
                 }
                 Some((i, regs))
