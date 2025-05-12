@@ -99,12 +99,11 @@ pub fn get_sources<VarLabel: Eq + Hash + Copy>(
             ImmVar::Var(v) => hashset! {*v},
             _ => hashset! {},
         },
-        Instruction::Spill { .. } | Instruction::Reload { .. } => {
-            panic!()
-        }
-        Instruction::ParMov(_) | Instruction::Constant { .. } | Instruction::LoadParam { .. } => {
-            hashset! {}
-        }
+        Instruction::Spill { .. } | Instruction::Reload { .. } => panic!(),
+        Instruction::ParMov(_)
+        | Instruction::Constant { .. }
+        | Instruction::LoadParam { .. }
+        | Instruction::LoadParams { .. } => hashset! {},
     }
 }
 
@@ -118,8 +117,8 @@ pub fn get_jump_sources<VarLabel: Eq + Hash + Copy>(j: &Jump<VarLabel>) -> HashS
     }
 }
 
-pub fn get_dest<T: Copy>(instruction: &Instruction<T>) -> Option<T> {
-    match *instruction {
+pub fn get_dest<T: Copy + Eq + Hash>(instruction: &Instruction<T>) -> HashSet<T> {
+    match instruction {
         Instruction::PhiExpr { dest, .. }
         | Instruction::ArrayAccess { dest, .. }
         | Instruction::Constant { dest, .. }
@@ -128,10 +127,14 @@ pub fn get_dest<T: Copy>(instruction: &Instruction<T>) -> Option<T> {
         | Instruction::ThreeOp { dest, .. }
         | Instruction::TwoOp { dest, .. }
         | Instruction::LeftShift { dest, .. }
-        | Instruction::RightShift { dest, .. } => Some(dest),
-        Instruction::Call(_, _, ret_val) => ret_val, // We always want to call functions whether or not their return values are used, because they may modify global variables, but we should remove the return value from the call instruction when it is not used.
-        Instruction::ArrayStore { .. } => None,
-        Instruction::Ret(_) => None,
+        | Instruction::RightShift { dest, .. } => hashset! {*dest},
+        Instruction::Call(_, _, ret_val) => match ret_val {
+            Some(dest) => hashset! {*dest},
+            None => hashset! {},
+        }, // We always want to call functions whether or not their return values are used, because they may modify global variables, but we should remove the return value from the call instruction when it is not used.
+        Instruction::ArrayStore { .. } => hashset! {},
+        Instruction::Ret(_) => hashset! {},
+        Instruction::LoadParams { param } => param.iter().map(|(_, dest)| *dest).collect(),
         Instruction::Spill { .. }
         | Instruction::Reload { .. }
         | Instruction::ParMov { .. }
@@ -175,37 +178,39 @@ pub fn dead_code_elimination(m: &mut cfg::CfgMethod<SSAVarLabel>) -> cfg::CfgMet
 
         let mut new_instructions = vec![];
         for instruction in block.body.iter() {
-            match get_dest(instruction) {
-                Some(dest_var) => {
-                    match instruction {
-                        Instruction::Call(func_name, args, _) => {
-                            if !m.fields.contains_key(&dest_var.name)
-                                || all_used_vars.contains(&dest_var)
-                            {
-                                new_instructions.push(instruction.clone());
-                            } else {
-                                new_instructions.push(Instruction::Call(
-                                    func_name.to_string(),
-                                    args.clone(),
-                                    None,
-                                ));
-                                // removed_var = true; Removing a temp derived from the return value of a function will not create more dead code so this line is not needed
-                            }
-                            continue;
+            let dests = get_dest(instruction);
+            if dests.len() == 0 {
+                new_instructions.push(instruction.clone());
+            } else if dests.len() == 1 {
+                let dest_var = dests.into_iter().next().unwrap();
+                match instruction {
+                    Instruction::Call(func_name, args, _) => {
+                        if !m.fields.contains_key(&dest_var.name)
+                            || all_used_vars.contains(&dest_var)
+                        {
+                            new_instructions.push(instruction.clone());
+                        } else {
+                            new_instructions.push(Instruction::Call(
+                                func_name.to_string(),
+                                args.clone(),
+                                None,
+                            ));
+                            // removed_var = true; Removing a temp derived from the return value of a function will not create more dead code so this line is not needed
                         }
-                        _ => {}
+                        continue;
                     }
+                    _ => {}
+                }
 
-                    // add instruction if dest is used later or dest is global
-                    if !m.fields.contains_key(&dest_var.name) || all_used_vars.contains(&dest_var) {
-                        new_instructions.push(instruction.clone());
-                    } else {
-                        removed_var = true;
-                    }
-                }
-                None => {
+                // add instruction if dest is used later or dest is global
+                if !m.fields.contains_key(&dest_var.name) || all_used_vars.contains(&dest_var) {
                     new_instructions.push(instruction.clone());
+                } else {
+                    removed_var = true;
                 }
+            } else {
+                // TODO eliminate dead params here
+                new_instructions.push(instruction.clone());
             }
         }
         new_block.body = new_instructions;
