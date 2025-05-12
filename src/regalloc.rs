@@ -855,7 +855,7 @@ fn reg_alloc(
                 return (new_method.clone(), web_coloring, webs);
             }
             Err(things_to_spill) => {
-                println!("failed to color");
+                //println!("failed to color");
                 let mut will_spill: HashSet<u32> = HashSet::new();
                 for i in all_insn_locs(&new_method) {
                     let mut bad_webs: Vec<_> = webs
@@ -867,18 +867,22 @@ fn reg_alloc(
                         })
                         .map(|((i, web), _)| (i as u32, web))
                         .collect();
-                    bad_webs.sort_by_key(|web_num| {
+                    let get_key = |web_num: &(u32, &Web)| {
+                        let web = webs.get(web_num.0 as usize).unwrap();
                         convex_closures_of_webs
                             .get(web_num.0 as usize)
                             .unwrap()
-                            .len()
-                    });
+                            .len() as f64
+                            / (web.uses.len() + web.defs.len()) as f64
+                    };
+                    bad_webs.sort_by(|a, b| get_key(a).partial_cmp(&get_key(b)).unwrap());
                     // let webs_to_remove: Vec<u32> = rank_webs(bad_webs, &interfer_graph)
                     //     .iter()
                     //     .map(|x| (*x).clone())
                     //     .collect();
-                    let webs_to_remove: Vec<_> =
+                    let mut webs_to_remove: Vec<_> =
                         bad_webs.into_iter().map(|(web_num, _)| web_num).collect();
+                    webs_to_remove.reverse();
                     let n = webs_to_remove.len();
                     for web in webs_to_remove
                         .iter()
@@ -889,6 +893,12 @@ fn reg_alloc(
                         .take((n as i32 - all_regs.len() as i32) as usize)
                         .collect::<Vec<_>>()
                     {
+                        println!("at location {i:?}");
+                        let webb = webs.get(*web as usize).unwrap();
+                        println!(
+                            "spilling web {webb:?} because score is {}",
+                            get_key(&(*web, &webb))
+                        );
                         will_spill.insert(*web);
                     }
                 }
@@ -1203,19 +1213,12 @@ fn build_need_to_save(
         .filter_map(|i| {
             if let Sum::Inl(Instruction::Call(_, _, _)) = get_insn(m, i) {
                 let mut regs = HashSet::new();
-                for ((webnum, web), ccw) in webs.iter().enumerate().zip(ccws) {
+                for ((webnum, _), ccw) in webs.iter().enumerate().zip(ccws) {
                     let child = InsnLoc {
                         blk: i.blk,
                         idx: i.idx + 1,
                     };
                     if ccw.contains(&i) && ccw.contains(&child) {
-                        println!("webnum: {webnum}\n, web: {web:?}\n, loc: {i:?}");
-                        println!(
-                            "instruction: {}, reg: {}",
-                            get_insn(m, i),
-                            *web_to_reg.get(&(webnum as u32)).unwrap()
-                        );
-                        println!("ccw: {ccw:?}");
                         regs.insert(*web_to_reg.get(&(webnum as u32)).unwrap());
                     }
                 }
