@@ -595,10 +595,10 @@ fn interference_graph(
             }
         }
     }
-    for (i, js) in graph.iter_mut() {
-        let i = ccws.get(*i as usize).unwrap();
-        js.retain(|j| !i.is_disjoint(ccws.get(*j as usize).unwrap()));
-    }
+    // for (i, js) in graph.iter_mut() {
+    //     let i = ccws.get(*i as usize).unwrap();
+    //     js.retain(|j| !i.is_disjoint(ccws.get(*j as usize).unwrap()));
+    // }
     // for (num, i) in ccws.iter().enumerate() {
     //     for l in i {
     //         for j in num + 1..ccws.len() {
