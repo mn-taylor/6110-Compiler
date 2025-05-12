@@ -279,6 +279,7 @@ fn main() {
             // }
 
             let p = regalloc::regalloc_prog(p);
+            panic!("aaa");
             if args.debug {
                 println!("after regalloc:");
                 println!("{}", p);

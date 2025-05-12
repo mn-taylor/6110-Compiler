@@ -1067,7 +1067,7 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar>
         .map(|web| find_inter_instructions(&m, web))
         .collect();
 
-    panic!("made it past ccws");
+    // panic!("made it past ccws");
 
     // println!("method after thing: {m}");
     // println!("reg_of_varname: {reg_of_varname:?}");
