@@ -18,11 +18,11 @@ pub fn rank_webs(webs: Vec<Web>, interference_graph: &HashMap<u32, HashSet<u32>>
         .iter()
         .enumerate()
         .map(|(i, web)| {
-            (
-                i,
-                interference_graph.get(&(i as u32)).unwrap().len() / web.uses.len(),
-                web,
-            )
+            let mut degree = interference_graph.get(&(i as u32)).unwrap().len();
+            if degree == 0 {
+                degree = 1;
+            }
+            (i, web.uses.len() / degree, web)
         })
         .collect::<Vec<_>>();
 

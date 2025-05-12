@@ -796,7 +796,10 @@ fn reg_alloc(
                 let mut spillable = None;
                 for web_to_spill in things_to_spill.into_iter().rev() {
                     let web = webs.get(web_to_spill as usize).unwrap();
-                    if !is_trivial(web) && !arg_var_to_reg.contains_key(&web.var) {
+                    if !is_trivial(&web)
+                        && !arg_var_to_reg.contains_key(&web.var)
+                        && web.var != u32::MAX
+                    {
                         println!("arg_var_to_reg: {arg_var_to_reg:?}");
                         println!("max degree: {}", max_degree(interfer_graph));
                         println!(/*"spilling web number {web_to_spill}, */ " which is {web:?}");
