@@ -319,6 +319,12 @@ fn reachable_from_defs(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
             );
         }
     }
+    if let Some(def0) = web.defs.get(0) {
+        if reachable.contains(def0) {
+            reachable.remove(def0);
+            println!("how");
+        }
+    }
     reachable
 }
 
