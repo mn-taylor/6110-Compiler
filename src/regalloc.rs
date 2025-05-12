@@ -579,11 +579,10 @@ fn make_args_easy_to_color(
 
 // returns a tuple: a list of the phi webs, and the interference graph, where webs are labelled by their indices in the list.
 fn interference_graph(
-    m: &CfgMethod,
+    webs: &Vec<Web>,
+    ccws: &Vec<HashSet<InsnLoc>>,
     arg_reg_lookup: &HashMap<u32, Reg>,
-) -> (Vec<Web>, HashMap<u32, HashSet<u32>>, HashMap<u32, Reg>) {
-    let webs = get_webs(m);
-
+) -> (HashMap<u32, HashSet<u32>>, HashMap<u32, Reg>) {
     // Initialize graph
     let mut graph: HashMap<u32, HashSet<u32>> = HashMap::new();
     for (i, _) in webs.iter().enumerate() {
@@ -602,20 +601,14 @@ fn interference_graph(
         }
     }
 
-    // find convex closures
-    let convex_closures_of_webs = webs
-        .iter()
-        .map(|web| find_inter_instructions(m, web))
-        .collect();
-
     // this should leave the dummy webs isolated since they do not interfere with anything
-    for (i, ccwi, j, ccwj) in distinct_pairs(&convex_closures_of_webs) {
+    for (i, ccwi, j, ccwj) in distinct_pairs(&ccws) {
         if !ccwi.is_disjoint(ccwj) {
             graph.get_mut(&i).unwrap().insert(j);
         }
     }
 
-    (webs, graph, precoloring)
+    (graph, precoloring)
 }
 
 fn remove_node(g: &mut HashMap<u32, HashSet<u32>>, v: u32) -> HashSet<u32> {
@@ -705,13 +698,14 @@ fn make_argument_variables(m: &mut CfgMethod) -> HashMap<u32, u32> {
 }
 
 fn reg_alloc(
-    m: &CfgMethod,
+    webs: &Vec<Web>,
+    ccws: &Vec<HashSet<InsnLoc>>,
     all_regs: &Vec<Reg>,
     arg_var_to_reg: &HashMap<u32, Reg>,
-) -> (HashMap<u32, Reg>, Vec<Web>) {
-    let (webs, interfer_graph, precoloring) = interference_graph(&m, arg_var_to_reg);
+) -> HashMap<u32, Reg> {
+    let (interfer_graph, precoloring) = interference_graph(webs, ccws, arg_var_to_reg);
     let web_coloring = color(interfer_graph.clone(), precoloring, all_regs);
-    (web_coloring, webs)
+    web_coloring
 }
 
 fn imm_map<T, U>(iv: ImmVar<T>, f: impl Fn(T) -> U) -> ImmVar<U> {
@@ -1074,14 +1068,17 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar>
         make_args_easy_to_color(i, &all_regs, &args_to_dummy_vars)
     });
 
-    println!("method after thing: {m}");
-    println!("reg_of_varname: {reg_of_varname:?}");
-
-    let (web_to_reg, webs) = reg_alloc(&m, &all_regs, &reg_of_varname);
+    let webs = get_webs(&m);
     let ccws = webs
         .iter()
         .map(|web| find_inter_instructions(&m, web))
         .collect();
+
+    println!("method after thing: {m}");
+    println!("reg_of_varname: {reg_of_varname:?}");
+
+    let web_to_reg = reg_alloc(&webs, &ccws, &all_regs, &reg_of_varname);
+
     println!("webs: {webs:?}");
 
     // println!("web_to_reg: {:?}", web_to_reg);
