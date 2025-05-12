@@ -202,7 +202,13 @@ fn find_common_subexpressions(
             }
 
             // compute the type of the expression
-            let expr_type = match get_dest(instruction) {
+            let dest = get_dest(instruction);
+            let dest = if dest.len() == 1 {
+                dest.into_iter().next()
+            } else {
+                None
+            };
+            let expr_type = match dest {
                 Some(var) => {
                     // If this var is global then we cannot look up its type in the global scope so we have no easy way of concluding the type. Assume if var is global, type is long
                     match m.fields.get(&var.name) {
@@ -369,7 +375,13 @@ pub fn eliminate_common_subexpressions(
                 // check the hash
                 if generate_hash(instruction.clone()) == Some(hash.clone()) {
                     println!("found a match");
-                    match get_dest(instruction) {
+                    let dest = get_dest(instruction);
+                    let dest = if dest.len() == 1 {
+                        dest.into_iter().next()
+                    } else {
+                        None
+                    };
+                    match dest {
                         Some(var) => new_instructions.push(Instruction::MoveOp {
                             source: ImmVar::Var(ssa_var_name),
                             dest: var,
