@@ -325,3 +325,15 @@ fn best_block(
     }
     best
 }
+
+// fn rev_graph(g: HashMap<
+
+// n -> set of blocks that dominate n
+fn loops(
+    g: HashMap<BlockLabel, HashSet<BlockLabel>>,
+    dom_sets: HashMap<BlockLabel, HashSet<BlockLabel>>,
+) -> Vec<HashSet<BlockLabel>> {
+    todo!()
+    // for each back edge n -> h, dfs from n, stopping when hitting h.
+    // reached nodes dominated by h are the loop
+}

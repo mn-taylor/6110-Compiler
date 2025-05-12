@@ -322,7 +322,8 @@ fn reachable_from_defs(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
     if let Some(def0) = web.defs.get(0) {
         if reachable.contains(def0) {
             reachable.remove(def0);
-            println!("how");
+            println!("def0: {def0:?}");
+            panic!("how");
         }
     }
     reachable
@@ -564,7 +565,7 @@ fn make_args_easy_to_color(
 
 // returns a tuple: a list of the phi webs, and the interference graph, where webs are labelled by their indices in the list.
 fn interference_graph(
-    m: &mut CfgMethod,
+    m: &CfgMethod,
     arg_reg_lookup: &HashMap<u32, Reg>,
 ) -> (Vec<Web>, HashMap<u32, HashSet<u32>>, HashMap<u32, Reg>) {
     let webs = get_webs(m);
@@ -600,25 +601,6 @@ fn interference_graph(
         }
     }
 
-    // // connect the dummy webs to all webs that contain call instructions, this only works creates interference if the webs internal call instructions not if they are defined or used in call instructions
-    // let call_instructions = get_all_call_instr(m);
-    // for (i, ccw) in convex_closures_of_webs.iter().enumerate() {
-    //     let defs_set = webs
-    //         .get(i)
-    //         .unwrap()
-    //         .defs
-    //         .clone()
-    //         .into_iter()
-    //         .collect::<HashSet<_>>();
-
-    //     if !ccw.is_disjoint(&call_instructions) || !defs_set.is_disjoint(&call_instructions) {
-    //         for j in 0..num_caller_saved_regs {
-    //             graph.get_mut(&(i as u32)).unwrap().insert(j);
-    //             graph.get_mut(&j).unwrap().insert(i as u32);
-    //         }
-    //     }
-
-    // print!("interference graph {:?}", graph);
     (webs, graph, precoloring)
 }
 
@@ -788,17 +770,27 @@ fn reg_alloc(
     let mut new_method = m.clone();
     // try to color the graph
     loop {
-        let (webs, interfer_graph, precoloring) =
-            interference_graph(&mut new_method, arg_var_to_reg);
-        // println!("AAAAA interfer_graph: {interfer_graph:?}");
-        // println!("AAAAA webs: {webs:?}");
+        let (webs, interfer_graph, precoloring) = interference_graph(&new_method, arg_var_to_reg);
+        let convex_closures_of_webs: Vec<HashSet<InsnLoc>> = webs
+            .iter()
+            .map(|web| find_inter_instructions(m, web))
+            .collect();
 
-        // println!("New Method \n{}", new_method);
         match color(interfer_graph.clone(), precoloring, all_regs) {
             Ok(web_coloring) => {
                 return (new_method.clone(), web_coloring, webs);
             }
             Err(things_to_spill) => {
+                for i in all_insn_locs(&new_method) {
+                    let bad_webs = webs
+                        .iter()
+                        .enumerate()
+                        .zip(convex_closures_of_webs.iter())
+                        .filter(|((_, _), ccw)| ccw.contains(&i));
+                    for web_num in things_to_spill {
+                        let web = webs.get(web_num as usize).unwrap();
+                    }
+                }
                 let mut spillable = None;
                 for web_to_spill in things_to_spill.into_iter().rev() {
                     let web = webs.get(web_to_spill as usize).unwrap();
