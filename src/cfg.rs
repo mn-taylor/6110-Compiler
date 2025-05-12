@@ -178,9 +178,9 @@ impl<VarLabel: fmt::Display + fmt::Debug> fmt::Display for Instruction<VarLabel>
         match self {
             Instruction::LoadString { dest, string } => write!(f, "{dest} <- {string}"),
             Instruction::LoadParams { param } => {
-                param.iter().for_each(|(param, var)| {
-                    writeln!(f, "{var} <- arg #{param}");
-                });
+                for (param, var) in param {
+                    writeln!(f, "{var} <- arg #{param}")?;
+                }
                 Ok(())
             }
             Instruction::PhiExpr { dest, sources } => {

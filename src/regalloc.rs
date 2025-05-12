@@ -1,6 +1,7 @@
 use crate::cfg_build::VarLabel;
 use crate::{cfg, deadcode, parse, reg_asm, scan};
 use cfg::{Arg, BlockLabel, CfgType, ImmVar, MemVarLabel};
+use core::fmt;
 use maplit::{hashmap, hashset};
 use parse::Primitive;
 use reg_asm::Reg;
@@ -10,8 +11,6 @@ use std::collections::HashSet;
 use std::hash::Hash;
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
-use crate::spilling_heuristics::rank_webs;
-use std::cmp::max;
 
 #[derive(PartialEq, Debug, Eq, Hash, Clone, Copy)]
 pub struct InsnLoc {
@@ -25,6 +24,24 @@ pub struct Web {
     pub defs: Vec<InsnLoc>,
     pub uses: Vec<InsnLoc>,
 }
+
+#[derive(PartialEq, Debug, Eq, Hash, Clone, Copy)]
+pub enum RegGlobMemVar {
+    RegVar(Reg),
+    GlobVar(MemVarLabel),
+    MemVar(MemVarLabel),
+}
+
+impl fmt::Display for RegGlobMemVar {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            RegVar(r) => write!(f, "{}", r),
+            GlobVar(v) => write!(f, "global_{}", v),
+            MemVar(v) => write!(f, "memvar_{}", v),
+        }
+    }
+}
+use RegGlobMemVar::*;
 
 fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<InsnLoc>> {
     let mut defs: HashMap<VarLabel, HashSet<InsnLoc>> = HashMap::new();
@@ -106,8 +123,8 @@ fn get_insn_sources<T: Hash + Eq + Copy>(insn: &Instruction<T>) -> HashSet<T> {
         Instruction::LeftShift { source, .. } | Instruction::RightShift { source, .. } => {
             hashset! {*source}
         }
-        Instruction::LoadParams { param } => hashset! {},
-        Instruction::LoadString { dest, string } => hashset! {},
+        Instruction::LoadParams { .. } => hashset! {},
+        Instruction::LoadString { .. } => hashset! {},
         Instruction::Push(x) => hashset! {*x},
         Instruction::Pop(_) => hashset! {},
         Instruction::StoreParam(_, a) => get_arg_sources(a).into_iter().collect(),
@@ -162,10 +179,7 @@ pub fn get_insn_dest<T: Copy + Eq + Hash>(insn: &Instruction<T>) -> HashSet<T> {
         Instruction::LeftShift { dest, .. }
         | Instruction::RightShift { dest, .. }
         | Instruction::LoadString { dest, .. } => hashset! {*dest},
-        Instruction::LoadParams { param } => param
-            .iter()
-            .map(|(param_num, var_name)| *var_name)
-            .collect(),
+        Instruction::LoadParams { param } => param.iter().map(|(_, var_name)| *var_name).collect(),
         Instruction::Push(_) => hashset! {},
         Instruction::Pop(x) => hashset! {*x},
         Instruction::StoreParam(_, _) => hashset! {},
@@ -411,7 +425,7 @@ fn reg_of_argnum(n: u32) -> Option<Reg> {
     }
 }
 
-fn dummy_with_same_type(
+fn _dummy_with_same_type(
     fields: &mut HashMap<VarLabel, (CfgType, String)>,
     v: VarLabel,
 ) -> VarLabel {
@@ -478,7 +492,7 @@ fn make_args_easy_to_color(
             let mut instructions = vec![];
             let new_params = param
                 .iter()
-                .map(|(param_num, var_name)| {
+                .map(|(param_num, _)| {
                     (
                         *param_num,
                         *args_to_dummy_vars.get(&(*param_num as u32)).unwrap(),
@@ -617,14 +631,15 @@ fn color_not_in_set(regs_can_use: &Vec<Reg>, s: HashSet<Reg>) -> Reg {
     *all_colors.difference(&s).collect::<Vec<_>>().pop().unwrap()
 }
 
+// if a var is not in the returned map, it was not colored
 fn color(
     mut g: HashMap<u32, HashSet<u32>>,
     precoloring: HashMap<u32, Reg>,
     regs_can_use: &Vec<Reg>,
-) -> Result<HashMap<u32, Reg>, Vec<u32>> {
+) -> HashMap<u32, Reg> {
     let mut color_later = Vec::new();
 
-    loop {
+    while g.len() > 0 {
         let mut to_remove = None;
         for (v, es) in g.iter() {
             let uncolored = es
@@ -640,156 +655,28 @@ fn color(
         }
         match to_remove {
             Some(v) => color_later.push((v, remove_node(&mut g, v))),
-            None => break,
-        }
-    }
-    if g.iter().all(|(v, _)| precoloring.contains_key(v)) {
-        let mut colors = precoloring.clone();
-        while let Some((v, es)) = color_later.pop() {
-            colors.insert(
-                v,
-                color_not_in_set(
-                    regs_can_use,
-                    es.into_iter().map(|u| *colors.get(&u).unwrap()).collect(),
-                ),
-            );
-        }
-        // return an assignment of colors
-        Ok(colors)
-    } else {
-        // return the nodes that could not be colored, sorted in order of how nice it'd be to color them
-        println!("could not color this many nodes: {}", g.len());
-        let to_color: HashSet<_> = g.keys().map(|x| *x).collect();
-
-        let mut vec_to_color = to_color.into_iter().collect::<Vec<_>>();
-        vec_to_color.sort_by_key(|x| g.get(x).unwrap().len() as u32);
-        Err(vec_to_color)
-    }
-}
-
-fn spill_webs(m: cfg::CfgMethod<VarLabel>, webs: Vec<Web>) -> cfg::CfgMethod<VarLabel> {
-    let mut new_method = m.clone();
-    let mut def_lookup: HashMap<InsnLoc, Vec<VarLabel>> = hashmap! {}; // LoadParams means that multiple webs can share the same instruction location
-    let mut use_lookup: HashMap<InsnLoc, VarLabel> = hashmap! {};
-
-    for Web { var, defs, uses } in webs {
-        for def in defs {
-            if !def_lookup.contains_key(&def) {
-                def_lookup.insert(def, vec![]);
-            }
-            def_lookup.get_mut(&def).unwrap().push(var);
-        }
-        for var_use in uses {
-            use_lookup.insert(var_use, var);
-        }
-    }
-
-    for (bid, block) in m.blocks.iter() {
-        let mut new_instructions = vec![];
-        let mut new_block = block.clone();
-        for (iid, instruction) in block.body.iter().enumerate() {
-            let instr_loc = InsnLoc {
-                blk: *bid,
-                idx: iid,
-            };
-
-            match use_lookup.get(&instr_loc) {
-                Some(var) => {
-                    new_instructions.push(Instruction::Reload {
-                        ord_var: *var,
-                        mem_var: *var,
-                    });
-                }
-                None => (),
-            };
-
-            new_instructions.push(instruction.clone());
-
-            match def_lookup.get(&instr_loc) {
-                Some(vars) => {
-                    vars.iter().for_each(|var| {
-                        new_instructions.push(Instruction::Spill {
-                            ord_var: *var,
-                            mem_var: *var,
-                        });
-                    });
-                }
-                None => (),
-            };
-
-            if iid == block.body.len() - 1 {
-                let potential_jump_insn_loc = InsnLoc {
-                    blk: *bid,
-                    idx: iid + 1,
-                };
-
-                match use_lookup.get(&potential_jump_insn_loc) {
-                    Some(var) => {
-                        new_instructions.push(Instruction::Reload {
-                            ord_var: *var,
-                            mem_var: *var,
-                        });
-                    }
-                    None => (),
-                }
+            None => {
+                // choose a guy to not color
+                let mut uncolored: Vec<_> = g.keys().map(|x| *x).collect();
+                uncolored.sort_by_key(|x| g.get(x).unwrap().len() as u32);
+                remove_node(&mut g, uncolored.pop().unwrap());
             }
         }
-        new_block.body = new_instructions;
-        new_method.blocks.insert(*bid, new_block);
     }
-
-    return new_method;
-}
-
-fn spill_web(m: cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLabel> {
-    let mut new_method = m.clone();
-    let Web { var, defs, uses } = web;
-
-    for (bid, block) in m.blocks.iter() {
-        let mut new_instructions = vec![];
-        let mut new_block = block.clone();
-        for (iid, instruction) in block.body.iter().enumerate() {
-            let instr_loc = InsnLoc {
-                blk: *bid,
-                idx: iid,
-            };
-
-            if defs.contains(&instr_loc) {
-                // define variable then spill
-                new_instructions.push(instruction.clone());
-                new_instructions.push(Instruction::Spill {
-                    ord_var: var,
-                    mem_var: var,
-                });
-            } else if uses.contains(&instr_loc) {
-                new_instructions.push(Instruction::Reload {
-                    ord_var: var,
-                    mem_var: var,
-                });
-                new_instructions.push(instruction.clone());
-            } else {
-                new_instructions.push(instruction.clone());
-            }
-
-            if iid == block.body.len() - 1 {
-                let potential_jump_insn_loc = InsnLoc {
-                    blk: *bid,
-                    idx: iid + 1,
-                };
-
-                if uses.contains(&potential_jump_insn_loc) {
-                    new_instructions.push(Instruction::Reload {
-                        ord_var: var,
-                        mem_var: var,
-                    });
-                }
-            }
-        }
-        new_block.body = new_instructions;
-        new_method.blocks.insert(*bid, new_block);
+    let mut colors = precoloring.clone();
+    while let Some((v, es)) = color_later.pop() {
+        colors.insert(
+            v,
+            color_not_in_set(
+                regs_can_use,
+                es.into_iter()
+                    .filter_map(|u| colors.get(&u).map(|x| *x))
+                    .collect(),
+            ),
+        );
     }
-
-    return new_method;
+    // return an assignment of colors
+    colors
 }
 
 fn make_argument_variables(m: &mut CfgMethod) -> HashMap<u32, u32> {
@@ -817,161 +704,14 @@ fn make_argument_variables(m: &mut CfgMethod) -> HashMap<u32, u32> {
     arg_variables
 }
 
-fn is_trivial(w: &Web) -> bool {
-    if w.uses.len() == 1 && w.defs.len() == 1 {
-        let the_use = w.uses.clone().pop().unwrap();
-        let the_def = w.defs.clone().pop().unwrap();
-        the_use.blk == the_def.blk
-            && (the_use.idx == the_def.idx + 1 || the_use.idx == the_def.idx + 2)
-    } else {
-        false
-    }
-}
-
-fn max_degree(interfer_graph: &HashMap<u32, HashSet<u32>>) -> u32 {
-    let mut max_degree: u32 = 0;
-    interfer_graph
-        .values()
-        .for_each(|c| max_degree = max(c.len() as u32, max_degree));
-    max_degree
-}
-
-fn distance_to_use(m: &CfgMethod, i: InsnLoc, w: &Web) -> u32 {
-    // BFS to next use
-    let mut done = hashset! {};
-    let mut next = hashset! {i};
-    let uses: HashSet<_> = w.uses.clone().into_iter().collect();
-    let mut dist = 0;
-    while next.len() > 0 {
-        if next.intersection(&uses).collect::<Vec<_>>().len() > 0 {
-            return dist;
-        }
-        done = done.union(&next).map(|x| *x).collect();
-        next = next
-            .into_iter()
-            .flat_map(|p| get_children(m, p))
-            .filter(|i| !done.contains(i))
-            .collect();
-        dist += 1;
-    }
-    panic!();
-}
-
 fn reg_alloc(
     m: &CfgMethod,
     all_regs: &Vec<Reg>,
     arg_var_to_reg: &HashMap<u32, Reg>,
-) -> (CfgMethod, HashMap<u32, Reg>, Vec<Web>) {
-    let mut new_method = m.clone();
-    // try to color the graph
-    loop {
-        let (webs, interfer_graph, precoloring) = interference_graph(&new_method, arg_var_to_reg);
-        let convex_closures_of_webs: Vec<HashSet<InsnLoc>> = webs
-            .iter()
-            .map(|web| find_inter_instructions(&new_method, web))
-            .collect();
-
-        match color(interfer_graph.clone(), precoloring, all_regs) {
-            Ok(web_coloring) => {
-                return (new_method.clone(), web_coloring, webs);
-            }
-            Err(things_to_spill) => {
-                //println!("failed to color");
-                let mut will_spill: HashSet<u32> = HashSet::new();
-                for i in all_insn_locs(&new_method) {
-                    let mut bad_webs: Vec<_> = webs
-                        .iter()
-                        .enumerate()
-                        .zip(convex_closures_of_webs.iter())
-                        .filter(|((web_num, _), ccw)| {
-                            ccw.contains(&i) && !will_spill.contains(&(*web_num as u32))
-                        })
-                        .map(|((i, web), _)| (i as u32, web))
-                        .collect();
-                    let get_key = |(_, w): &(u32, &Web)| {
-                        distance_to_use(&new_method, i, w)
-                        // let web = webs.get(web_num.0 as usize).unwrap();
-                        // convex_closures_of_webs
-                        //     .get(web_num.0 as usize)
-                        //     .unwrap()
-                        //     .len() as f64
-                        //     / (web.uses.len() + web.defs.len()) as f64
-                    };
-                    bad_webs.sort_by(|a, b| get_key(a).partial_cmp(&get_key(b)).unwrap());
-                    // let webs_to_remove: Vec<u32> = rank_webs(bad_webs, &interfer_graph)
-                    //     .iter()
-                    //     .map(|x| (*x).clone())
-                    //     .collect();
-                    let mut webs_to_remove: Vec<_> =
-                        bad_webs.into_iter().map(|(web_num, _)| web_num).collect();
-                    webs_to_remove.reverse();
-                    let n = webs_to_remove.len();
-                    for web in webs_to_remove
-                        .iter()
-                        .filter(|web_num| {
-                            let web = webs.get(**web_num as usize).unwrap();
-                            !is_trivial(&web) && !arg_var_to_reg.contains_key(&web.var)
-                        })
-                        .take((n as i32 - all_regs.len() as i32) as usize)
-                        .collect::<Vec<_>>()
-                    {
-                        println!("at location {i:?}");
-                        let webb = webs.get(*web as usize).unwrap();
-                        println!(
-                            "spilling web {webb:?} because score is {}",
-                            get_key(&(*web, &webb))
-                        );
-                        will_spill.insert(*web);
-                    }
-                }
-
-                //println!("spilling {web:?}");
-                //println!("method is {new_method}");
-                new_method = spill_webs(
-                    new_method,
-                    will_spill
-                        .into_iter()
-                        .map(|web_num| webs.get(web_num as usize).unwrap().clone())
-                        .collect(),
-                );
-
-                // let things_to_spill = rank_webs(
-                //     things_to_spill
-                //         .into_iter()
-                //         .map(|num| (num, webs.get(num as usize).unwrap()))
-                //         .collect(),
-                //     &interfer_graph,
-                // );
-
-                // let mut spillable = vec![];
-                // for web_to_spill in things_to_spill.into_iter() {
-                //     let web = webs.get(web_to_spill as usize).unwrap();
-                //     if !is_trivial(&web) && !arg_var_to_reg.contains_key(&web.var) {
-                //         println!("arg_var_to_reg: {arg_var_to_reg:?}");
-                //         println!("max degree: {}", max_degree(&interfer_graph));
-                //         println!("spilling web {web:?}");
-                //         spillable.push(web);
-                //         if spillable.len() > 0 {
-                //             break;
-                //         }
-                //     }
-                // }
-
-                // if spillable.len() == 0 {
-                //     panic!("nothing to spill");
-                // }
-
-                // new_method = spill_webs(new_method, webs);
-
-                // Some(spillable) => {
-                //     // println!("spilling {spillable:?}");
-                //     // println!("method is {new_method}");
-                //     New_method = spill_web(new_method, spillable.clone());
-                // }
-                // None => panic!("nothing to spill"),
-            }
-        }
-    }
+) -> (HashMap<u32, Reg>, Vec<Web>) {
+    let (webs, interfer_graph, precoloring) = interference_graph(&m, arg_var_to_reg);
+    let web_coloring = color(interfer_graph.clone(), precoloring, all_regs);
+    (web_coloring, webs)
 }
 
 fn imm_map<T, U>(iv: ImmVar<T>, f: impl Fn(T) -> U) -> ImmVar<U> {
@@ -1126,11 +866,14 @@ fn src_reg(
     i: InsnLoc,
     webs: &Vec<Web>,
     web_to_reg: &HashMap<u32, Reg>,
-) -> Sum<Reg, MemVarLabel> {
+) -> RegGlobMemVar {
     // println!("v, i, webs: {v:?}, {i:?}, {webs:?}");
     match get_src_web(v, i, webs) {
-        Some(j) => Sum::Inl(*web_to_reg.get(&j).unwrap()),
-        None => Sum::Inr(v),
+        Some(j) => match web_to_reg.get(&j) {
+            Some(r) => RegVar(*r),
+            None => MemVar(v),
+        },
+        None => GlobVar(v),
     }
 }
 
@@ -1139,12 +882,15 @@ fn dst_reg(
     i: InsnLoc,
     webs: &Vec<Web>,
     web_to_reg: &HashMap<u32, Reg>,
-) -> Sum<Reg, MemVarLabel> {
+) -> RegGlobMemVar {
     // println!("v, i, webs: {v:?}, {i:?}, {webs:?}");
     // println!("get_dst_web(v, i, webs): {:?}", get_dst_web(v, i, webs));
     match get_dst_web(v, i, webs) {
-        Some(j) => Sum::Inl(*web_to_reg.get(&j).unwrap()),
-        None => Sum::Inr(v),
+        Some(j) => match web_to_reg.get(&j) {
+            Some(r) => RegVar(*r),
+            None => MemVar(v),
+        },
+        None => GlobVar(v),
     }
 }
 
@@ -1152,12 +898,12 @@ fn to_regs(
     m: cfg::CfgMethod<VarLabel>,
     web_to_reg: &HashMap<u32, Reg>,
     webs: &Vec<Web>,
-) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
+) -> cfg::CfgMethod<RegGlobMemVar> {
     let new_fields = all_mem_vars(&m);
     let new_blocks = m.blocks.into_iter().map(|(lbl, blk)| {
         (
             lbl,
-            cfg::BasicBlock::<Sum<Reg, MemVarLabel>> {
+            cfg::BasicBlock::<RegGlobMemVar> {
                 jump_loc: jump_map(blk.jump_loc, |v| {
                     src_reg(
                         v,
@@ -1185,7 +931,7 @@ fn to_regs(
             },
         )
     });
-    cfg::CfgMethod::<Sum<Reg, MemVarLabel>> {
+    cfg::CfgMethod::<RegGlobMemVar> {
         name: m.name,
         num_params: m.num_params,
         blocks: new_blocks.collect(),
@@ -1227,7 +973,7 @@ fn all_mem_vars(m: &cfg::CfgMethod<VarLabel>) -> HashMap<u32, (CfgType, String)>
 fn build_need_to_save(
     webs: &Vec<Web>,
     ccws: &Vec<HashSet<InsnLoc>>,
-    m: &cfg::CfgMethod<Sum<Reg, MemVarLabel>>,
+    m: &cfg::CfgMethod<RegGlobMemVar>,
     web_to_reg: &HashMap<u32, Reg>,
 ) -> HashMap<InsnLoc, HashSet<Reg>> {
     all_insn_locs(m)
@@ -1254,13 +1000,13 @@ fn build_need_to_save(
 
 // adds pushes and pops of caller-saved regs when necessary
 fn push_and_pop(
-    m: cfg::CfgMethod<Sum<Reg, MemVarLabel>>,
+    m: cfg::CfgMethod<RegGlobMemVar>,
     caller_saved_regs: &Vec<Reg>,
     caller_saved_memvars: &HashMap<Reg, MemVarLabel>,
     webs: &Vec<Web>,
     ccws: &Vec<HashSet<InsnLoc>>,
     web_to_reg: &HashMap<u32, Reg>,
-) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
+) -> cfg::CfgMethod<RegGlobMemVar> {
     let need_to_save = build_need_to_save(webs, ccws, &m, web_to_reg);
     method_map(m, |i, loc| match need_to_save.get(&loc) {
         None => vec![i],
@@ -1269,7 +1015,7 @@ fn push_and_pop(
             let mut ret: Vec<_> = regs
                 .clone()
                 .map(|reg| Instruction::Spill {
-                    ord_var: Sum::Inl(*reg),
+                    ord_var: RegVar(*reg),
                     mem_var: *caller_saved_memvars.get(reg).unwrap(),
                 })
                 .collect();
@@ -1278,7 +1024,7 @@ fn push_and_pop(
                 &mut regs
                     .rev()
                     .map(|reg| Instruction::Reload {
-                        ord_var: Sum::Inl(*reg),
+                        ord_var: RegVar(*reg),
                         mem_var: *caller_saved_memvars.get(reg).unwrap(),
                     })
                     .collect(),
@@ -1288,7 +1034,7 @@ fn push_and_pop(
     })
 }
 
-fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
+fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let callee_saved_regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
     let caller_saved_regs: Vec<Reg> =
@@ -1320,7 +1066,7 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
     println!("method after thing: {m}");
     println!("reg_of_varname: {reg_of_varname:?}");
 
-    let (m, web_to_reg, webs) = reg_alloc(&m, &all_regs, &reg_of_varname);
+    let (web_to_reg, webs) = reg_alloc(&m, &all_regs, &reg_of_varname);
     let ccws = webs
         .iter()
         .map(|web| find_inter_instructions(&m, web))
@@ -1372,7 +1118,7 @@ fn prog_map(
     p
 }
 
-pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<Sum<Reg, MemVarLabel>> {
+pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<RegGlobMemVar> {
     let p = prog_map(p, |m| method_map(m, lower_calls_insn));
     cfg::CfgProgram {
         externals: p.externals,

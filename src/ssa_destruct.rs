@@ -124,7 +124,7 @@ fn destruct_instruction(
 
             vec![Instruction::LoadParams { param: new_params }]
         }
-        Instruction::LoadString { dest, string } => panic!(),
+        Instruction::LoadString { .. } => panic!(),
         Instruction::StoreParam(_, _) | Instruction::Pop(_) | Instruction::Push(_) => panic!(),
         Instruction::ParMov(copies) => vec![Instruction::ParMov(
             copies

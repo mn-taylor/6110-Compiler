@@ -204,7 +204,7 @@ pub fn constant_propagation(
 
     // should take imm_var::vars to imm_var::imm
     let mut const_lookup: HashMap<ImmVar<SSAVarLabel>, ImmVar<SSAVarLabel>> = HashMap::new();
-    let locals = method.fields.keys().map(|C| *C).collect::<HashSet<_>>();
+    let locals = method.fields.keys().map(|c| *c).collect::<HashSet<_>>();
 
     // variables that appear inside of phi nodes should not be replaced by constants. If we replaced them, it is unclear what the behavior of the phi node is
     let mut forbidden: HashSet<SSAVarLabel> = hashset! {};
@@ -294,7 +294,7 @@ fn prop_const_jump(
 }
 
 // Might be time consuming to all of these identies for each instruction.
-fn use_identities(i: Instruction<SSAVarLabel>) -> Instruction<SSAVarLabel> {
+fn _use_identities(i: Instruction<SSAVarLabel>) -> Instruction<SSAVarLabel> {
     /*
      * Identities to check for
      * x + 0 = x

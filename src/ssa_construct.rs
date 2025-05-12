@@ -711,31 +711,6 @@ pub fn rename_variables(
     ssa_method
 }
 
-fn get_insn_dest<T>(insn: Instruction<T>) -> Option<T> {
-    match insn {
-        Instruction::LoadString { dest, string } => Some(dest),
-        Instruction::LeftShift { dest, .. } => Some(dest),
-        Instruction::RightShift { dest, .. } => Some(dest),
-        Instruction::Pop(dest) => Some(dest),
-        Instruction::Push(_) => None,
-        Instruction::StoreParam(_, _) => None,
-        Instruction::PhiExpr { dest, .. } => Some(dest),
-        Instruction::ParMov(_) => panic!(),
-        Instruction::LoadParam { dest, .. } => Some(dest),
-        Instruction::ArrayAccess { dest, .. } => Some(dest),
-        Instruction::Call(_, _, ret_val) => ret_val,
-        Instruction::Constant { dest, .. } => Some(dest),
-        Instruction::MoveOp { dest, .. } => Some(dest),
-        Instruction::ThreeOp { dest, .. } => Some(dest),
-        Instruction::TwoOp { dest, .. } => Some(dest),
-        Instruction::ArrayStore { .. } => None,
-        Instruction::Spill { .. } => None,
-        Instruction::Reload { ord_var, .. } => Some(ord_var),
-        Instruction::Ret(_) => None,
-        _ => panic!(),
-    }
-}
-
 pub fn prune_phis(m: &mut cfg::CfgMethod<SSAVarLabel>) {
     // get all variables defined
     let mut defns: HashSet<SSAVarLabel> = HashSet::new();

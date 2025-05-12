@@ -844,7 +844,7 @@ fn store_from_reg(
     }
 }
 
-fn store_from_reg_imm(
+fn _store_from_reg_imm(
     imm: i64,
     varname: VarLabel,
     stack_lookup: &HashMap<VarLabel, (CfgType, u64)>,
