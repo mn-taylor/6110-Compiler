@@ -425,16 +425,6 @@ fn reg_of_argnum(n: u32) -> Option<Reg> {
     }
 }
 
-fn _dummy_with_same_type(
-    fields: &mut HashMap<VarLabel, (CfgType, String)>,
-    v: VarLabel,
-) -> VarLabel {
-    // 1000 avoids collision with global vars
-    let dummy = (*fields.keys().max().unwrap() as usize + 1000) as u32;
-    fields.insert(dummy, (*fields.get(&v).unwrap()).clone());
-    dummy
-}
-
 fn corresponding_memvar(fields: &mut HashMap<VarLabel, (CfgType, String)>, r: Reg) -> VarLabel {
     // 1000 avoids collision with global vars
     let ret = (*fields.keys().max().unwrap_or(&0) as usize + 1000) as u32;
@@ -600,7 +590,6 @@ fn interference_graph(
         }
     }
 
-    // this should leave the dummy webs isolated since they do not interfere with anything
     for (i, ccwi, j, ccwj) in distinct_pairs(&ccws) {
         if !ccwi.is_disjoint(ccwj) {
             graph.get_mut(&i).unwrap().insert(j);
@@ -1085,7 +1074,8 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar>
         .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
         .collect();
 
-    panic!("made it to push and pop");
+    //NOTE durp made it to this panic
+    //panic!("made it to push and pop");
     let m = push_and_pop(
         m,
         &caller_saved_regs,
