@@ -280,8 +280,6 @@ fn main() {
 
             let p = regalloc::regalloc_prog(p);
 
-            //Note: durp did not make it to this panic!
-            //panic!("aaa");
             if args.debug {
                 println!("after regalloc:");
                 println!("{}", p);
