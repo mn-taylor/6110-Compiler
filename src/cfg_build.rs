@@ -241,14 +241,27 @@ pub fn lin_method(
         *ll_name
     });
 
-    let fst: usize = st.add_block(BasicBlock {
-        body: params
+    let mut loads = vec![Instruction::LoadParams {
+        param: params
+            .clone()
             .enumerate()
+            .take(6)
+            .map(|(i, v)| (i as u16, v))
+            .collect(),
+    }];
+    loads.append(
+        &mut params
+            .enumerate()
+            .skip(6)
             .map(|(i, name)| Instruction::LoadParam {
-                param: i as u32,
+                param: i as u16,
                 dest: name,
             })
             .collect(),
+    );
+
+    let fst: usize = st.add_block(BasicBlock {
+        body: loads,
         jump_loc: Jump::Nowhere,
     });
 
