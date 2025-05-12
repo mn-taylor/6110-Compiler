@@ -150,8 +150,11 @@ pub enum Instruction<VarLabel> {
         idx: ImmVar<VarLabel>,
     },
     LoadParam {
-        param: u32,
+        param: u16,
         dest: VarLabel,
+    },
+    LoadParams {
+        param: Vec<(u16, VarLabel)>,
     },
     Ret(Option<ImmVar<VarLabel>>),
     Call(String, Vec<Arg<VarLabel>>, Option<VarLabel>),
