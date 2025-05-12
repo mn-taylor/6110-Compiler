@@ -111,6 +111,19 @@ fn destruct_instruction(
     all_fields: &mut HashMap<u32, (CfgType, String)>,
 ) -> Vec<Instruction<VarLabel>> {
     match instr {
+        Instruction::LoadParams { param } => {
+            let new_params = param
+                .into_iter()
+                .map(|(param_num, var_name)| {
+                    (
+                        param_num,
+                        convert_name(&var_name, coallesced_name, lookup, all_fields),
+                    )
+                })
+                .collect();
+
+            vec![Instruction::LoadParams { param: new_params }]
+        }
         Instruction::LoadString { dest, string } => panic!(),
         Instruction::StoreParam(_, _) | Instruction::Pop(_) | Instruction::Push(_) => panic!(),
         Instruction::ParMov(copies) => vec![Instruction::ParMov(

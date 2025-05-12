@@ -26,6 +26,14 @@ fn prop_copies(
     copy_lookup: &HashMap<SSAVarLabel, SSAVarLabel>,
 ) -> Instruction<SSAVarLabel> {
     match instr {
+        Instruction::LoadParams { param } => {
+            let new_params = param
+                .iter()
+                .map(|(param_num, var_name)| (*param_num, check_copy(*var_name, copy_lookup)))
+                .collect::<Vec<_>>();
+
+            Instruction::LoadParams { param: new_params }
+        }
         Instruction::StoreParam(dest, arg) => Instruction::StoreParam(
             dest,
             match arg {

@@ -416,6 +416,20 @@ fn rewrite_instr(
         | Instruction::Pop(_)
         | Instruction::Push(_)
         | Instruction::LoadString { .. } => panic!(),
+
+        Instruction::LoadParams { param } => {
+            let new_params = param
+                .iter()
+                .map(|(param_num, var_name)| {
+                    (
+                        *param_num,
+                        rewrite_dest(*var_name, reaching_defs, latest_defs, all_fields, block_id),
+                    )
+                })
+                .collect();
+
+            Instruction::LoadParams { param: new_params }
+        }
         Instruction::MoveOp { source, dest } => {
             // replace source by its reaching_def
             let new_source = match source {
@@ -717,6 +731,7 @@ fn get_insn_dest<T>(insn: Instruction<T>) -> Option<T> {
         Instruction::Spill { .. } => None,
         Instruction::Reload { ord_var, .. } => Some(ord_var),
         Instruction::Ret(_) => None,
+        _ => panic!(),
     }
 }
 
