@@ -589,11 +589,13 @@ fn interference_graph(
             None => (),
         }
     }
-    for i in 0..ccws.len() {
-        for j in i + 1..ccws.len() {
-            if !ccws.get(i).unwrap().is_disjoint(ccws.get(j).unwrap()) {
-                graph.get_mut(&(i as u32)).unwrap().insert(j as u32);
-                graph.get_mut(&(j as u32)).unwrap().insert(i as u32);
+    for (num, i) in ccws.iter().enumerate() {
+        for l in i {
+            for j in num + 1..ccws.len() {
+                if ccws.get(j).unwrap().contains(l) {
+                    graph.get_mut(&(num as u32)).unwrap().insert(j as u32);
+                    graph.get_mut(&(j as u32)).unwrap().insert(num as u32);
+                }
             }
         }
     }
