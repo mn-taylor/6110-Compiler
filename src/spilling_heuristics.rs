@@ -7,30 +7,33 @@ use reg_asm::Reg;
 use scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::ffi::c_float;
 use std::hash::Hash;
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
 use crate::regalloc::{find_inter_instructions, Web};
 use std::cmp::max;
 
-pub fn rank_webs(webs: Vec<Web>, interference_graph: &HashMap<u32, HashSet<u32>>) -> Vec<Web> {
+pub fn rank_webs(
+    webs: Vec<(u32, &Web)>,
+    interference_graph: &HashMap<u32, HashSet<u32>>,
+) -> Vec<u32> {
     let mut webs_and_ratios = webs
         .iter()
-        .enumerate()
         .map(|(i, web)| {
-            let mut degree = interference_graph.get(&(i as u32)).unwrap().len();
-            if degree == 0 {
-                degree = 1;
+            let mut degree: f64 = interference_graph.get(i).unwrap().len() as f64;
+            if degree == 0.0 {
+                degree = 0.00001;
             }
-            (i, web.uses.len() / degree, web)
+            (i, web.uses.len() as f64 / degree, web)
         })
         .collect::<Vec<_>>();
 
     // rank by convex closures
-    webs_and_ratios.sort_by(|a, b| (a.1).cmp(&b.1));
+    webs_and_ratios.sort_by(|a, b| (a.1).partial_cmp(&b.1).unwrap());
     // webs_and_ratios.reverse();
 
-    let sorted_webs = webs_and_ratios.iter().map(|c| c.2.clone()).collect();
+    let sorted_webs = webs_and_ratios.iter().map(|c| *c.0).collect();
 
     sorted_webs
 }

@@ -323,7 +323,7 @@ fn reachable_from_defs(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
         if reachable.contains(def0) {
             reachable.remove(def0);
             println!("def0: {def0:?}");
-            panic!("how");
+            println!("how");
         }
     }
     reachable
@@ -667,7 +667,7 @@ fn color(
     }
 }
 
-fn spill_web(m: &mut cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLabel> {
+fn spill_web(m: cfg::CfgMethod<VarLabel>, web: Web) -> cfg::CfgMethod<VarLabel> {
     let mut new_method = m.clone();
     let Web { var, defs, uses } = web;
 
@@ -773,7 +773,7 @@ fn reg_alloc(
         let (webs, interfer_graph, precoloring) = interference_graph(&new_method, arg_var_to_reg);
         let convex_closures_of_webs: Vec<HashSet<InsnLoc>> = webs
             .iter()
-            .map(|web| find_inter_instructions(m, web))
+            .map(|web| find_inter_instructions(&new_method, web))
             .collect();
 
         match color(interfer_graph.clone(), precoloring, all_regs) {
@@ -781,39 +781,69 @@ fn reg_alloc(
                 return (new_method.clone(), web_coloring, webs);
             }
             Err(things_to_spill) => {
+                println!("failed to color");
+                let mut will_spill: HashSet<u32> = HashSet::new();
                 for i in all_insn_locs(&new_method) {
                     let bad_webs = webs
                         .iter()
                         .enumerate()
                         .zip(convex_closures_of_webs.iter())
-                        .filter(|((_, _), ccw)| ccw.contains(&i));
-                    for web_num in things_to_spill {
-                        let web = webs.get(web_num as usize).unwrap();
-                    }
-                }
-                let mut spillable = None;
-                for web_to_spill in things_to_spill.into_iter().rev() {
-                    let web = webs.get(web_to_spill as usize).unwrap();
-                    if !is_trivial(&web)
-                        && !arg_var_to_reg.contains_key(&web.var)
-                        && web.var != u32::MAX
+                        .filter(|((web_num, _), ccw)| {
+                            ccw.contains(&i) && !will_spill.contains(&(*web_num as u32))
+                        })
+                        .map(|((i, web), _)| (i as u32, web))
+                        .collect();
+                    let webs_to_remove: Vec<u32> = rank_webs(bad_webs, &interfer_graph)
+                        .iter()
+                        .map(|x| (*x).clone())
+                        .collect();
+                    let n = webs_to_remove.len();
+                    for web in webs_to_remove
+                        .iter()
+                        .filter(|web_num| {
+                            let web = webs.get(**web_num as usize).unwrap();
+                            !is_trivial(&web) && !arg_var_to_reg.contains_key(&web.var)
+                        })
+                        .take(std::cmp::max(
+                            (n as i32 - all_regs.len() as i32) as usize,
+                            1 as usize,
+                        ))
+                        .collect::<Vec<_>>()
                     {
-                        println!("arg_var_to_reg: {arg_var_to_reg:?}");
-                        println!("max degree: {}", max_degree(interfer_graph));
-                        println!(/*"spilling web number {web_to_spill}, */ " which is {web:?}");
-                        spillable = Some(web);
-                        break;
+                        will_spill.insert(*web);
                     }
                 }
 
-                match spillable {
-                    Some(spillable) => {
-                        // println!("spilling {spillable:?}");
-                        // println!("method is {new_method}");
-                        new_method = spill_web(&mut new_method, spillable.clone());
-                    }
-                    None => panic!("nothing to spill"),
+                for web_num in will_spill {
+                    let web = webs.get(web_num as usize).unwrap();
+                    println!("spilling {web:?}");
+                    //println!("method is {new_method}");
+                    new_method = spill_web(new_method, web.clone());
                 }
+
+                // let mut spillable = None;
+                // for web_to_spill in things_to_spill.into_iter().rev() {
+                //     let web = webs.get(web_to_spill as usize).unwrap();
+                //     if !is_trivial(&web)
+                //         && !arg_var_to_reg.contains_key(&web.var)
+                //         && web.var != u32::MAX
+                //     {
+                //         println!("arg_var_to_reg: {arg_var_to_reg:?}");
+                //         println!("max degree: {}", max_degree(interfer_graph));
+                //         println!(/*"spilling web number {web_to_spill}, */ " which is {web:?}");
+                //         spillable = Some(web);
+                //         break;
+                //     }
+                // }
+
+                // match spillable {
+                //     Some(spillable) => {
+                //         // println!("spilling {spillable:?}");
+                //         // println!("method is {new_method}");
+                //         new_method = spill_web(&mut new_method, spillable.clone());
+                //     }
+                //     None => panic!("nothing to spill"),
+                // }
             }
         }
     }
