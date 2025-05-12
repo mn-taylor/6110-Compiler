@@ -277,17 +277,12 @@ pub fn eliminate_common_subexpressions(
     m: &mut cfg::CfgMethod<SSAVarLabel>,
 ) -> cfg::CfgMethod<SSAVarLabel> {
     let (common_sub_exprs, expr_types) = find_common_subexpressions(m);
-    println!("{:?}", common_sub_exprs);
 
     let g = &get_graph(m);
-    println!("{:?}\n\n", g);
     let dominator_sets = dominator_sets(0, g);
-    println!("{:?}", dominator_sets);
     let dominator_tree = dominator_tree(m, &dominator_sets);
     let inverted_dom_sets = invert_dom_sets(dominator_sets.clone());
     let inverted_tree = invert_dom_tree(dominator_tree);
-
-    println!("{:?}", inverted_tree);
 
     // TODO use this?
     // let mut hash_conversions: HashMap<CSEHash<SSAVarLabel>, SSAVarLabel> = hashmap! {};
@@ -374,7 +369,6 @@ pub fn eliminate_common_subexpressions(
 
                 // check the hash
                 if generate_hash(instruction.clone()) == Some(hash.clone()) {
-                    println!("found a match");
                     let dest = get_dest(instruction);
                     let dest = if dest.len() == 1 {
                         dest.into_iter().next()

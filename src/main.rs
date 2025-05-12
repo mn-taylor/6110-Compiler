@@ -279,8 +279,10 @@ fn main() {
             // }
 
             let p = regalloc::regalloc_prog(p);
-            println!("after regalloc:");
-            println!("{}", p);
+            if args.debug {
+                println!("after regalloc:");
+                println!("{}", p);
+            }
             for l in reg_asm::asm_program(&p, args.mac) {
                 writeln!(writer, "{}", l).unwrap();
             }
