@@ -578,6 +578,27 @@ fn interference_graph(
             None => (),
         }
     }
+    let ccw_blks = ccws
+        .iter()
+        .map(|insns| {
+            insns
+                .iter()
+                .map(|InsnLoc { blk, .. }| blk)
+                .collect::<HashSet<_>>()
+        })
+        .collect::<Vec<_>>();
+    for (num, i) in ccw_blks.iter().enumerate() {
+        for j in num + 1..ccw_blks.len() {
+            if !i.is_disjoint(ccw_blks.get(j).unwrap()) {
+                graph.get_mut(&(num as u32)).unwrap().insert(j as u32);
+                graph.get_mut(&(j as u32)).unwrap().insert(num as u32);
+            }
+        }
+    }
+    for (i, js) in graph.iter_mut() {
+        let i = ccws.get(*i as usize).unwrap();
+        js.retain(|j| !i.is_disjoint(ccws.get(*j as usize).unwrap()));
+    }
     // for (num, i) in ccws.iter().enumerate() {
     //     for l in i {
     //         for j in num + 1..ccws.len() {
