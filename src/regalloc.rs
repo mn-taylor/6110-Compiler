@@ -200,7 +200,7 @@ fn get_uses(m: &CfgMethod, x: VarLabel, i: InsnLoc) -> HashSet<InsnLoc> {
         if get_sources(&insn).contains(&x) {
             uses.insert(v);
         }
-        if get_dest(&insn).contains(&x) {
+        if !get_dest(&insn).contains(&x) {
             next.append(
                 &mut get_children(m, v)
                     .into_iter()
@@ -309,7 +309,7 @@ fn reachable_from_defs(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
         seen.insert(v);
         reachable.insert(v);
         let insn = get_insn(m, v);
-        if get_dest(&insn).contains(&web.var) {
+        if !get_dest(&insn).contains(&web.var) {
             next.append(
                 &mut get_children(m, v)
                     .into_iter()
@@ -336,7 +336,7 @@ fn reaches_a_use(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
         seen.insert(v);
         reaches_a_use.insert(v);
         let insn = get_insn(m, v);
-        if get_dest(&insn).contains(&web.var) {
+        if !get_dest(&insn).contains(&web.var) {
             next.append(
                 &mut g
                     .get(&v)
@@ -780,7 +780,7 @@ fn max_degree(interfer_graph: HashMap<u32, HashSet<u32>>) -> u32 {
 }
 
 fn reg_alloc(
-    m: &mut CfgMethod,
+    m: &CfgMethod,
     all_regs: &Vec<Reg>,
     arg_var_to_reg: &HashMap<u32, Reg>,
 ) -> (CfgMethod, HashMap<u32, Reg>, Vec<Web>) {
@@ -1171,23 +1171,23 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
     .collect::<HashMap<_, _>>();
 
     println!("here m is {m}");
-    let mut m = method_map(m.clone(), |i, _| {
+    let m = method_map(m.clone(), |i, _| {
         make_args_easy_to_color(i, &all_regs, &args_to_dummy_vars)
     });
 
     println!("method after thing: {m}");
     println!("reg_of_varname: {reg_of_varname:?}");
 
-    let (spilled_method, web_to_reg, webs) = reg_alloc(&mut m, &all_regs, &reg_of_varname);
+    let (m, web_to_reg, webs) = reg_alloc(&m, &all_regs, &reg_of_varname);
     let ccws = webs
         .iter()
-        .map(|web| find_inter_instructions(&spilled_method, web))
+        .map(|web| find_inter_instructions(&m, web))
         .collect();
     println!("webs: {webs:?}");
 
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
-    let mut m = to_regs(spilled_method, &web_to_reg, &webs);
+    let mut m = to_regs(m, &web_to_reg, &webs);
     let caller_saved_memvars = caller_saved_regs
         .iter()
         .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
