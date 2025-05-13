@@ -10,8 +10,23 @@ use scan::Sum;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::hash::Hash;
+use std::sync::mpsc::RecvTimeoutError;
+use std::{sync::mpsc, thread, time::Duration};
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
+
+// fn try_for_100_secs<T: std::marker::Send + 'static>(
+//     f: impl Fn() -> T + std::marker::Send + 'static,
+// ) -> Result<T, RecvTimeoutError> {
+//     let (sender, receiver) = mpsc::channel();
+//     thread::spawn(move || {
+//         match sender.send(f()) {
+//             Ok(()) => {} // everything good
+//             Err(_) => {} // we have been released, don't panic
+//         }
+//     });
+//     return receiver.recv_timeout(Duration::from_millis(100000));
+// }
 
 #[derive(PartialEq, Debug, Eq, Hash, Clone, Copy)]
 pub struct InsnLoc {
@@ -756,9 +771,9 @@ fn reg_alloc(
     arg_var_to_reg: &HashMap<u32, Reg>,
 ) -> HashMap<u32, Reg> {
     let (interfer_graph, precoloring) = interference_graph(webs, ccws, arg_var_to_reg);
-    // let web_coloring = color(interfer_graph.clone(), precoloring, all_regs);
-    // web_coloring
-    HashMap::new()
+    let web_coloring = color(interfer_graph.clone(), precoloring, all_regs);
+    web_coloring
+    //HashMap::new()
 }
 
 fn imm_map<T, U>(iv: ImmVar<T>, f: impl Fn(T) -> U) -> ImmVar<U> {
