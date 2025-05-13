@@ -26,7 +26,7 @@ fn try_for_100_secs<T: std::marker::Send + 'static>(
         }
     });
     // TODO should say 100 not 10
-    return receiver.recv_timeout(Duration::from_millis(10000));
+    return receiver.recv_timeout(Duration::from_millis(100000));
 }
 
 #[derive(PartialEq, Debug, Eq, Hash, Clone, Copy)]
