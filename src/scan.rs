@@ -6,7 +6,7 @@ use std::string::ToString;
 const FORM_FEED: char = 12u8 as char;
 
 // is this really not in the stdlib?
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
 pub enum Sum<A, B> {
     Inl(A),
     Inr(B),

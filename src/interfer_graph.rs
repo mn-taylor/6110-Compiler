@@ -1,6 +1,6 @@
 use crate::cfg::IsImmediate;
 use crate::cfg_build::VarLabel;
-use crate::regalloc::{get_dest, get_insn, get_insn_dest, get_sources, InsnLoc};
+use crate::regalloc::{get_defs, get_dest, get_insn, get_insn_dest, get_sources, InsnLoc, Web};
 use crate::{cfg, deadcode, parse, reg_asm, scan};
 use cfg::{Arg, BlockLabel, CfgType, ImmVar, MemVarLabel};
 use core::fmt;
@@ -19,19 +19,69 @@ struct GenKill<T> {
     kill: HashMap<T, HashSet<VarLabel>>,
 }
 
+fn get_uses(m: &cfg::CfgMethod<VarLabel>) -> HashMap<u32, HashSet<InsnLoc>> {
+    let mut uses: HashMap<u32, HashSet<InsnLoc>> = HashMap::new();
+
+    for (bid, block) in m.blocks.iter() {
+        for (iid, instruction) in block.body.iter().enumerate() {
+            for dest in get_sources(&Sum::Inl(instruction)) {
+                if m.fields.keys().any(|x| *x == dest) {
+                    uses.entry(dest)
+                        .or_insert_with(HashSet::new)
+                        .insert(InsnLoc {
+                            blk: *bid,
+                            idx: iid,
+                        });
+                }
+            }
+        }
+
+        for source in get_sources(&Sum::Inr(&block.jump_loc)) {
+            uses.entry(source)
+                .or_insert_with(HashSet::new)
+                .insert(InsnLoc {
+                    blk: *bid,
+                    idx: block.body.len(),
+                });
+        }
+    }
+    uses
+}
+
+pub fn get_simple_webs(m: &cfg::CfgMethod<VarLabel>) -> Vec<Web> {
+    let defs = get_defs(m);
+    let uses = get_uses(m);
+
+    println!("uses: {uses:?}");
+    println!("method: {m}");
+    let vars = defs.keys().collect::<HashSet<_>>();
+
+    vars.into_iter()
+        .map(|var| {
+            println!("var: {var}");
+
+            Web {
+                var: *var,
+                defs: defs[var].clone().into_iter().collect::<Vec<_>>(),
+                uses: uses[var].clone().into_iter().collect::<Vec<_>>(),
+            }
+        })
+        .collect::<Vec<_>>()
+}
+
 fn get_block_gen_kills(b: &cfg::BasicBlock<VarLabel>) -> (HashSet<VarLabel>, HashSet<VarLabel>) {
     let mut gen: HashSet<VarLabel> = hashset! {};
     let mut kill: HashSet<VarLabel> = hashset! {};
 
-    match b.jump_loc {
-        Jump::Cond {
-            source: ImmVar::Var(s),
-            ..
-        } => {
-            gen.insert(s);
-        }
-        _ => (),
-    }
+    // match b.jump_loc {
+    //     Jump::Cond {
+    //         source: ImmVar::Var(s),
+    //         ..
+    //     } => {
+    //         gen.insert(s);
+    //     }
+    //     _ => (),
+    // }
 
     for i in b.body.iter().rev() {
         get_sources(&Sum::Inl(i)).iter().for_each(|var| {
@@ -171,7 +221,10 @@ fn live_in_blocks(
     (live_in, live_out)
 }
 
-fn get_interference_graph(m: &cfg::CfgMethod<VarLabel>) -> HashMap<VarLabel, HashSet<VarLabel>> {
+pub fn get_interference_graph(
+    m: &cfg::CfgMethod<VarLabel>,
+    webs: &Vec<Web>,
+) -> HashMap<VarLabel, HashSet<VarLabel>> {
     // get in and outs of blocks
     let (in_blocks, out_blocks) = in_out_for_blocks(m);
 
@@ -186,6 +239,12 @@ fn get_interference_graph(m: &cfg::CfgMethod<VarLabel>) -> HashMap<VarLabel, Has
 
     // build graph by iterating over instructions
     let mut graph: HashMap<VarLabel, HashSet<VarLabel>> = HashMap::new();
+
+    println!("webs again: {webs:?}");
+    webs.iter().for_each(|Web { var, .. }| {
+        graph.insert(*var, HashSet::new());
+    });
+
     for (i_loc, variables) in live_out.iter() {
         let defns = get_dest(&get_insn(m, *i_loc));
 
@@ -199,5 +258,30 @@ fn get_interference_graph(m: &cfg::CfgMethod<VarLabel>) -> HashMap<VarLabel, Has
         }
     }
 
-    return graph;
+    return map_web_index_to_node(graph, webs);
+}
+
+pub fn map_web_index_to_node(
+    intefer_graph_over_vars: HashMap<VarLabel, HashSet<VarLabel>>,
+    webs: &Vec<Web>,
+) -> HashMap<u32, HashSet<u32>> {
+    let lookup = webs
+        .iter()
+        .enumerate()
+        .map(|(index, web)| (web.var, index))
+        .collect::<HashMap<_, _>>();
+
+    let new_graph = intefer_graph_over_vars
+        .iter()
+        .map(|(var_label, adj)| {
+            (
+                lookup[var_label] as u32,
+                adj.iter()
+                    .map(|var| lookup[var] as u32)
+                    .collect::<HashSet<_>>(),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+
+    new_graph
 }

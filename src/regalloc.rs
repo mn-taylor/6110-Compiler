@@ -1,6 +1,7 @@
 use crate::cfg_build::VarLabel;
-use crate::{cfg, deadcode, parse, reg_asm, scan};
+use crate::{cfg, deadcode, interfer_graph, parse, reg_asm, scan};
 use cfg::{Arg, BlockLabel, CfgType, ImmVar, MemVarLabel};
+use core::fmt;
 use maplit::{hashmap, hashset};
 use parse::Primitive;
 use reg_asm::Reg;
@@ -10,6 +11,7 @@ use std::collections::HashSet;
 use std::hash::Hash;
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
+use crate::interfer_graph::{get_interference_graph, get_simple_webs};
 use crate::spilling_heuristics::rank_webs;
 use std::cmp::max;
 
@@ -19,6 +21,24 @@ pub struct InsnLoc {
     pub idx: usize,
 }
 
+#[derive(PartialEq, Debug, Eq, Hash, Clone, Copy)]
+pub enum RegGlobMemVar {
+    RegVar(Reg),
+    GlobVar(MemVarLabel),
+    MemVar(MemVarLabel),
+}
+
+impl fmt::Display for RegGlobMemVar {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            RegVar(r) => write!(f, "{}", r),
+            GlobVar(v) => write!(f, "global_{}", v),
+            MemVar(v) => write!(f, "memvar_{}", v),
+        }
+    }
+}
+use RegGlobMemVar::*;
+
 #[derive(Clone, Debug)]
 pub struct Web {
     pub var: VarLabel,
@@ -26,7 +46,7 @@ pub struct Web {
     pub uses: Vec<InsnLoc>,
 }
 
-fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<InsnLoc>> {
+pub fn get_defs(m: &CfgMethod) -> HashMap<VarLabel, HashSet<InsnLoc>> {
     let mut defs: HashMap<VarLabel, HashSet<InsnLoc>> = HashMap::new();
 
     for (bid, block) in m.blocks.iter() {
@@ -322,8 +342,8 @@ fn reachable_from_defs(m: &CfgMethod, web: &Web) -> HashSet<InsnLoc> {
     if let Some(def0) = web.defs.get(0) {
         if reachable.contains(def0) {
             reachable.remove(def0);
-            println!("def0: {def0:?}");
-            println!("how");
+            // println!("def0: {def0:?}");
+            // println!("how");
         }
     }
     reachable
@@ -570,13 +590,15 @@ fn interference_graph(
 ) -> (Vec<Web>, HashMap<u32, HashSet<u32>>, HashMap<u32, Reg>) {
     let webs = get_webs(m);
 
+    //let interfer_graph = get_interference_graph(m, &webs);
+
     // Initialize graph
     let mut graph: HashMap<u32, HashSet<u32>> = HashMap::new();
     for (i, _) in webs.iter().enumerate() {
         graph.insert(i as u32, HashSet::new());
     }
 
-    // find webs defined over argument variables, and make sure they go into their correct argument
+    // // find webs defined over argument variables, and make sure they go into their correct argument
 
     let mut precoloring: HashMap<u32, Reg> = hashmap! {};
     for (i, Web { var, .. }) in webs.iter().enumerate() {
@@ -601,6 +623,8 @@ fn interference_graph(
         }
     }
 
+    // println!("webs: {webs:?}");
+    // println!("interference {interfer_graph:?}");
     (webs, graph, precoloring)
 }
 
@@ -665,6 +689,162 @@ fn color(
         vec_to_color.sort_by_key(|x| g.get(x).unwrap().len() as u32);
         Err(vec_to_color)
     }
+}
+
+fn prune_spills_and_reloads(
+    m: &cfg::CfgMethod<Sum<Reg, MemVarLabel>>,
+) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
+    // iterate through blocks and simplify spills and stores
+    let mut new_method = m.clone();
+
+    if m.name == "partition".to_string() {
+        println!("method before pruning: {new_method}");
+    }
+
+    // iterate remove all spills that are never reloaded
+    for (bid, block) in new_method.blocks.clone().into_iter() {
+        println!("{bid}");
+        let mut new_block = block.clone();
+        let mut new_instructions: Vec<Instruction<Sum<Reg, MemVarLabel>>> = vec![];
+
+        // reg to memvar lookup
+        let mut reg_to_mem_var: HashMap<Reg, MemVarLabel> = hashmap! {};
+
+        // memvar to regs lookup
+        let mut mem_var_to_reg: HashMap<MemVarLabel, Reg> = hashmap! {};
+
+        for i in block.body.into_iter() {
+            // if we come across a spill instruction, check if it is redundant
+            //  - if the register is already associated with the target memvar, then remove instruction
+            //  - if the register is not already associated with the memvar, then update reg_to_memvar, and remove the register from
+
+            // if we come across a reload instruction, check if it is redundant
+            //  - if the register already contains the target memvar, then remove instruciton
+            //  - if the memvar has a register that is already associated with it in the block, then turn into a move instruction
+            //  - else keep instruction, update reg_to_mem_var and memvar_to_reg
+
+            // if we come across a move instruction
+            //  - if the source contains a memvar, update reg_to_memvar so that the dest contains the same memvar
+            //  - otherwise, evict the dest from reg_to_memvar and memvar_to_reg
+
+            // for all other instructions
+            //  - evict the the dest from reg_to_memvar and memvar_to_reg
+            let mut keep_instruction = true;
+
+            match i.clone() {
+                Instruction::Spill { ord_var, mem_var } => {
+                    println!("found spill: {i}");
+                    match ord_var {
+                        Sum::Inl(reg) => {
+                            match reg_to_mem_var.clone().get(&reg) {
+                                Some(curr_mem_var_stored_by_reg) => {
+                                    if *curr_mem_var_stored_by_reg == mem_var {
+                                        println!("{i}");
+                                        keep_instruction = false;
+                                    } else {
+                                        // remove reverse mapping if needed
+                                        if mem_var_to_reg.get(curr_mem_var_stored_by_reg)
+                                            == Some(&reg)
+                                        {
+                                            mem_var_to_reg.remove(curr_mem_var_stored_by_reg);
+                                        }
+
+                                        // update mappings
+                                        reg_to_mem_var.insert(reg, mem_var);
+                                        mem_var_to_reg.insert(mem_var, reg);
+                                    }
+                                }
+                                None => {
+                                    // create new mappings
+                                    reg_to_mem_var.insert(reg, mem_var);
+                                    mem_var_to_reg.insert(mem_var, reg);
+                                }
+                            }
+                        }
+                        _ => (),
+                    }
+
+                    println!("Reg to Var: {reg_to_mem_var:?}");
+                    println!("Var to Reg: {mem_var_to_reg:?}");
+                }
+                Instruction::Reload { ord_var, mem_var } => {
+                    println!("found reload: {i}");
+
+                    match ord_var {
+                        Sum::Inl(curr_reg) => match reg_to_mem_var.get(&curr_reg) {
+                            Some(curr_mem_var_stored_by_reg) => {
+                                if *curr_mem_var_stored_by_reg == mem_var {
+                                    // redundant instruction
+                                    keep_instruction = false;
+                                } else {
+                                    // check if there is a register that currently contains the
+                                    if let Some(reg) = mem_var_to_reg.get(&mem_var) {
+                                        // keep_instruction = false;
+                                        new_instructions.push(Instruction::MoveOp {
+                                            source: ImmVar::Var(Sum::Inl(*reg)),
+                                            dest: ord_var,
+                                        });
+
+                                        println!("inserting new instruction");
+                                    }
+
+                                    // make current_reg point to memvar
+                                    reg_to_mem_var.insert(curr_reg, mem_var);
+                                    mem_var_to_reg.insert(mem_var, curr_reg);
+                                }
+                            }
+                            None => {
+                                // make current_reg point to memvar
+                                reg_to_mem_var.insert(curr_reg, mem_var);
+                                mem_var_to_reg.insert(mem_var, curr_reg);
+                            }
+                        },
+                        _ => (),
+                    }
+
+                    println!("Reg to Var: {reg_to_mem_var:?}");
+                    println!("Var to Reg: {mem_var_to_reg:?}");
+                }
+                Instruction::Call(..) => {
+                    // can't guarantee some of the registers after a call
+                    println!("found call");
+
+                    reg_to_mem_var.clear();
+                    mem_var_to_reg.clear();
+
+                    println!("Reg to Var: {reg_to_mem_var:?}");
+                    println!("Var to Reg: {mem_var_to_reg:?}");
+                }
+                _ => {
+                    println!("found intermediate instructions");
+                    let dests = get_insn_dest(&i);
+                    for dest in dests {
+                        // if dest is associated with some mem_var, evict it from the graphs
+                        if let Sum::Inl(dest_reg) = dest {
+                            if let Some(mem_var) = reg_to_mem_var.remove(&dest_reg) {
+                                if let Some(curr_reg) = mem_var_to_reg.get(&mem_var) {
+                                    if *curr_reg == dest_reg {
+                                        mem_var_to_reg.remove(&mem_var);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if keep_instruction {
+                new_instructions.push(i.clone());
+            }
+        }
+
+        new_block.body = new_instructions;
+        new_method.blocks.insert(bid, new_block);
+    }
+
+    if m.name == "partition".to_string() {
+        println!("method after pruning: {new_method}");
+    }
+    new_method
 }
 
 fn spill_webs(m: cfg::CfgMethod<VarLabel>, webs: Vec<Web>) -> cfg::CfgMethod<VarLabel> {
@@ -845,13 +1025,10 @@ fn reg_alloc(
     // try to color the graph
     loop {
         let (webs, interfer_graph, precoloring) = interference_graph(&new_method, arg_var_to_reg);
-        let convex_closures_of_webs: Vec<HashSet<InsnLoc>> = webs
-            .iter()
-            .map(|web| find_inter_instructions(&new_method, web))
-            .collect();
 
         match color(interfer_graph.clone(), precoloring, all_regs) {
             Ok(web_coloring) => {
+                println!("web_coloring: {web_coloring:?}");
                 return (new_method.clone(), web_coloring, webs);
             }
             Err(things_to_spill) => {
@@ -911,7 +1088,7 @@ fn reg_alloc(
                         println!("max degree: {}", max_degree(&interfer_graph));
                         println!("spilling web {web:?}");
                         spillable.push(web);
-                        if spillable.len() > 0 {
+                        if spillable.len() > 2 {
                             break;
                         }
                     }
@@ -1201,13 +1378,13 @@ fn build_need_to_save(
                         idx: i.idx + 1,
                     };
                     if ccw.contains(&i) && ccw.contains(&child) {
-                        println!("webnum: {webnum}\n, web: {web:?}\n, loc: {i:?}");
+                        // println!("webnum: {webnum}\n, web: {web:?}\n, loc: {i:?}");
                         println!(
                             "instruction: {}, reg: {}",
                             get_insn(m, i),
                             *web_to_reg.get(&(webnum as u32)).unwrap()
                         );
-                        println!("ccw: {ccw:?}");
+                        // println!("ccw: {ccw:?}");
                         regs.insert(*web_to_reg.get(&(webnum as u32)).unwrap());
                     }
                 }
@@ -1292,7 +1469,7 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
         .iter()
         .map(|web| find_inter_instructions(&m, web))
         .collect();
-    println!("webs: {webs:?}");
+    // println!("webs: {webs:?}");
 
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
@@ -1310,7 +1487,7 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
         &web_to_reg,
     );
     // println!("after renaming: {x}");
-    m
+    prune_spills_and_reloads(&m)
 }
 
 fn method_map<T>(
