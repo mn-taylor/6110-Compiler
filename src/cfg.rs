@@ -101,7 +101,7 @@ pub struct OneMove<VarLabel> {
     pub dest: VarLabel,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Instruction<VarLabel> {
     LoadString {
         dest: VarLabel,

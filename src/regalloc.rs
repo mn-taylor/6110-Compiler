@@ -1,3 +1,4 @@
+use crate::cfg::IsImmediate;
 use crate::cfg_build::VarLabel;
 use crate::{cfg, deadcode, parse, reg_asm, scan};
 use cfg::{Arg, BlockLabel, CfgType, ImmVar, MemVarLabel};
@@ -72,16 +73,16 @@ pub fn get_insn<T>(m: &cfg::CfgMethod<T>, i: InsnLoc) -> Sum<&cfg::Instruction<T
     }
 }
 
-fn get_children(m: &CfgMethod, i: InsnLoc) -> Vec<InsnLoc> {
+fn get_children<T>(m: &cfg::CfgMethod<T>, i: InsnLoc) -> Vec<InsnLoc> {
     let blk = m.blocks.get(&i.blk).unwrap();
     if blk.body.len() == i.idx {
         match blk.jump_loc {
-            Jump::Nowhere => vec![],
-            Jump::Uncond(next_blk) => vec![InsnLoc {
+            cfg::Jump::Nowhere => vec![],
+            cfg::Jump::Uncond(next_blk) => vec![InsnLoc {
                 blk: next_blk,
                 idx: 0,
             }],
-            Jump::Cond {
+            cfg::Jump::Cond {
                 true_block,
                 false_block,
                 ..
@@ -944,6 +945,227 @@ fn all_mem_vars(m: &cfg::CfgMethod<VarLabel>) -> HashMap<u32, (CfgType, String)>
         }
     }
     ret
+}
+
+fn find_reload_spill_pair_at(
+    reload_loc: &InsnLoc,
+    m: &cfg::CfgMethod<RegGlobMemVar>,
+) -> Option<(RegGlobMemVar, MemVarLabel, InsnLoc, InsnLoc)> {
+    if let Sum::Inl(Instruction::Reload { ord_var, mem_var }) = get_insn(m, *reload_loc) {
+        let mut curr = reload_loc.clone();
+        curr.idx += 1;
+        let target_reg: Reg;
+
+        if let RegGlobMemVar::RegVar(reg) = ord_var {
+            target_reg = *reg;
+        } else {
+            return None;
+        }
+
+        while curr.idx != 0 {
+            if let Sum::Inl(i) = get_insn(m, curr) {
+                if (*i
+                    == Instruction::Spill {
+                        ord_var: *ord_var,
+                        mem_var: *mem_var,
+                    })
+                {
+                    return Some((*ord_var, *mem_var, *reload_loc, curr));
+                }
+
+                if get_sources(&Sum::Inl(i)).contains(ord_var) {
+                    return None;
+                }
+            }
+
+            if let Some(child) = get_children(m, curr).get(0) {
+                curr = *child;
+            } else {
+                break;
+            }
+        }
+    }
+
+    return None;
+}
+
+// returns vector of spill and reload instructions to skip
+fn minimize_spills_and_reloads(m: &cfg::CfgMethod<RegGlobMemVar>) -> Vec<InsnLoc> {
+    // map (register, mem_var pairs) to sequence of spill and reload pairs
+
+    let mut to_remove = vec![];
+
+    all_insn_locs(m)
+        .iter()
+        .for_each(|i| match find_reload_spill_pair_at(i, m) {
+            Some((reload_var, mem_var, reload_loc, spill_loc)) => to_remove.push(spill_loc),
+            None => (),
+        });
+
+    return to_remove;
+}
+
+fn prune_spills(m: &cfg::CfgMethod<RegGlobMemVar>) -> cfg::CfgMethod<RegGlobMemVar> {
+    let to_spill = minimize_spills_and_reloads(m)
+        .into_iter()
+        .collect::<HashSet<_>>();
+
+    let mut new_method = m.clone();
+
+    for (bid, block) in m.blocks.iter() {
+        let mut new_block = block.clone();
+        let mut new_instructions = vec![];
+
+        for (iid, instr) in block.body.iter().enumerate() {
+            let insn_loc = InsnLoc {
+                blk: *bid,
+                idx: iid,
+            };
+
+            if to_spill.contains(&insn_loc) {
+                continue;
+            } else {
+                new_instructions.push(instr.clone())
+            }
+        }
+
+        new_block.body = new_instructions;
+
+        new_method.blocks.insert(*bid, new_block);
+    }
+
+    new_method
+}
+
+fn prune_spills_and_reloads(m: &cfg::CfgMethod<RegGlobMemVar>) -> cfg::CfgMethod<RegGlobMemVar> {
+    // iterate through blocks and simplify spills and stores
+    let mut new_method = m.clone();
+
+    println!("method before pruning: {new_method}");
+
+    // iterate remove all spills that are never reloaded
+    for (bid, block) in new_method.blocks.clone().into_iter() {
+        let mut new_block = block.clone();
+        let mut new_instructions: Vec<Instruction<RegGlobMemVar>> = vec![];
+
+        // reg to memvar lookup
+        let mut reg_to_mem_var: HashMap<Reg, MemVarLabel> = hashmap! {};
+
+        // memvar to regs lookup
+        let mut mem_var_to_reg: HashMap<MemVarLabel, Reg> = hashmap! {};
+
+        for i in block.body.into_iter() {
+            // if we come across a spill instruction, check if it is redundant
+            //  - if the register is already associated with the target memvar, then remove instruction
+            //  - if the register is not already associated with the memvar, then update reg_to_memvar, and remove the register from
+
+            // if we come across a reload instruction, check if it is redundant
+            //  - if the register already contains the target memvar, then remove instruciton
+            //  - if the memvar has a register that is already associated with it in the block, then turn into a move instruction
+            //  - else keep instruction, update reg_to_mem_var and memvar_to_reg
+
+            // if we come across a move instruction
+            //  - if the source contains a memvar, update reg_to_memvar so that the dest contains the same memvar
+            //  - otherwise, evict the dest from reg_to_memvar and memvar_to_reg
+
+            // for all other instructions
+            //  - evict the the dest from reg_to_memvar and memvar_to_reg
+            let mut keep_instruction = true;
+
+            match i.clone() {
+                Instruction::Spill { ord_var, mem_var } => {
+                    match ord_var {
+                        RegGlobMemVar::RegVar(reg) => {
+                            match reg_to_mem_var.clone().get(&reg) {
+                                Some(curr_mem_var_stored_by_reg)
+                                    if *curr_mem_var_stored_by_reg == mem_var =>
+                                {
+                                    keep_instruction = false;
+                                }
+                                Some(curr_mem_var_stored_by_reg) => {
+                                    // update mappings
+                                    reg_to_mem_var.insert(reg, mem_var);
+                                    mem_var_to_reg.insert(mem_var, reg);
+
+                                    // remove reverse mapping if needed
+                                    if mem_var_to_reg.get(curr_mem_var_stored_by_reg) == Some(&reg)
+                                    {
+                                        mem_var_to_reg.remove(curr_mem_var_stored_by_reg);
+                                    }
+                                }
+                                None => {
+                                    // create new mappings
+                                    reg_to_mem_var.insert(reg, mem_var);
+                                    mem_var_to_reg.insert(mem_var, reg);
+                                }
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+                Instruction::Reload { ord_var, mem_var } => {
+                    match ord_var {
+                        RegGlobMemVar::RegVar(curr_reg) => match reg_to_mem_var.get(&curr_reg) {
+                            Some(curr_mem_var_stored_by_reg) => {
+                                if *curr_mem_var_stored_by_reg == mem_var {
+                                    // redundant instruction
+                                    keep_instruction = false;
+                                } else {
+                                    // make current_reg point to memvar
+                                    reg_to_mem_var.insert(curr_reg, mem_var);
+                                    mem_var_to_reg.insert(mem_var, curr_reg);
+
+                                    // check if there is a register that currently contains the
+                                    if let Some(reg) = mem_var_to_reg.get(&mem_var) {
+                                        keep_instruction = false;
+                                        new_instructions.push(Instruction::MoveOp {
+                                            source: ImmVar::Var(RegGlobMemVar::RegVar(*reg)),
+                                            dest: ord_var,
+                                        });
+                                    }
+                                }
+                            }
+                            None => {
+                                // make current_reg point to memvar
+                                reg_to_mem_var.insert(curr_reg, mem_var);
+                                mem_var_to_reg.insert(mem_var, curr_reg);
+                            }
+                        },
+                        _ => (),
+                    }
+                }
+                Instruction::Call(..) => {
+                    // can't guarantee some of the registers after a call
+                    reg_to_mem_var.clear();
+                    mem_var_to_reg.clear();
+                }
+                _ => {
+                    let dests = get_insn_dest(&i);
+                    for dest in dests {
+                        // if dest is associated with some mem_var, evict it from the graphs
+                        if let RegGlobMemVar::RegVar(dest_reg) = dest {
+                            if let Some(mem_var) = reg_to_mem_var.remove(&dest_reg) {
+                                if let Some(curr_reg) = mem_var_to_reg.get(&mem_var) {
+                                    if *curr_reg == dest_reg {
+                                        mem_var_to_reg.remove(&mem_var);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if keep_instruction {
+                new_instructions.push(i.clone());
+            }
+        }
+
+        new_block.body = new_instructions;
+        new_method.blocks.insert(bid, new_block);
+    }
+
+    println!("Method after pruning {new_method}");
+    new_method
 }
 
 fn build_need_to_save(
