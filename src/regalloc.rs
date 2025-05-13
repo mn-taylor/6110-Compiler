@@ -650,7 +650,7 @@ fn interference_graph(
         })
         .collect();
 
-    println!("better: {better_ccws:?}");
+    // println!("better: {better_ccws:?}");
 
     for (num, i) in better_ccws.iter().enumerate() {
         for j in num + 1..better_ccws.len() {
