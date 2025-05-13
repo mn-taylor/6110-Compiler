@@ -75,16 +75,16 @@ pub fn get_insn<T>(m: &cfg::CfgMethod<T>, i: InsnLoc) -> Sum<&cfg::Instruction<T
     }
 }
 
-fn get_children(m: &CfgMethod, i: InsnLoc) -> Vec<InsnLoc> {
+fn get_children<T>(m: &cfg::CfgMethod<T>, i: InsnLoc) -> Vec<InsnLoc> {
     let blk = m.blocks.get(&i.blk).unwrap();
     if blk.body.len() == i.idx {
         match blk.jump_loc {
-            Jump::Nowhere => vec![],
-            Jump::Uncond(next_blk) => vec![InsnLoc {
+            cfg::Jump::Nowhere => vec![],
+            cfg::Jump::Uncond(next_blk) => vec![InsnLoc {
                 blk: next_blk,
                 idx: 0,
             }],
-            Jump::Cond {
+            cfg::Jump::Cond {
                 true_block,
                 false_block,
                 ..
@@ -689,6 +689,98 @@ fn color(
         vec_to_color.sort_by_key(|x| g.get(x).unwrap().len() as u32);
         Err(vec_to_color)
     }
+}
+
+fn find_reload_spill_pair_at(
+    reload_loc: &InsnLoc,
+    m: &cfg::CfgMethod<Sum<Reg, MemVarLabel>>,
+) -> Option<(Sum<Reg, MemVarLabel>, MemVarLabel, InsnLoc, InsnLoc)> {
+    if let Sum::Inl(Instruction::Reload { ord_var, mem_var }) = get_insn(m, *reload_loc) {
+        let mut curr = reload_loc.clone();
+        curr.idx += 1;
+        let target_reg: Reg;
+
+        if let Sum::Inl(reg) = ord_var {
+            target_reg = *reg;
+        } else {
+            return None;
+        }
+
+        while curr.idx != 0 {
+            if let Sum::Inl(i) = get_insn(m, curr) {
+                if (*i
+                    == Instruction::Spill {
+                        ord_var: *ord_var,
+                        mem_var: *mem_var,
+                    })
+                {
+                    return Some((*ord_var, *mem_var, *reload_loc, curr));
+                }
+
+                if get_sources(&Sum::Inl(i)).contains(ord_var) {
+                    return None;
+                }
+            }
+
+            if let Some(child) = get_children(m, curr).get(0) {
+                curr = *child;
+            } else {
+                break;
+            }
+        }
+    }
+
+    return None;
+}
+
+// returns vector of spill and reload instructions to skip
+fn minimize_spills_and_reloads(m: &cfg::CfgMethod<Sum<Reg, MemVarLabel>>) -> Vec<InsnLoc> {
+    // map (register, mem_var pairs) to sequence of spill and reload pairs
+
+    let mut to_remove = vec![];
+
+    all_insn_locs(m)
+        .iter()
+        .for_each(|i| match find_reload_spill_pair_at(i, m) {
+            Some((reload_var, mem_var, reload_loc, spill_loc)) => to_remove.push(spill_loc),
+            None => (),
+        });
+
+    return to_remove;
+}
+
+fn prune_spills_around_calls(
+    m: &cfg::CfgMethod<Sum<Reg, MemVarLabel>>,
+) -> cfg::CfgMethod<Sum<Reg, MemVarLabel>> {
+    let to_spill = minimize_spills_and_reloads(m)
+        .into_iter()
+        .collect::<HashSet<_>>();
+
+    let mut new_method = m.clone();
+
+    for (bid, block) in m.blocks.iter() {
+        let mut new_block = block.clone();
+        let mut new_instructions = vec![];
+
+        for (iid, instr) in block.body.iter().enumerate() {
+            let insn_loc = InsnLoc {
+                blk: *bid,
+                idx: iid,
+            };
+
+            if to_spill.contains(&insn_loc) {
+                continue;
+            } else {
+                new_instructions.push(instr.clone())
+            }
+        }
+
+        new_block.body = new_instructions;
+
+        new_method.blocks.insert(*bid, new_block);
+    }
+
+    new_method
 }
 
 fn prune_spills_and_reloads(
@@ -1487,7 +1579,8 @@ fn regalloc_method(m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<Sum<Reg, MemVa
         &web_to_reg,
     );
     // println!("after renaming: {x}");
-    prune_spills_and_reloads(&m)
+    // prune_spills_around_calls(&prune_spills_and_reloads(&m))
+    prune_spills_around_calls(&prune_spills_and_reloads(&m))
 }
 
 fn method_map<T>(
