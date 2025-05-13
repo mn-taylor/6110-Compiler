@@ -26,7 +26,7 @@ fn try_for_100_secs<T: std::marker::Send + 'static>(
         }
     });
     // TODO should say 100 not 10
-    return receiver.recv_timeout(Duration::from_millis(100000));
+    return receiver.recv_timeout(Duration::from_millis(50000));
 }
 
 #[derive(PartialEq, Debug, Eq, Hash, Clone, Copy)]
@@ -1375,17 +1375,17 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMem
     let m_clone = m.clone();
     let webs_clone = webs.clone();
     let rov_clone = reg_of_varname.clone();
-    let (webs, ccws, web_to_reg, failed) = match try_for_100_secs(move || {
-        let ccws: Vec<HashSet<_>> = webs_clone
+    let (webs, ccws, web_to_reg, failed) = //match try_for_100_secs(move || {
+       { let ccws: Vec<HashSet<_>> = webs_clone
             .iter()
             .map(|web| find_inter_instructions(&m_clone, web))
             .collect();
         let web_to_reg = reg_alloc(&webs_clone, &ccws, &all_regs, &rov_clone);
-        (webs_clone.clone(), ccws, web_to_reg, false)
-    }) {
-        Ok(ret) => ret,
-        Err(_) => (vec![], vec![], HashMap::new(), true),
-    };
+    (webs_clone.clone(), ccws, web_to_reg, false)};
+    // }) {
+    //     Ok(ret) => ret,
+    //     Err(_) => (vec![], vec![], HashMap::new(), true),
+    // };
 
     // // println!("webs: {webs:?}");
 
