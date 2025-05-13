@@ -578,23 +578,55 @@ fn interference_graph(
             None => (),
         }
     }
-    let ccw_blks = ccws
+
+    let better_ccws: Vec<HashMap<BlockLabel, Vec<(usize, usize)>>> = ccws
         .iter()
-        .map(|insns| {
-            insns
-                .iter()
-                .map(|InsnLoc { blk, .. }| blk)
-                .collect::<HashSet<_>>()
-        })
-        .collect::<Vec<_>>();
-    for (num, i) in ccw_blks.iter().enumerate() {
-        for j in num + 1..ccw_blks.len() {
-            if !i.is_disjoint(ccw_blks.get(j).unwrap()) {
-                graph.get_mut(&(num as u32)).unwrap().insert(j as u32);
-                graph.get_mut(&(j as u32)).unwrap().insert(num as u32);
+        .map(|ccw| {
+            let mut thing: HashMap<BlockLabel, _> = HashMap::new();
+            for InsnLoc { blk, idx } in ccw {
+                match thing.get(blk) {
+                    None => {
+                        thing.insert(*blk, vec![(*idx, *idx)]);
+                    }
+                    Some(ranges) => {
+                        let mut new_ranges = vec![];
+                        let mut done = false;
+                        for (lo, hi) in ranges {
+                            if *idx == *lo - 1 {
+                                new_ranges.push((*idx, *hi));
+                                done = true;
+                            } else if *idx == *hi + 1 {
+                                new_ranges.push((*lo, *idx));
+                                done = true;
+                            }
+                        }
+                        if !done {
+                            new_ranges.push((*idx, *idx));
+                        }
+                        thing.insert(*blk, new_ranges);
+                    }
+                }
             }
-        }
-    }
+            thing
+        })
+        .collect();
+    // let ccws_better = ccws
+    //     .iter()
+    //     .map(|insns| {
+    //         insns
+    //             .iter()
+    //             .map(|InsnLoc { blk, idx }| (blk, idx))
+    //             .collect::<HashMap<_, HashSet<_>>>()
+    //     })
+    //     .collect::<Vec<_>>();
+    // for (num, i) in ccw_blks.iter().enumerate() {
+    //     for j in num + 1..ccw_blks.len() {
+    //         if !i.is_disjoint(ccw_blks.get(j).unwrap()) {
+    //             graph.get_mut(&(num as u32)).unwrap().insert(j as u32);
+    //             graph.get_mut(&(j as u32)).unwrap().insert(num as u32);
+    //         }
+    //     }
+    // }
     // for (i, js) in graph.iter_mut() {
     //     let i = ccws.get(*i as usize).unwrap();
     //     js.retain(|j| !i.is_disjoint(ccws.get(*j as usize).unwrap()));
