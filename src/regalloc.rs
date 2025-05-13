@@ -15,18 +15,19 @@ use std::{sync::mpsc, thread, time::Duration};
 type CfgMethod = cfg::CfgMethod<VarLabel>;
 type Jump = cfg::Jump<VarLabel>;
 
-// fn try_for_100_secs<T: std::marker::Send + 'static>(
-//     f: impl Fn() -> T + std::marker::Send + 'static,
-// ) -> Result<T, RecvTimeoutError> {
-//     let (sender, receiver) = mpsc::channel();
-//     thread::spawn(move || {
-//         match sender.send(f()) {
-//             Ok(()) => {} // everything good
-//             Err(_) => {} // we have been released, don't panic
-//         }
-//     });
-//     return receiver.recv_timeout(Duration::from_millis(100000));
-// }
+fn try_for_100_secs<T: std::marker::Send + 'static>(
+    f: impl Fn() -> T + std::marker::Send + 'static,
+) -> Result<T, RecvTimeoutError> {
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        match sender.send(f()) {
+            Ok(()) => {} // everything good
+            Err(_) => {} // we have been released, don't panic
+        }
+    });
+    // TODO should say 100 not 10
+    return receiver.recv_timeout(Duration::from_millis(10000));
+}
 
 #[derive(PartialEq, Debug, Eq, Hash, Clone, Copy)]
 pub struct InsnLoc {
@@ -686,7 +687,7 @@ fn remove_node(g: &mut HashMap<u32, HashSet<u32>>, v: u32) -> HashSet<u32> {
     result
 }
 
-fn color_not_in_set(regs_can_use: &Vec<Reg>, s: HashSet<Reg>) -> Reg {
+fn color_not_in_set(regs_can_use: &Vec<Reg>, s: &HashSet<Reg>) -> Reg {
     let all_colors: HashSet<Reg> = regs_can_use.into_iter().map(|x| *x).collect();
     *all_colors.difference(&s).collect::<Vec<_>>().pop().unwrap()
 }
@@ -699,16 +700,23 @@ fn color(
 ) -> HashMap<u32, Reg> {
     let mut color_later = Vec::new();
 
+    // given a non-colored node: which colors is it touching
+    let mut colors_touching: HashMap<u32, HashSet<Reg>> = g
+        .keys()
+        .filter(|v| precoloring.get(v) == None)
+        .map(|v| (*v, HashSet::new()))
+        .collect();
+    for (v, reg) in precoloring.iter() {
+        let es = remove_node(&mut g, *v);
+        for e in es.iter().filter(|e| precoloring.get(e) == None) {
+            colors_touching.get_mut(&e).unwrap().insert(*reg);
+        }
+    }
+
     while g.len() > 0 {
         let mut to_remove = None;
         for (v, es) in g.iter() {
-            let uncolored = es
-                .iter()
-                .filter(|e| precoloring.get(e) == None)
-                .collect::<Vec<_>>()
-                .len();
-            let colors: HashSet<_> = es.iter().filter_map(|e| precoloring.get(e)).collect();
-            if (uncolored + colors.len() < regs_can_use.len()) && precoloring.get(v) == None {
+            if es.len() + colors_touching.get(&v).unwrap().len() < regs_can_use.len() {
                 to_remove = Some(*v);
                 break;
             };
@@ -718,7 +726,9 @@ fn color(
             None => {
                 // choose a guy to not color
                 let mut uncolored: Vec<_> = g.keys().map(|x| *x).collect();
-                uncolored.sort_by_key(|x| g.get(x).unwrap().len() as u32);
+                uncolored.sort_by_key(|x| {
+                    g.get(x).unwrap().len() + colors_touching.get(&x).unwrap().len()
+                });
                 remove_node(&mut g, uncolored.pop().unwrap());
             }
         }
@@ -729,8 +739,10 @@ fn color(
             v,
             color_not_in_set(
                 regs_can_use,
-                es.into_iter()
-                    .filter_map(|u| colors.get(&u).map(|x| *x))
+                &es.into_iter()
+                    .filter_map(|u| colors.get(&u))
+                    .chain(colors_touching.get(&v).unwrap().iter())
+                    .map(|x| *x)
                     .collect(),
             ),
         );
@@ -1364,29 +1376,29 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMem
 
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
-    // let mut m = to_regs(m, &web_to_reg, &webs);
-    // let caller_saved_memvars: HashMap<_, _> = caller_saved_regs
-    //     .iter()
-    //     .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
-    //     .collect();
+    let mut m = to_regs(m, &web_to_reg, &webs);
+    let caller_saved_memvars: HashMap<_, _> = caller_saved_regs
+        .iter()
+        .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
+        .collect();
 
-    // let m = push_and_pop(
-    //     m,
-    //     &caller_saved_regs,
-    //     &caller_saved_memvars,
-    //     &webs,
-    //     &ccws,
-    //     &web_to_reg,
-    // );
+    let m = push_and_pop(
+        m,
+        &caller_saved_regs,
+        &caller_saved_memvars,
+        &webs,
+        &ccws,
+        &web_to_reg,
+    );
     // println!("after renaming: {x}");
-    //    m
-    cfg::CfgMethod {
-        name: "eh".to_string(),
-        num_params: 0,
-        blocks: HashMap::new(),
-        fields: HashMap::new(),
-        return_type: None,
-    }
+    m
+    // cfg::CfgMethod {
+    //     name: "eh".to_string(),
+    //     num_params: 0,
+    //     blocks: HashMap::new(),
+    //     fields: HashMap::new(),
+    //     return_type: None,
+    // }
 }
 
 fn method_map<T>(
@@ -1416,6 +1428,7 @@ fn prog_map(
 }
 
 pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<RegGlobMemVar> {
+    // try_for_100_secs(|| loop {}).unwrap();
     let p = prog_map(p, |m| method_map(m, lower_calls_insn));
     cfg::CfgProgram {
         externals: p.externals,
