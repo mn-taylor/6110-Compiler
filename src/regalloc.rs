@@ -555,6 +555,34 @@ fn make_args_easy_to_color(
     }
 }
 
+fn ranges_disjoint(fst: &(usize, usize), snd: &(usize, usize)) -> bool {
+    let (fst_lo, fst_hi) = fst;
+    let (snd_lo, snd_hi) = snd;
+    !(fst_lo <= snd_hi && snd_lo <= fst_hi)
+}
+
+fn ranges_all_disjoint(fst: &Vec<(usize, usize)>, snd: &Vec<(usize, usize)>) -> bool {
+    fst.iter()
+        .all(|r1| snd.iter().all(|r2| ranges_disjoint(r1, r2)))
+}
+
+fn ccws_disjoint(
+    fst: &HashMap<BlockLabel, Vec<(usize, usize)>>,
+    snd: &HashMap<BlockLabel, Vec<(usize, usize)>>,
+) -> bool {
+    for (blk, fst_ranges) in fst {
+        match snd.get(&blk) {
+            None => (),
+            Some(snd_ranges) => {
+                if !ranges_all_disjoint(fst_ranges, snd_ranges) {
+                    return false;
+                }
+            }
+        }
+    }
+    true
+}
+
 // returns a tuple: a list of the phi webs, and the interference graph, where webs are labelled by their indices in the list.
 fn interference_graph(
     webs: &Vec<Web>,
@@ -610,37 +638,15 @@ fn interference_graph(
             thing
         })
         .collect();
-    // let ccws_better = ccws
-    //     .iter()
-    //     .map(|insns| {
-    //         insns
-    //             .iter()
-    //             .map(|InsnLoc { blk, idx }| (blk, idx))
-    //             .collect::<HashMap<_, HashSet<_>>>()
-    //     })
-    //     .collect::<Vec<_>>();
-    // for (num, i) in ccw_blks.iter().enumerate() {
-    //     for j in num + 1..ccw_blks.len() {
-    //         if !i.is_disjoint(ccw_blks.get(j).unwrap()) {
-    //             graph.get_mut(&(num as u32)).unwrap().insert(j as u32);
-    //             graph.get_mut(&(j as u32)).unwrap().insert(num as u32);
-    //         }
-    //     }
-    // }
-    // for (i, js) in graph.iter_mut() {
-    //     let i = ccws.get(*i as usize).unwrap();
-    //     js.retain(|j| !i.is_disjoint(ccws.get(*j as usize).unwrap()));
-    // }
-    // for (num, i) in ccws.iter().enumerate() {
-    //     for l in i {
-    //         for j in num + 1..ccws.len() {
-    //             if ccws.get(j).unwrap().contains(l) {
-    //                 graph.get_mut(&(num as u32)).unwrap().insert(j as u32);
-    //                 graph.get_mut(&(j as u32)).unwrap().insert(num as u32);
-    //             }
-    //         }
-    //     }
-    // }
+
+    for (num, i) in better_ccws.iter().enumerate() {
+        for j in num + 1..better_ccws.len() {
+            if !ccws_disjoint(i, better_ccws.get(j).unwrap()) {
+                graph.get_mut(&(num as u32)).unwrap().insert(j as u32);
+                graph.get_mut(&(j as u32)).unwrap().insert(num as u32);
+            }
+        }
+    }
 
     (graph, precoloring)
 }
