@@ -635,7 +635,7 @@ fn interference_graph(
                                     hi = Some(idx);
                                 } else {
                                     ranges.push((lo_val, hi_val));
-                                    (lo, hi) = (None, None);
+                                    (lo, hi) = (Some(idx), Some(idx));
                                 }
                             }
                             _ => panic!(),
