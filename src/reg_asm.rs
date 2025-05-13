@@ -1058,10 +1058,7 @@ fn asm_instruction(
 
             instructions
         }
-        Instruction::LoadString {
-            dest: GlobVar(_), ..
-        }
-        | Instruction::PhiExpr { .. }
+        Instruction::PhiExpr { .. }
         | Instruction::Pop(_)
         | Instruction::Push(_)
         | Instruction::ParMov(_) => panic!("{instr}"),
@@ -1113,16 +1110,13 @@ fn asm_instruction(
             global_strings.get(&string.to_string()).unwrap(),
             dest_reg
         ))],
-        Instruction::LoadString {
-            dest: MemVar(mem_var),
-            string,
-        } => vec![
+        Instruction::LoadString { dest: d, string } => vec![
             Special(format!(
                 "\tleaq global_str{}(%rip), {}",
                 global_strings.get(&string.to_string()).unwrap(),
                 Rax
             )),
-            store_from_reg(Rax, mem_var, stack_lookup),
+            store_from_reg_var(Rax, d, stack_lookup),
         ],
         Instruction::StoreParam(param_num, arg) => {
             let mut instructions = vec![];

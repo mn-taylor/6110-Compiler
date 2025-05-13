@@ -785,7 +785,7 @@ fn reg_alloc(
     let (interfer_graph, precoloring) = interference_graph(webs, ccws, arg_var_to_reg);
     let web_coloring = color(interfer_graph.clone(), precoloring, all_regs);
     web_coloring
-    //HashMap::new()
+    // HashMap::new()
 }
 
 fn imm_map<T, U>(iv: ImmVar<T>, f: impl Fn(T) -> U) -> ImmVar<U> {
@@ -969,6 +969,7 @@ fn to_regs(
     m: cfg::CfgMethod<VarLabel>,
     web_to_reg: &HashMap<u32, Reg>,
     webs: &Vec<Web>,
+    failed: bool,
 ) -> cfg::CfgMethod<RegGlobMemVar> {
     let new_fields = all_mem_vars(&m);
     let new_blocks = m.blocks.into_iter().map(|(lbl, blk)| {
@@ -1016,7 +1017,13 @@ fn to_regs(
             .fields
             .into_iter()
             .filter(|(name, (t, _))| match t {
-                CfgType::Scalar(_) => mem_vars.contains(name),
+                CfgType::Scalar(_) => {
+                    if !failed {
+                        mem_vars.contains(name)
+                    } else {
+                        true
+                    }
+                }
                 CfgType::Array(_, _) => true,
             })
             .chain(new_fields.into_iter())
@@ -1361,22 +1368,36 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMem
         make_args_easy_to_color(i, &all_regs, &args_to_dummy_vars)
     });
 
-    let webs = get_webs(&m);
-    let ccws: Vec<HashSet<_>> = webs
-        .iter()
-        .map(|web| find_inter_instructions(&m, web))
-        .collect();
-
     // println!("method after thing: {m}");
     // println!("reg_of_varname: {reg_of_varname:?}");
 
-    let web_to_reg = reg_alloc(&webs, &ccws, &all_regs, &reg_of_varname);
+    let webs = get_webs(&m);
+    let m_clone = m.clone();
+    let webs_clone = webs.clone();
+    let rov_clone = reg_of_varname.clone();
+    let (webs, ccws, web_to_reg, failed) = match try_for_100_secs(move || {
+        let ccws: Vec<HashSet<_>> = webs_clone
+            .iter()
+            .map(|web| find_inter_instructions(&m_clone, web))
+            .collect();
+        let web_to_reg = reg_alloc(&webs_clone, &ccws, &all_regs, &rov_clone);
+        (webs_clone.clone(), ccws, web_to_reg, false)
+    }) {
+        Ok(ret) => ret,
+        Err(_) => (vec![], vec![], HashMap::new(), true),
+    };
 
     // // println!("webs: {webs:?}");
 
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
-    let mut m = to_regs(m, &web_to_reg, &webs);
+    let mut m = to_regs(m, &web_to_reg, &webs, failed);
+    if failed {
+        for (var, _) in reg_of_varname.iter() {
+            m.fields
+                .insert(*var, (CfgType::Scalar(Primitive::LongType), "".to_string()));
+        }
+    }
     let caller_saved_memvars: HashMap<_, _> = caller_saved_regs
         .iter()
         .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
