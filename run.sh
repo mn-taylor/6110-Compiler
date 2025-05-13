@@ -7,6 +7,7 @@ if wait $pid 2>/dev/null; then
     echo "your_command finished"
     pkill -HUP -P $watcher
     wait $watcher
+    exit 0
 else
     echo "your_command interrupted"
     ./run_1.sh "$@" -O dumb
