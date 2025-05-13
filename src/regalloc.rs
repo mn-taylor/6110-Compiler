@@ -612,32 +612,41 @@ fn interference_graph(
         .map(|ccw| {
             let mut thing: HashMap<BlockLabel, _> = HashMap::new();
             for InsnLoc { blk, idx } in ccw {
-                match thing.get(blk) {
+                match thing.get_mut(blk) {
                     None => {
-                        thing.insert(*blk, vec![(*idx, *idx)]);
+                        thing.insert(*blk, vec![*idx]);
                     }
                     Some(ranges) => {
-                        let mut new_ranges = vec![];
-                        let mut done = false;
-                        for (lo, hi) in ranges {
-                            if *idx + 1 == *lo {
-                                new_ranges.push((*idx, *hi));
-                                done = true;
-                            } else if *idx == *hi + 1 {
-                                new_ranges.push((*lo, *idx));
-                                done = true;
-                            } else {
-                                new_ranges.push((*lo, *hi));
-                            }
-                        }
-                        if !done {
-                            new_ranges.push((*idx, *idx));
-                        }
-                        thing.insert(*blk, new_ranges);
+                        ranges.push(*idx);
                     }
                 }
             }
             thing
+                .into_iter()
+                .map(|(blk, mut idcs)| {
+                    idcs.sort();
+                    let (mut lo, mut hi) = (None, None);
+                    let mut ranges = vec![];
+                    for idx in idcs {
+                        match (lo, hi) {
+                            (None, None) => (lo, hi) = (Some(idx), Some(idx)),
+                            (Some(lo_val), Some(hi_val)) => {
+                                if hi_val + 1 == idx {
+                                    hi = Some(idx);
+                                } else {
+                                    ranges.push((lo_val, hi_val));
+                                    (lo, hi) = (None, None);
+                                }
+                            }
+                            _ => panic!(),
+                        }
+                    }
+                    if let (Some(lo_val), Some(hi_val)) = (lo, hi) {
+                        ranges.push((lo_val, hi_val));
+                    }
+                    (blk, ranges)
+                })
+                .collect()
         })
         .collect();
 
@@ -746,9 +755,9 @@ fn reg_alloc(
     arg_var_to_reg: &HashMap<u32, Reg>,
 ) -> HashMap<u32, Reg> {
     let (interfer_graph, precoloring) = interference_graph(webs, ccws, arg_var_to_reg);
-    let web_coloring = color(interfer_graph.clone(), precoloring, all_regs);
-    web_coloring
-    // HashMap::new()
+    // let web_coloring = color(interfer_graph.clone(), precoloring, all_regs);
+    // web_coloring
+    HashMap::new()
 }
 
 fn imm_map<T, U>(iv: ImmVar<T>, f: impl Fn(T) -> U) -> ImmVar<U> {
@@ -1339,29 +1348,29 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMem
 
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
-    let mut m = to_regs(m, &web_to_reg, &webs);
-    let caller_saved_memvars: HashMap<_, _> = caller_saved_regs
-        .iter()
-        .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
-        .collect();
+    // let mut m = to_regs(m, &web_to_reg, &webs);
+    // let caller_saved_memvars: HashMap<_, _> = caller_saved_regs
+    //     .iter()
+    //     .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
+    //     .collect();
 
-    let m = push_and_pop(
-        m,
-        &caller_saved_regs,
-        &caller_saved_memvars,
-        &webs,
-        &ccws,
-        &web_to_reg,
-    );
+    // let m = push_and_pop(
+    //     m,
+    //     &caller_saved_regs,
+    //     &caller_saved_memvars,
+    //     &webs,
+    //     &ccws,
+    //     &web_to_reg,
+    // );
     // println!("after renaming: {x}");
-    m
-    // cfg::CfgMethod {
-    //     name: "eh".to_string(),
-    //     num_params: 0,
-    //     blocks: HashMap::new(),
-    //     fields: HashMap::new(),
-    //     return_type: None,
-    // }
+    // m
+    cfg::CfgMethod {
+        name: "eh".to_string(),
+        num_params: 0,
+        blocks: HashMap::new(),
+        fields: HashMap::new(),
+        return_type: None,
+    }
 }
 
 fn method_map<T>(
