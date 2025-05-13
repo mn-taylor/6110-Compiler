@@ -7,6 +7,7 @@ pub mod copyprop;
 pub mod deadcode;
 pub mod gcm;
 // pub mod deepcse;
+pub mod interfer_graph;
 pub mod ir;
 pub mod ir_build;
 pub mod metrics;
