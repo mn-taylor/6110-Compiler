@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 chmod +x ./run_1.sh
-( ./run_1.sh "$@" ) & pid=$!
+( ./run_1.sh "$@" -O dumb ) & pid=$!
 ( sleep 100 && kill -HUP $pid ) 2>/dev/null & watcher=$!
 if wait $pid 2>/dev/null; then
     echo "your_command finished"
