@@ -10,4 +10,5 @@ if wait $pid 2>/dev/null; then
 else
     echo "your_command interrupted"
     ./run_1.sh "$@" -O dumb
+    exit 0
 fi
