@@ -1376,7 +1376,7 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>, dumb: bool) -> cfg::CfgMetho
     let webs_clone = webs.clone();
     let rov_clone = reg_of_varname.clone();
     let (webs, ccws, web_to_reg) = //match try_for_100_secs(move || {
-	if !dumb { loop {} let ccws: Vec<HashSet<_>> = webs_clone
+	if !dumb { let ccws: Vec<HashSet<_>> = webs_clone
             .iter()
             .map(|web| find_inter_instructions(&m_clone, web))
             .collect();
