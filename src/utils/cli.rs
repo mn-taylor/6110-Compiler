@@ -60,7 +60,9 @@ impl Args {
     pub fn get_opts(&self) -> Vec<Optimization> {
         let mut opts: HashSet<Optimization>;
         if self.opt.contains(&OptimizationOption::All) {
-            opts = all::<Optimization>().collect();
+            opts = all::<Optimization>()
+                .filter(|x| *x != Optimization::Dumb)
+                .collect();
         } else {
             opts = HashSet::new();
         }

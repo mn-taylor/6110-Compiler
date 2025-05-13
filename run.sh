@@ -9,5 +9,5 @@ if wait $pid 2>/dev/null; then
     wait $watcher
 else
     echo "your_command interrupted"
-    ./run_1.sh "$@" -dumb
+    ./run_1.sh "$@" -O dumb
 fi

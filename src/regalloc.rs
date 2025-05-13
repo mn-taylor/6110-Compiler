@@ -1375,15 +1375,15 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>, dumb: bool) -> cfg::CfgMetho
     let m_clone = m.clone();
     let webs_clone = webs.clone();
     let rov_clone = reg_of_varname.clone();
-    let (webs, ccws, web_to_reg, failed) = //match try_for_100_secs(move || {
+    let (webs, ccws, web_to_reg) = //match try_for_100_secs(move || {
        if !dumb { let ccws: Vec<HashSet<_>> = webs_clone
             .iter()
             .map(|web| find_inter_instructions(&m_clone, web))
             .collect();
         let web_to_reg = reg_alloc(&webs_clone, &ccws, &all_regs, &rov_clone);
-	 (webs_clone.clone(), ccws, web_to_reg, false)}
+	 (webs_clone.clone(), ccws, web_to_reg)}
      else {
-        (vec![], vec![], HashMap::new(), true)
+        (vec![], vec![], HashMap::new())
     };
     // }) {
     //     Ok(ret) => ret,
@@ -1394,8 +1394,8 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>, dumb: bool) -> cfg::CfgMetho
 
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
-    let mut m = to_regs(m, &web_to_reg, &webs, failed);
-    if failed {
+    let mut m = to_regs(m, &web_to_reg, &webs, dumb);
+    if dumb {
         for (var, _) in reg_of_varname.iter() {
             m.fields
                 .insert(*var, (CfgType::Scalar(Primitive::LongType), "".to_string()));
@@ -1414,6 +1414,7 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>, dumb: bool) -> cfg::CfgMetho
         &ccws,
         &web_to_reg,
     );
+    println!("DUMB is {dumb}");
     // println!("after renaming: {x}");
     m
     // cfg::CfgMethod {
