@@ -650,6 +650,8 @@ fn interference_graph(
         })
         .collect();
 
+    println!("better: {better_ccws:?}");
+
     for (num, i) in better_ccws.iter().enumerate() {
         for j in num + 1..better_ccws.len() {
             if !ccws_disjoint(i, better_ccws.get(j).unwrap()) {
@@ -755,9 +757,9 @@ fn reg_alloc(
     arg_var_to_reg: &HashMap<u32, Reg>,
 ) -> HashMap<u32, Reg> {
     let (interfer_graph, precoloring) = interference_graph(webs, ccws, arg_var_to_reg);
-    // let web_coloring = color(interfer_graph.clone(), precoloring, all_regs);
-    // web_coloring
-    HashMap::new()
+    let web_coloring = color(interfer_graph.clone(), precoloring, all_regs);
+    web_coloring
+    // HashMap::new()
 }
 
 fn imm_map<T, U>(iv: ImmVar<T>, f: impl Fn(T) -> U) -> ImmVar<U> {
@@ -1348,29 +1350,29 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMem
 
     // println!("web_to_reg: {:?}", web_to_reg);
     // println!("before renaming: {spilled_method}");
-    // let mut m = to_regs(m, &web_to_reg, &webs);
-    // let caller_saved_memvars: HashMap<_, _> = caller_saved_regs
-    //     .iter()
-    //     .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
-    //     .collect();
+    let mut m = to_regs(m, &web_to_reg, &webs);
+    let caller_saved_memvars: HashMap<_, _> = caller_saved_regs
+        .iter()
+        .map(|reg| (*reg, corresponding_memvar(&mut m.fields, *reg)))
+        .collect();
 
-    // let m = push_and_pop(
-    //     m,
-    //     &caller_saved_regs,
-    //     &caller_saved_memvars,
-    //     &webs,
-    //     &ccws,
-    //     &web_to_reg,
-    // );
+    let m = push_and_pop(
+        m,
+        &caller_saved_regs,
+        &caller_saved_memvars,
+        &webs,
+        &ccws,
+        &web_to_reg,
+    );
     // println!("after renaming: {x}");
-    // m
-    cfg::CfgMethod {
-        name: "eh".to_string(),
-        num_params: 0,
-        blocks: HashMap::new(),
-        fields: HashMap::new(),
-        return_type: None,
-    }
+    m
+    // cfg::CfgMethod {
+    //     name: "eh".to_string(),
+    //     num_params: 0,
+    //     blocks: HashMap::new(),
+    //     fields: HashMap::new(),
+    //     return_type: None,
+    // }
 }
 
 fn method_map<T>(
