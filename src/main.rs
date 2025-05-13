@@ -278,7 +278,7 @@ fn main() {
             //     println!("{}", p);
             // }
 
-            let p = regalloc::regalloc_prog(p);
+            let p = regalloc::regalloc_prog(p, args.get_opts().contains(&Optimization::Dumb));
 
             if args.debug {
                 println!("after regalloc:");

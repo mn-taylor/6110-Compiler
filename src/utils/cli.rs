@@ -27,6 +27,7 @@ pub enum Optimization {
     Dce,
     Cop,
     Cse,
+    Dumb,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -49,6 +50,7 @@ impl std::str::FromStr for OptimizationOption {
             "-cp" => Ok(OptimizationOption::No(Optimization::Cp)),
             "-cop" => Ok(OptimizationOption::No(Optimization::Cop)),
             "-cse" => Ok(OptimizationOption::No(Optimization::Cse)),
+            "dumb" => Ok(OptimizationOption::Yes(Optimization::Dumb)),
             _ => Err(format!("unknown optimization: {}", s)),
         }
     }

@@ -1342,7 +1342,7 @@ fn push_and_pop(
     })
 }
 
-fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMemVar> {
+fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>, dumb: bool) -> cfg::CfgMethod<RegGlobMemVar> {
     // callee-saved regs: RBX, RBP, RDI, RSI, RSP, R12, R13, R14, R15,
     let callee_saved_regs = vec![Reg::Rbx, Reg::R12, Reg::R13, Reg::R14, Reg::R15];
     let caller_saved_regs = vec![Reg::Rsi, Reg::Rcx, Reg::R11, Reg::Rdi, Reg::R8, Reg::R10];
@@ -1376,15 +1376,18 @@ fn regalloc_method(mut m: cfg::CfgMethod<VarLabel>) -> cfg::CfgMethod<RegGlobMem
     let webs_clone = webs.clone();
     let rov_clone = reg_of_varname.clone();
     let (webs, ccws, web_to_reg, failed) = //match try_for_100_secs(move || {
-       { let ccws: Vec<HashSet<_>> = webs_clone
+       if !dumb { let ccws: Vec<HashSet<_>> = webs_clone
             .iter()
             .map(|web| find_inter_instructions(&m_clone, web))
             .collect();
         let web_to_reg = reg_alloc(&webs_clone, &ccws, &all_regs, &rov_clone);
-    (webs_clone.clone(), ccws, web_to_reg, false)};
+	 (webs_clone.clone(), ccws, web_to_reg, false)}
+     else {
+        (vec![], vec![], HashMap::new(), true)
+    };
     // }) {
     //     Ok(ret) => ret,
-    //     Err(_) => (vec![], vec![], HashMap::new(), true),
+    //     Err(_) => ,
     // };
 
     // // println!("webs: {webs:?}");
@@ -1448,12 +1451,16 @@ fn prog_map(
     p
 }
 
-pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>) -> cfg::CfgProgram<RegGlobMemVar> {
+pub fn regalloc_prog(p: cfg::CfgProgram<VarLabel>, dumb: bool) -> cfg::CfgProgram<RegGlobMemVar> {
     // try_for_100_secs(|| loop {}).unwrap();
     let p = prog_map(p, |m| method_map(m, lower_calls_insn));
     cfg::CfgProgram {
         externals: p.externals,
         global_fields: p.global_fields,
-        methods: p.methods.into_iter().map(regalloc_method).collect(),
+        methods: p
+            .methods
+            .into_iter()
+            .map(|m| regalloc_method(m, dumb))
+            .collect(),
     }
 }
