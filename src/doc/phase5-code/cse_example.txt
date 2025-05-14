@@ -1,0 +1,23 @@
+Method: main
+Fields: [4, 5, 6, 3, 2, 1]
+block 0:
+------------------------- 
+|  |
+| t5_v1 = t1_v0 + t2_v0 |
+| t6_v1 = t2_v0 + t1_v0 |
+| call printf(t"%d %d", t5_v1, t6_v1) |
+| nowhere |
+-------------------------
+
+method after CSE: 
+Method: main
+Fields: [4, 5, 6, 3, 2, 1, 7]
+block 0:
+------------------------- 
+|  |
+| t7_v1 = t1_v0 + t2_v0 |
+| t5_v1 <- t7_v1 |
+| t6_v1 <- t7_v1 |
+| call printf(t"%d %d", t5_v1, t6_v1) |
+| nowhere |
+-------------------------
