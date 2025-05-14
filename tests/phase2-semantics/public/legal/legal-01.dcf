@@ -1,7 +1,12 @@
 import printf;
 
-void main() {
-    int a;
-    a = 10;
-    printf("Hello Decaf\n");
+void main(){
+    int a, b, c;
+
+    a = 1;
+    b = 1;
+
+    c = a + b;
+
+    printf("%d %d", c);
 }

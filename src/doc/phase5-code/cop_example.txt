@@ -1,0 +1,46 @@
+Method: main
+Fields: [4, 5, 3, 1, 6, 2]
+block 0:
+------------------------- 
+| t1_v1 <- $1 |
+| t6_v1 = t1_v1 + t2_v0 |
+| t3_v1 <- t6_v1 |
+| call printf(t"%d %d", t3_v1, t4_v0) |
+| nowhere |
+-------------------------
+
+method after constant propagation: 
+Method: main
+Fields: [4, 5, 3, 1, 6, 2]
+block 0:
+------------------------- 
+|  |
+| t6_v1 = $1 + t2_v0 |
+| t3_v1 <- t6_v1 |
+| call printf(t"%d %d", t3_v1, t4_v0) |
+| nowhere |
+-------------------------
+
+
+Example with Reduction of Binary Operations
+After SSA Construction
+Method: main
+------------------------- 
+|  |
+| t1_v1 <- $1 |
+| t2_v1 <- $1|
+| t6_v1 = t1_v1 + t2_v1 |
+| t3_v1 <- t6_v1 |
+| call printf(t"%d %d", t3_v1) |
+| nowhere |
+-------------------------
+
+method after constant propagation: 
+Method: main
+Fields: [3, 5, 6, 1, 2, 4]
+block 0:
+------------------------- 
+|  |
+| call printf(t"%d %d", $2) |
+| nowhere |
+-------------------------
